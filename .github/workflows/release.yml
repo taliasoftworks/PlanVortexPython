@@ -40,9 +40,12 @@ jobs:
       contents: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v5
+      # OJO: setup-uv dejo de publicar tags flotantes de major despues del v7, asi que `@v10`
+      # NO existe como referencia y falla con un "Unable to resolve action". Se pina la version
+      # exacta y se sube a mano.
+      - uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
 
