@@ -1,0 +1,23 @@
+name: Feature request
+description: Something the client could do and does not
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The client's methods and types are generated from the public OpenAPI specification, so an
+        endpoint that is missing here is usually missing from the specification too. Say which
+        endpoint it is and it gets fixed at the source.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The problem, not the solution. What integration are you building?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would it look like
+      description: The API you would want to write, if you have one in mind.
+      render: python

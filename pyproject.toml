@@ -1,0 +1,58 @@
+# NOTA: este pyproject es el del 0.0.1 de RELLENO. Solo tiene lo justo para construir una wheel
+# valida, reservar el nombre en PyPI y ejercitar el trusted publishing. La fase 2 del roadmap lo
+# reescribe entero: httpx2, ruff, mypy --strict, pytest, cobertura y la matriz de CI.
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "planvortex"
+version = "0.0.1"
+description = "Official Python client for the PlanVortex API"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Talia Softworks", email = "contact@planvortex.com" }]
+keywords = [
+    "planvortex",
+    "social media",
+    "scheduling",
+    "publishing",
+    "instagram",
+    "facebook",
+    "linkedin",
+    "tiktok",
+    "bluesky",
+]
+classifiers = [
+    # 1 - Planning, porque es exactamente lo que es: un hueco reservado. La 0.1.0 lo sube a 4 - Beta.
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
+]
+# Sin dependencias a proposito: el relleno no importa nada. httpx2 entra en la fase 2, cuando haya
+# un cliente que lo use, y no antes: nadie deberia arrastrar una transitiva por instalar un hueco.
+dependencies = []
+
+[project.urls]
+Homepage = "https://planvortex.com"
+Documentation = "https://planvortex.com/documentation"
+Repository = "https://github.com/taliasoftworks/PlanVortexPython"
+Changelog = "https://github.com/taliasoftworks/PlanVortexPython/blob/main/CHANGELOG.md"
+Issues = "https://github.com/taliasoftworks/PlanVortexPython/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/planvortex"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]

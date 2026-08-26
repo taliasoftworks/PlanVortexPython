@@ -1,0 +1,5 @@
+# Todo en LF dentro del repositorio. La CI corre en Linux y los pasos `run:` de los workflows son
+# sh; un CRLF colado en un script da un `\r: command not found` que no dice de donde sale.
+* text=auto eol=lf
+*.png binary
+*.jpg binary

@@ -1,0 +1,101 @@
+name: Release
+
+# El tag es lo que publica. `workflow_dispatch` esta ademas para poder relanzar el publish sin
+# mover el tag: cuando lo que falla es la fontaneria de PyPI y no el codigo, retaguear cada intento
+# ensucia el historico de una release.
+#
+# ESTE WORKFLOW NO PUEDE SER REUTILIZABLE. El trusted publishing de PyPI no funciona desde un
+# reusable workflow: el claim `workflow_ref` del token OIDC apunta al fichero que se invoca, no al
+# que lo llama, y el formulario de PyPI compara ese nombre tal cual. Si algun dia hay que factorizar
+# pasos, el job que publica se queda aqui.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    # El nombre del entorno viaja DENTRO del token OIDC y PyPI lo compara literalmente con el campo
+    # "Environment name" del publicador de confianza. Si aqui pone `pypi` y alli esta vacio (o al
+    # reves), el intercambio falla. GitHub crea el entorno solo la primera vez que corre.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/planvortex
+
+    permissions:
+      # Trusted publishing (OIDC): PyPI verifica que el paquete sale de ESTE repo, de ESTE workflow
+      # y de ESTE entorno, y emite una credencial de un solo uso. No hay PYPI_TOKEN en los secretos
+      # de GitHub, que es justo el secreto que se filtra en cuanto alguien tiene acceso de escritura.
+      #
+      # OJO, la leccion de la 0.1.0 de npm: PyPI compara CUATRO cadenas —owner, repositorio, nombre
+      # del workflow y entorno— y cuando una no casa no dice cual. Alli la causa fue una V minuscula
+      # (`PlanvortexNode` en vez de `PlanVortexNode`) y costo tres intentos. Los cuatro campos del
+      # formulario se copian y se pegan, no se escriben.
+      #
+      # `id-token: write` es ademas lo que firma las attestations (Sigstore), el equivalente de la
+      # provenance de npm. Salen solas de la accion mientras no se le pase `password`.
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Que version dice pyproject.toml?
+        id: meta
+        run: |
+          version=$(python3 -c "import tomllib,pathlib;print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Version en pyproject.toml: $version"
+
+      # Un tag que no coincide con la version publica la version equivocada sin avisar de nada.
+      # En `workflow_dispatch` no hay tag y esto no aplica.
+      - name: El tag coincide con la version?
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$tag" != "${{ steps.meta.outputs.version }}" ]; then
+            echo "::error::El tag es v$tag y pyproject.toml dice ${{ steps.meta.outputs.version }}. Sube la version, el CHANGELOG y vuelve a etiquetar."
+            exit 1
+          fi
+
+      # Un tag se puede volver a empujar (para moverlo al commit que de verdad se publico, por
+      # ejemplo) y entonces esto corre otra vez sobre una version que ya esta en PyPI. Sin este
+      # paso, el resultado es un run en rojo con un 400 "File already exists" que no significa nada
+      # malo. Con el, la release es idempotente.
+      - name: Esta version ya esta publicada?
+        id: published
+        run: |
+          url="https://pypi.org/pypi/planvortex/${{ steps.meta.outputs.version }}/json"
+          if curl -fsS -o /dev/null "$url"; then
+            echo "publicada=si" >> "$GITHUB_OUTPUT"
+            echo "planvortex ${{ steps.meta.outputs.version }} ya esta en PyPI: no se publica nada."
+          else
+            echo "publicada=no" >> "$GITHUB_OUTPUT"
+            echo "planvortex ${{ steps.meta.outputs.version }} no esta en PyPI: se publica."
+          fi
+
+      - name: Construir wheel y sdist
+        run: uv build
+
+      # `twine check` es lo unico que avisa de un README que PyPI no sabe renderizar. Es un fallo
+      # que no rompe la instalacion: deja la ficha del paquete en blanco y no se ve hasta que esta
+      # publicada, y una version de PyPI no se puede reemplazar.
+      - name: Revisar los artefactos
+        run: uvx twine check --strict dist/*
+
+      - name: Publicar en PyPI
+        if: steps.published.outputs.publicada == 'no'
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          attestations: true
+          print-hash: true
+
+      - name: Nada que publicar
+        if: steps.published.outputs.publicada == 'si'
+        run: echo "La version ${{ steps.meta.outputs.version }} ya estaba publicada. Sube la version en pyproject.toml, en src/planvortex/__init__.py y en el CHANGELOG antes de etiquetar."

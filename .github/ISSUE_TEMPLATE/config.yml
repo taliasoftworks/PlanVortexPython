@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: PlanVortex API documentation
+    url: https://planvortex.com/documentation
+    about: The endpoints, their payloads and their error codes.
+  - name: PlanVortex support
+    url: https://planvortex.com/contact
+    about: Questions about your account, your plan, or an endpoint's behaviour.
+  - name: Node client
+    url: https://github.com/taliasoftworks/PlanVortexNode
+    about: The same library in TypeScript, published and complete.
+  - name: Security
+    url: https://github.com/taliasoftworks/PlanVortexPython/blob/main/SECURITY.md
+    about: Never report a vulnerability in a public issue.
