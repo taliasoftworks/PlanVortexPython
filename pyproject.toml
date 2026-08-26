@@ -1,13 +1,14 @@
-# NOTA: este pyproject es el del 0.0.1 de RELLENO. Solo tiene lo justo para construir una wheel
-# valida, reservar el nombre en PyPI y ejercitar el trusted publishing. La fase 2 del roadmap lo
-# reescribe entero: httpx2, ruff, mypy --strict, pytest, cobertura y la matriz de CI.
-
 [build-system]
 requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
 name = "planvortex"
+# La version vive AQUI y se repite en `src/planvortex/__init__.py`, que es lo que ve quien hace
+# `planvortex.__version__`. Podria ser dinamica (`[tool.hatch.version]` leyendo el `__init__`), pero
+# entonces `project.version` desapareceria del pyproject y el paso del workflow de release que
+# compara el tag con la version —que lo lee con `tomllib`— dejaria de encontrarla. Se quedan las dos
+# y las ata `tests/test_packaging.py`, que falla si se separan.
 version = "0.0.1"
 description = "Official Python client for the PlanVortex API"
 readme = "README.md"
@@ -40,9 +41,15 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Typing :: Typed",
 ]
-# Sin dependencias a proposito: el relleno no importa nada. httpx2 entra en la fase 2, cuando haya
-# un cliente que lo use, y no antes: nadie deberia arrastrar una transitiva por instalar un hueco.
-dependencies = []
+
+# UNA sola dependencia de runtime, y el techo esta puesto a proposito. La libreria de Node no tiene
+# ninguna; aqui no se puede —la biblioteca estandar no da async, ni HTTP/2, ni pool, ni multipart—,
+# asi que la regla es la siguiente mas estricta posible: cualquier segunda dependencia hay que
+# justificarla en el roadmap antes de anadirla.
+#
+# `httpx2` NO es `httpx`. Es otro paquete, asi que un integrador que ya use `httpx` clasico convive
+# con nosotros sin conflicto de versiones. Eso es una ventaja que hay que contar, no un detalle.
+dependencies = ["httpx2>=2.12,<3"]
 
 [project.urls]
 Homepage = "https://planvortex.com"
@@ -51,8 +58,141 @@ Repository = "https://github.com/taliasoftworks/PlanVortexPython"
 Changelog = "https://github.com/taliasoftworks/PlanVortexPython/blob/main/CHANGELOG.md"
 Issues = "https://github.com/taliasoftworks/PlanVortexPython/issues"
 
+# PEP 735. Van aqui y no en `optional-dependencies` porque un grupo NO viaja en los metadatos de la
+# wheel: quien instala `planvortex` no se entera de que existen. Con un extra, si.
+[dependency-groups]
+dev = [
+    "ruff>=0.16,<0.17",
+    "mypy>=2.3,<3",
+    "pytest>=9.1,<10",
+    "pytest-asyncio>=1.4,<2",
+    "pytest-cov>=7.1,<8",
+    # El plugin de mocks. La eleccion y su porque, en CONTRIBUTING.md — resumen: el otro candidato
+    # arrastra `respx`, que depende de `httpx` CLASICO, y tener los dos httpx instalados en el
+    # entorno de test es pedir que un dia se importe el que no es.
+    "httpx2-pytest>=1.0,<2",
+]
+
+# --------------------------------------------------------------------------------- empaquetado
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/planvortex"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]
+# El sdist lleva ademas con que reconstruir y con que comprobar: los tests, los scripts y la copia
+# del OpenAPI de la que salen los tipos.
+include = [
+    "src/",
+    "tests/",
+    "scripts/",
+    "openapi/",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "pyproject.toml",
+]
+
+# `py.typed` (PEP 561) es un fichero VACIO que decide si las anotaciones de este paquete le llegan o
+# no a mypy y a pyright del integrador. Sin el, `planvortex` se ve como `Any` de arriba abajo y toda
+# la fase de tipos no ha servido para nada. Hatchling ya lo mete por estar dentro del paquete; se
+# nombra igualmente para que nadie lo excluya sin querer, y `scripts/check_packaging.py` ABRE la
+# wheel y comprueba que esta. En Python no hay `publint` ni `attw` que avisen: el guardia es ese.
+[tool.hatch.build.targets.wheel.force-include]
+"src/planvortex/py.typed" = "planvortex/py.typed"
+
+# ------------------------------------------------------------------------------------- ruff
+
+[tool.ruff]
+line-length = 110
+# El suelo del paquete, no el interprete con el que se corra: asi `UP` no propone sintaxis de 3.11+
+# que reventaria en 3.10, que es la version que trae Ubuntu 22.04.
+target-version = "py310"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle
+    "W",
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "B",      # bugbear
+    "C4",     # comprehensions
+    "PIE",
+    "PTH",    # pathlib en vez de os.path
+    "RET",
+    "SIM",
+    "TID",    # imports relativos controlados
+    "ASYNC",  # llamadas bloqueantes dentro de un `async def`
+    "RUF",
+]
+ignore = [
+    # Un docstring por modulo y por metodo publico se escribe porque viaja al editor del
+    # integrador, no porque lo exija el linter; forzarlo en cada `__init__` interno es ruido.
+    "D",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["planvortex"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+# Los relativos de un solo nivel dentro del paquete si; subir dos es senal de que algo esta mal
+# colocado.
+ban-relative-imports = "parents"
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# ------------------------------------------------------------------------------------- mypy
+
+[tool.mypy]
+# El suelo, no el interprete de turno: un `X | Y` en una anotacion evaluada en runtime pasa en 3.12
+# y revienta en 3.10, y esto es lo unico que lo detecta sin instalar cinco Pythons.
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+# Un `# type: ignore` que ya no hace falta es deuda silenciosa: deja de tapar nada y nadie lo quita.
+warn_unused_ignores = true
+enable_error_code = ["redundant-expr", "truthy-bool", "ignore-without-code"]
+files = ["src", "tests", "scripts"]
+
+# ------------------------------------------------------------------------------------ pytest
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+# `--strict-markers` y `--strict-config` convierten en error un marcador mal escrito y una clave de
+# configuracion que no existe. Sin ellos, un `@pytest.mark.asyncio` con una letra de mas no falla:
+# el test se salta en silencio y el informe sigue en verde.
+addopts = "--strict-markers --strict-config"
+# Un `DeprecationWarning` de httpx2 o de pytest-asyncio es el aviso previo a la rotura, y en un
+# paquete que soporta cinco versiones de Python es justo lo que no puede pasar desapercibido.
+filterwarnings = ["error"]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+
+# ---------------------------------------------------------------------------------- cobertura
+
+[tool.coverage.run]
+branch = true
+source = ["src/planvortex"]
+omit = [
+    # Generados: `_generated/` sale del OpenAPI (fase 4) y `*_sync.py` / `resources_sync/` salen del
+    # gemelo async (fase 3). Su correccion no la vigila la cobertura, la vigila el
+    # `git diff --exit-code` de la CI, que es una comprobacion mas fuerte.
+    "src/planvortex/_generated/*",
+    "src/planvortex/*_sync.py",
+    "src/planvortex/resources_sync/*",
+]
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@overload",
+]
+# El SUELO de cobertura llega con la fase 9, cuando haya codigo que medir. Ponerlo hoy, con un
+# paquete que solo declara su version, seria un 100 % que no dice nada y que ademas habria que
+# BAJAR en la fase 3 — un umbral que se afloja no vigila, tranquiliza.
+show_missing = true

@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Un push encima de otro en la misma rama cancela el anterior: la matriz son cinco Pythons y no
+# tiene sentido pagarlos por un commit que ya esta superado. En `main` NO se cancela.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  # La CI corre en contenedor y el cache y el destino estan en el mismo sistema de ficheros, pero el
+  # aviso de hardlink de uv ensucia todos los logs. Copiar cuesta milisegundos aqui.
+  UV_LINK_MODE: copy
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # OJO: setup-uv dejo de publicar tags flotantes de major despues del v7, asi que `@v10` NO
+      # existe como referencia y falla con un "Unable to resolve action". Se pina la version exacta
+      # y se sube a mano. Mismo pin que en release.yml: si se sube uno, se sube el otro.
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+      # `--locked` es el `npm ci` de uv: falla si `uv.lock` no corresponde a `pyproject.toml`, en
+      # vez de resolver de nuevo por su cuenta. Sin el, la CI podria estar probando un arbol de
+      # dependencias que no es el que nadie tiene instalado.
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      # El formato tambien es CI. Un diff de formato mezclado con un cambio real es un diff que
+      # nadie revisa de verdad.
+      - run: uv run ruff format --check .
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      # Corre una sola vez y no por version de Python: `python_version = "3.10"` en pyproject.toml
+      # hace que mypy analice contra el SUELO haga lo que haga el interprete que lo ejecuta.
+      - run: uv run mypy
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # El suelo (3.10, la de Ubuntu 22.04 LTS) y todo lo que hay hasta hoy. 3.10 muere en octubre
+        # de 2026 y aun asi se queda: quien esta ahi no se mueve por nosotros.
+        python: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    name: test (py${{ matrix.python }})
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+      - run: uv sync --locked
+      - run: uv run pytest --cov --cov-report=term-missing
+
+  package:
+    # EL JOB DE LA TRAMPA P4, y el unico que no se puede sustituir por otra cosa.
+    #
+    # En Node esto lo hacian `publint` y `arethetypeswrong`. En Python no hay equivalente: una wheel
+    # sin `py.typed` se construye, se instala y se importa exactamente igual de bien, y lo unico que
+    # cambia es que el integrador ve `planvortex` como `Any` de arriba abajo — es decir, que toda la
+    # fase de tipos no le llega y NADIE se entera.
+    #
+    # El script construye de verdad, pasa `twine check --strict`, abre el `.whl` para ver si el
+    # marcador esta dentro, instala en un venv limpio fuera del repositorio y lanza mypy --strict
+    # DOS veces: sobre un fragmento correcto, que tiene que pasar, y sobre uno con un error de tipo
+    # plantado, que tiene que fallar. Comprobar solo el segundo daria verde sin `py.typed`, porque
+    # sin el tambien falla — por el motivo equivocado.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run python scripts/check_packaging.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
