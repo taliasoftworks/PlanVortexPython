@@ -44,19 +44,46 @@ def test_publica_la_misma_version_que_el_paquete() -> None:
     assert planvortex.__version__ == importlib.metadata.version(DISTRIBUTION)
 
 
-def test_una_sola_dependencia_de_runtime() -> None:
-    """`httpx2` y nada mas.
+def test_una_sola_dependencia_de_runtime_sin_condiciones() -> None:
+    """`httpx2` en todas las versiones, y nada mas.
 
     Es la decision 1 del roadmap y la unica que se aparto de la libreria de Node, que no tiene
     ninguna. Una libreria de integracion que arrastra quince transitivas es una libreria que da
-    problemas de auditoria en casa del cliente, asi que la segunda dependencia hay que justificarla
-    en el roadmap ANTES de anadirla — y este test es lo que obliga a pasar por ahi.
+    problemas de auditoria en casa del cliente, asi que otra dependencia hay que justificarla en el
+    roadmap ANTES de anadirla — y este test es lo que obliga a pasar por ahi.
 
     Las dependencias de desarrollo van en un `[dependency-groups]` (PEP 735) justamente para que no
     aparezcan aqui: un grupo no viaja en los metadatos, un `extra` si.
     """
     requires = importlib.metadata.requires(DISTRIBUTION) or []
-    assert sorted(nombre_del_requisito(requisito) for requisito in requires) == ["httpx2"]
+    sin_marcador = [requisito for requisito in requires if ";" not in requisito]
+
+    assert sorted(nombre_del_requisito(requisito) for requisito in sin_marcador) == ["httpx2"]
+
+
+def test_typing_extensions_solo_donde_hace_falta() -> None:
+    """La segunda entrada, que la decision 5 del roadmap ya anunciaba, y su marcador.
+
+    Los TypedDict generados usan `NotRequired`, que no esta en `typing` hasta 3.11: sin esto, en
+    3.10 el paquete se instala y NO se importa. De 3.11 en adelante no se instala nada, porque
+    `_generated/models.py` elige la rama con `sys.version_info`.
+
+    **El marcador es la mitad que importa.** Sin el seria una dependencia de verdad en las cinco
+    versiones de la matriz, y eso es lo que la decision 1 no permite. Y declararla, en vez de
+    heredarla de `httpx2` —que hoy la arrastra en `python_version < '3.13'`—, es lo que impide que
+    el paquete deje de importarse en 3.10 el dia que `httpx2` cambie de opinion.
+    """
+    requires = importlib.metadata.requires(DISTRIBUTION) or []
+    con_marcador = {
+        nombre_del_requisito(requisito): requisito.split(";", 1)[1].strip()
+        for requisito in requires
+        if ";" in requisito
+    }
+
+    assert list(con_marcador) == ["typing-extensions"]
+    # Las comillas del marcador las normaliza el backend de construccion, asi que se comparan sin
+    # ellas: lo que importa es la condicion, no como acabo escrita en los metadatos.
+    assert con_marcador["typing-extensions"].replace("'", '"') == 'python_version < "3.11"'
 
 
 def test_el_suelo_es_python_310() -> None:

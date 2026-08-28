@@ -5,6 +5,9 @@ dist/
 build/
 *.egg-info/
 site/
+# La referencia se GENERA (`scripts/build_docs.py`) y la publica la CI en cada push a main. Si se
+# commiteara, la pagina publicada seria la de la ultima vez que alguien se acordo de regenerarla.
+docs/
 
 # Cachés de herramientas
 __pycache__/

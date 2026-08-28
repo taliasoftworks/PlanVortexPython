@@ -48,6 +48,53 @@ jobs:
       # hace que mypy analice contra el SUELO haga lo que haga el interprete que lo ejecuta.
       - run: uv run mypy
 
+  sync-twin:
+    # EL GEMELO SINCRONO NO SE HA QUEDADO ATRAS.
+    #
+    # El nucleo se escribe una vez, en async, y `scripts/generate_sync.py` produce la version
+    # sincrona (§ Trampa P3 del roadmap: envolver el async en `asyncio.run` no vale, porque revienta
+    # dentro de un bucle ya corriendo — o sea, dentro de FastAPI, de un notebook y de la mitad del
+    # publico). Lo generado se commitea para que instalar el paquete no exija generar nada.
+    #
+    # Ese montaje tiene exactamente un fallo posible: que alguien toque el async y no regenere. Es
+    # invisible desde el lado async —sus tests siguen verdes— y lo que se publica es un cliente
+    # sincrono viejo. Aqui se regenera y se exige que el diff este vacio.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run python scripts/generate_sync.py
+      - name: El gemelo commiteado es el que sale de la fuente
+        run: git diff --exit-code src/planvortex
+
+  generated-types:
+    # LOS TIPOS COMMITEADOS SON LOS DEL OPENAPI COMMITEADO.
+    #
+    # `src/planvortex/_generated/models.py` sale de `openapi/planvortex.openapi.json` con
+    # `scripts/generate_models.py`, y se commitea porque instalar `planvortex` no puede exigir
+    # generar nada. El fallo posible es el mismo que el del gemelo sincrono: alguien actualiza el
+    # spec y no regenera, y el paquete publica los tipos de una API que ya no existe. Nadie se
+    # entera hasta que un integrador se come un 400.
+    #
+    # Aqui PlanVortexHome NO esta —esta CI solo clona este repositorio—, asi que el script avisa y
+    # regenera a partir de la copia commiteada, que es exactamente lo que este job tiene que
+    # comprobar. Que la copia siga siendo la que Home publica lo vigila
+    # `tests/test_openapi_freshness.py` en la maquina de desarrollo, donde los dos repos viven
+    # juntos.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run python scripts/generate_models.py
+      - name: Los tipos commiteados son los que salen del spec
+        run: git diff --exit-code src/planvortex openapi
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -64,6 +111,11 @@ jobs:
           enable-cache: true
           python-version: ${{ matrix.python }}
       - run: uv sync --locked
+      # Capas 1 y 2 y nada mas: la capa 3 lleva el marcador `live` y `addopts` lleva `-m "not live"`,
+      # asi que aqui no hay forma de salir a la red aunque alguien pusiera credenciales en un secret.
+      #
+      # El `--cov` no es decorativo: `fail_under = 97` en pyproject.toml solo se comprueba cuando la
+      # cobertura se mide, o sea que este flag ES el suelo. Quitarlo apaga el guardia en silencio.
       - run: uv run pytest --cov --cov-report=term-missing
 
   package:

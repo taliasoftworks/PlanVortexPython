@@ -1,0 +1,59 @@
+name: Docs
+
+# La referencia de `pdoc`, publicada en GitHub Pages en cada push a main:
+# https://taliasoftworks.github.io/PlanVortexPython/
+#
+# OJO, ESTO NO ARRANCA SOLO: hay que poner Settings > Pages > Source en "GitHub Actions" una vez, a
+# mano, en la web. Mientras no este puesto, el job de deploy falla con un 404 que NO dice que le
+# falte eso — es el mismo tramite de un minuto que se olvido en la libreria de Node.
+#
+# `docs/` esta en .gitignore a proposito: la referencia se genera, no se commitea. Lo que se sube
+# como artefacto es lo que acaba de salir de `scripts/build_docs.py`, asi que no puede quedarse
+# vieja ni discrepar de la que ve quien la genera en su maquina.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Un despliegue cada vez, y sin cancelar el que este a medio subir: cancelar un deploy de Pages deja
+# la pagina a medias. Es lo contrario de lo que hace `ci.yml`, y a proposito.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  UV_LINK_MODE: copy
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # Mismo pin exacto que en ci.yml y release.yml: setup-uv dejo de publicar tags flotantes de
+      # major despues del v7, asi que `@v10` no existe como referencia. Si se sube uno, se suben los
+      # tres.
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      # `pdoc` IMPORTA el paquete para documentarlo, asi que esto tambien es una prueba de humo: un
+      # docstring que reventara al importar se ve aqui antes que en la web.
+      - run: uv run python scripts/build_docs.py
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

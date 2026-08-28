@@ -41,19 +41,57 @@ ROOT = Path(__file__).resolve().parent.parent
 DIST = ROOT / "dist"
 
 # Un `str` donde va un `str`: tiene que pasar. Si esto falla, es que mypy no ve las anotaciones.
+#
+# El `publicacion["_id"]` no esta de adorno: es la § Trampa P1 comprobada en el sitio que de verdad
+# cuenta, que es una wheel instalada y no el arbol de fuentes. Si el generador volviera a sanear el
+# nombre, este fragmento dejaria de pasar aqui — mypy rechaza una clave que el TypedDict no declara.
 FRAGMENTO_CORRECTO = """
-import planvortex
+from planvortex import AsyncPlanVortex, Page, PlanVortex, PlanVortexError
+from planvortex.types import Account, Comment, CommentReplyResult, Publication, SOCIAL_NETWORKS
 
-version: str = planvortex.__version__
-print(version)
+error = PlanVortexError(1301, "quota reached")
+codigo: int = error.code
+familia: str = error.family
+
+publicacion: Publication = {
+    "_id": "pub1",
+    "id_organization": "org1",
+    "id_account": "acc1",
+    "social_network": "instagram",
+    "publication_type": "profile",
+    "state": "ready",
+    "files": [],
+    "publication_errors": [],
+    "retries": 0,
+    "creation_date": "2026-09-01T10:00:00Z",
+}
+identificador: str = publicacion["_id"]
+print(codigo, familia, identificador, len(SOCIAL_NETWORKS))
+
+
+# Los dos clientes y la forma de una pagina, ANOTADOS y nunca ejecutados: comprobar esto exige que
+# las anotaciones de los recursos hayan llegado dentro de la wheel, que es lo unico que `py.typed`
+# decide. Llamarlo de verdad saldria a la red desde un comprobador de empaquetado.
+def usar(pv: PlanVortex, apv: AsyncPlanVortex) -> None:
+    pagina: Page[Account] = pv.accounts.list("org1", limit=50)
+    primera: Account = pagina.data[0]
+    print(primera["_id"], pagina.total, apv.base_url)
+
+    # Y un recurso de la fase 6, con una forma escrita a mano dentro: `_shapes.py` no se importa
+    # nunca desde fuera, asi que si no viajara en la wheel esto no compilaria.
+    bandeja: Page[Comment] = pv.comments.list("org1", unread=True)
+    respuesta: CommentReplyResult = pv.comments.reply("org1", "com1", "Gracias!")
+    creditos: int = respuesta["credits_consumed"]
+    print(bandeja.total, creditos)
 """
 
 # Un `str` donde va un `int`: tiene que fallar. Si esto pasa, es que mypy no esta analizando nada.
 FRAGMENTO_ROTO = """
-import planvortex
+from planvortex import PlanVortexError
 
-version: int = planvortex.__version__
-print(version)
+error = PlanVortexError(1301, "quota reached")
+codigo: str = error.code
+print(codigo)
 """
 
 

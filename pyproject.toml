@@ -9,7 +9,7 @@ name = "planvortex"
 # entonces `project.version` desapareceria del pyproject y el paso del workflow de release que
 # compara el tag con la version —que lo lee con `tomllib`— dejaria de encontrarla. Se quedan las dos
 # y las ata `tests/test_packaging.py`, que falla si se separan.
-version = "0.0.1"
+version = "0.1.0"
 description = "Official Python client for the PlanVortex API"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -28,8 +28,10 @@ keywords = [
     "bluesky",
 ]
 classifiers = [
-    # 1 - Planning, porque es exactamente lo que es: un hueco reservado. La 0.1.0 lo sube a 4 - Beta.
-    "Development Status :: 1 - Planning",
+    # 4 - Beta y no 5 - Production/Stable, por lo mismo que la version es una `0.x`: la superficie
+    # esta cerrada y fijada por tests, pero nadie de fuera la ha usado todavia. Sube a 5 con la
+    # 1.0.0, cuando el flujo de conexion este probado contra produccion.
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -42,18 +44,35 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-# UNA sola dependencia de runtime, y el techo esta puesto a proposito. La libreria de Node no tiene
-# ninguna; aqui no se puede —la biblioteca estandar no da async, ni HTTP/2, ni pool, ni multipart—,
-# asi que la regla es la siguiente mas estricta posible: cualquier segunda dependencia hay que
-# justificarla en el roadmap antes de anadirla.
+# UNA sola dependencia de runtime de verdad, y el techo esta puesto a proposito. La libreria de Node
+# no tiene ninguna; aqui no se puede —la biblioteca estandar no da async, ni HTTP/2, ni pool, ni
+# multipart—, asi que la regla es la siguiente mas estricta posible: cualquier otra dependencia hay
+# que justificarla en el roadmap antes de anadirla.
 #
 # `httpx2` NO es `httpx`. Es otro paquete, asi que un integrador que ya use `httpx` clasico convive
 # con nosotros sin conflicto de versiones. Eso es una ventaja que hay que contar, no un detalle.
-dependencies = ["httpx2>=2.12,<3"]
+#
+# La segunda entrada es la que anuncio la decision 5 del roadmap y NO es una dependencia mas: solo
+# se instala en 3.10, que es donde `NotRequired` todavia no esta en `typing` y los TypedDict
+# generados no podrian importarse sin ella. De 3.11 en adelante no se instala nada, porque el propio
+# `_generated/models.py` elige la rama con `sys.version_info`.
+#
+# Que este declarada, y no heredada, importa: `httpx2` arrastra `typing-extensions` en
+# `python_version < '3.13'`, asi que hoy en 3.10 vendria igual. Pero eso es SU decision, puede
+# cambiarla en cualquier version, y el dia que la cambie el paquete dejaria de importarse en 3.10
+# sin que nadie hubiera tocado nada aqui.
+dependencies = [
+    "httpx2>=2.12,<3",
+    "typing-extensions>=4.5; python_version < '3.11'",
+]
 
 [project.urls]
-Homepage = "https://planvortex.com"
-Documentation = "https://planvortex.com/documentation"
+Homepage = "https://planvortex.com/developers"
+# `Documentation` es la referencia generada de ESTE paquete, que es lo que busca quien llega a la
+# ficha de PyPI. La especificacion de la API entera vive aparte, en `API`: son dos cosas distintas y
+# apuntar las dos al mismo sitio dejaba una de las dos sin enlace.
+Documentation = "https://taliasoftworks.github.io/PlanVortexPython/"
+API = "https://planvortex.com/documentation"
 Repository = "https://github.com/taliasoftworks/PlanVortexPython"
 Changelog = "https://github.com/taliasoftworks/PlanVortexPython/blob/main/CHANGELOG.md"
 Issues = "https://github.com/taliasoftworks/PlanVortexPython/issues"
@@ -71,6 +90,13 @@ dev = [
     # arrastra `respx`, que depende de `httpx` CLASICO, y tener los dos httpx instalados en el
     # entorno de test es pedir que un dia se importe el que no es.
     "httpx2-pytest>=1.0,<2",
+    "datamodel-code-generator>=0.75,<0.76",
+    # La referencia publicada en GitHub Pages. `pdoc` y no `mkdocs-material` + `mkdocstrings` por la
+    # misma razon por la que Node usa TypeDoc: la documentacion de esta libreria ESTA en los
+    # docstrings, la guia larga vive en PlanVortexHome, y lo unico que hace falta aqui es la
+    # referencia. `pdoc` es una orden sin fichero de configuracion; el otro monton son un
+    # `mkdocs.yml` y un `nav` que se quedan atras en cuanto se anade un modulo.
+    "pdoc>=15.0,<16",
 ]
 
 # --------------------------------------------------------------------------------- empaquetado
@@ -107,7 +133,7 @@ line-length = 110
 # El suelo del paquete, no el interprete con el que se corra: asi `UP` no propone sintaxis de 3.11+
 # que reventaria en 3.10, que es la version que trae Ubuntu 22.04.
 target-version = "py310"
-src = ["src", "tests", "scripts"]
+src = ["src", "tests", "scripts", "examples"]
 
 [tool.ruff.lint]
 select = [
@@ -133,6 +159,18 @@ ignore = [
     "D",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Los docstrings de `_generated/models.py` son las descripciones del OpenAPI, copiadas tal cual.
+# Reformatearlas para que quepan en 110 columnas seria reescribir el texto del spec en la unica
+# copia que nadie puede editar a mano, asi que aqui la linea larga se admite. Es la UNICA excepcion
+# del repositorio y vale para un fichero que no escribe una persona.
+"src/planvortex/_generated/models.py" = ["E501"]
+# El gemelo sincrono entrega los elementos de una pagina con un `for ... yield`, y en el
+# original ESO ES OBLIGATORIO: `yield from` no existe dentro de un generador asincrono. `ruff`
+# solo lo ve al traducirlo, asi que la regla se apaga aqui y no en la fuente — donde un `noqa`
+# seria a su vez un `noqa` sin usar.
+"src/planvortex/resources_sync/base.py" = ["UP028"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["planvortex"]
 
@@ -155,7 +193,10 @@ warn_unreachable = true
 # Un `# type: ignore` que ya no hace falta es deuda silenciosa: deja de tapar nada y nadie lo quita.
 warn_unused_ignores = true
 enable_error_code = ["redundant-expr", "truthy-bool", "ignore-without-code"]
-files = ["src", "tests", "scripts"]
+# `examples/` esta aqui porque es la PRIMERA linea de codigo que copia un integrador, y era lo unico
+# del repo que no comprobaba nadie: 753 tests en verde y el ejemplo estrella no compilaba. Los dos
+# fallos que descubrio no eran del ejemplo, eran huecos de tipos de la libreria.
+files = ["src", "tests", "scripts", "examples"]
 
 # ------------------------------------------------------------------------------------ pytest
 
@@ -165,7 +206,15 @@ testpaths = ["tests"]
 # `--strict-markers` y `--strict-config` convierten en error un marcador mal escrito y una clave de
 # configuracion que no existe. Sin ellos, un `@pytest.mark.asyncio` con una letra de mas no falla:
 # el test se salta en silencio y el informe sigue en verde.
-addopts = "--strict-markers --strict-config"
+#
+# `-m "not live"` es lo que deja la CAPA 3 fuera de `pytest` a secas. No basta con que se salte por
+# falta de `.env.live`: en la maquina de quien SI lo tiene, `pytest` saldria a la red sin haberlo
+# pedido. La capa 3 se pide en voz alta, `uv run pytest -m live`, y ese `-m` de la linea de ordenes
+# gana al de aqui porque llega despues.
+addopts = "--strict-markers --strict-config -m 'not live'"
+markers = [
+    "live: capa 3 — habla con un PlanVortex de VERDAD. Necesita `.env.live` (ver `.env.live.example`).",
+]
 # Un `DeprecationWarning` de httpx2 o de pytest-asyncio es el aviso previo a la rotura, y en un
 # paquete que soporta cinco versiones de Python es justo lo que no puede pasar desapercibido.
 filterwarnings = ["error"]
@@ -178,13 +227,15 @@ asyncio_default_fixture_loop_scope = "function"
 branch = true
 source = ["src/planvortex"]
 omit = [
-    # Generados: `_generated/` sale del OpenAPI (fase 4) y `*_sync.py` / `resources_sync/` salen del
-    # gemelo async (fase 3). Su correccion no la vigila la cobertura, la vigila el
-    # `git diff --exit-code` de la CI, que es una comprobacion mas fuerte.
+    # `_generated/` sale del OpenAPI (fase 4): son TypedDict sin logica, y su correccion la vigila
+    # el `git diff --exit-code` de la CI, que es mas fuerte que cualquier porcentaje.
     "src/planvortex/_generated/*",
-    "src/planvortex/*_sync.py",
-    "src/planvortex/resources_sync/*",
 ]
+# LOS GEMELOS SINCRONOS SI SE MIDEN, aunque tambien sean generados. La fase 2 los habia excluido por
+# el mismo argumento que `_generated/`, y era un error: los tests corren contra las DOS variantes
+# (ver `tests/conftest.py`), asi que su cobertura es real y no un reflejo de la del original — el
+# camino sincrono por dentro de httpx2 no es el mismo. Excluirlos esconderia justo la mitad que
+# nadie escribio a mano.
 
 [tool.coverage.report]
 exclude_also = [
@@ -192,7 +243,13 @@ exclude_also = [
     "raise NotImplementedError",
     "@overload",
 ]
-# El SUELO de cobertura llega con la fase 9, cuando haya codigo que medir. Ponerlo hoy, con un
-# paquete que solo declara su version, seria un 100 % que no dice nada y que ademas habria que
-# BAJAR en la fase 3 — un umbral que se afloja no vigila, tranquiliza.
 show_missing = true
+# EL SUELO, puesto en la fase 9 y no antes por lo de siempre: un umbral que hay que aflojar despues
+# no vigila, tranquiliza. Hoy la suite mide 98 % y el suelo se pone en 97, o sea a un punto — unas
+# treinta sentencias de margen sobre 2.700. Es sitio para anadir un metodo con una rama sin probar,
+# y no para dejarse un fichero entero.
+#
+# Mide las capas 1 y 2, que son las que corren en la CI. La capa 3 no cuenta y no puede: sale a la
+# red, se salta sin `.env.live` y no la ejecuta ningun PR, asi que meterla en el numero haria que el
+# suelo dijera cosas distintas segun quien lo lanzara.
+fail_under = 97
