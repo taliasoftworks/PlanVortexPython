@@ -95,8 +95,8 @@ class AsyncProductsResource(AsyncResource):
         """ONE product, by its identifier **on the network** (Meta's, not a PlanVortex ``_id``).
 
         It used to be forwarded to the SDK under a name it does not read, so it never reached the
-        network and the call died with a 2000; that was fixed on 2026-08-24 and this is the first
-        library to expose it — the Node one still documents it as broken.
+        network and the call died with a 2000; that was fixed on 2026-08-24. This library exposed it
+        first, in ``0.1.0``; the Node one followed in ``0.3.0``.
 
         **The answer is shaped differently from the listing.** Asking for one product goes to that
         product's own node, so the network answers with the product rather than with a list and
