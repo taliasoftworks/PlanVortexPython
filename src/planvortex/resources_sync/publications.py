@@ -213,6 +213,14 @@ class PublicationsResource(Resource):
         """Delete a publication **and the post on the social network too**.
 
         On X deleting costs credits: without them it returns a 940 rather than a generic error.
+
+        **On Telegram there is a 48-hour window.** Past it the Bot API refuses to delete the message
+        whatever the bot's role is, and the answer is error 966 with ``published_date`` and
+        ``max_hours`` in ``data`` — so the sensible thing is to grey the button out rather than offer
+        it and fail. Error 969 is the other case: the bot is no longer allowed to delete there. And
+        an album is several messages: all of them go, or the post would be left half-published in
+        the channel.
+
         Afterwards it stops being readable by id — :meth:`get` answers 917, and therefore so does a
         second :meth:`remove`.
         """

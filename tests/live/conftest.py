@@ -248,7 +248,7 @@ def _png(ancho: int, alto: int) -> bytes:
 
     NO hay un binario commiteado, y es a proposito: una libreria de cliente no lleva una foto dentro
     para sus tests. Se genera con `zlib` y `struct`, que son biblioteca estandar, y sale un
-    degradado de 1080x1080 — cuadrado porque es la unica proporcion que aceptan las diez redes, y
+    degradado de 1080x1080 — cuadrado porque es la unica proporcion que aceptan las once redes, y
     grande porque una imagen de 1x1 la rechaza la validacion de la publicacion y el fallo pareceria
     de la libreria.
     """

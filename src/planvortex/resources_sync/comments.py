@@ -50,6 +50,9 @@ class CommentsResource(Resource):
         **What we write does not show up here**: our replies are stored (the thread needs them) but
         they are not incoming mail.
 
+        **On Telegram this is ALL there is**, and it starts the day the channel was connected: there
+        is no live read to complete it with, and no way to import what came before.
+
         Here, and only here, ``id_account`` and ``id_publication`` come POPULATED.
 
         ``rating`` is what makes a review inbox usable — "show me the one and two star ones" — and it
@@ -128,6 +131,12 @@ class CommentsResource(Resource):
 
         **On X it costs one credit per comment returned** (``credits_consumed`` says so afterwards).
         A publication that never went out answers error 936: there is no thread to read.
+
+        **On Telegram it is NOT live**, and that is the one exception to everything above: the Bot
+        API has no method that lists the replies to a post, so what comes back is PlanVortex's own
+        inbox — what the bot has seen since the channel was connected. Nothing is reconciled and
+        nothing is swept as deleted, because there is nothing to compare against. And a channel with
+        no linked discussion group has no comments at all: error 965.
 
         ``offset`` here is the ``next_cursor`` of the previous page, not a number of elements.
         """
@@ -230,6 +239,11 @@ class CommentsResource(Resource):
         Only where the network allows it: ``delete_own`` and ``delete_others`` in :meth:`actions` are
         two different permissions, and on Google Business the only deletable thing is our own reply
         to a review. The row is kept, marked as deleted, so the next read does not resurrect it.
+
+        On Telegram the network allows both, and both still depend on a permission the customer
+        controls: the bot has to be an administrator of the discussion group with the right to
+        delete. When it is not, the answer is error 969 — which is the difference between "this
+        network cannot" and "this particular channel cannot".
         """
         self._delete(self._path(id_organization, id_comment), timeout=timeout)
 

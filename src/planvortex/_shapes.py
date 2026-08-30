@@ -137,12 +137,13 @@ class AccountUpdate(TypedDict):
 
 
 class RedirectAuthorization(TypedDict):
-    """Send the person to the entry's ``link``. Nine of the ten networks.
+    """Send the person to the entry's ``link``. Nine of the eleven networks.
 
-    One of the two halves of the ``authorization`` block of a connection link. The generated type
+    One of the THREE halves of the ``authorization`` block of a connection link. The generated type
     is a single flat ``TypedDict`` with every field ``NotRequired``, because that is the only way
-    OpenAPI can say "a union" here; these two say which fields go with which ``type``, and
-    ``types.is_redirect_authorization`` / ``types.is_meta_embedded_signup`` are what narrow to them.
+    OpenAPI can say "a union" here; these three say which fields go with which ``type``, and
+    ``types.is_redirect_authorization`` / ``types.is_meta_embedded_signup`` /
+    ``types.is_telegram_bot_authorization`` are what narrow to them.
     """
 
     type: Literal["redirect"]
@@ -175,6 +176,36 @@ class MetaEmbeddedSignupAuthorization(TypedDict):
     """``extras.featureType``."""
     session_info_version: str
     """``extras.sessionInfoVersion``."""
+
+
+class TelegramBotAuthorization(TypedDict):
+    """Open a chat with the PlanVortex bot. **Telegram, and nothing else.**
+
+    The third half, and the one that is genuinely new contract rather than one more network in a
+    list. Telegram HAS a link and still is not a ``redirect``: there is no OAuth behind it — no
+    consent screen, no ``code``, no account token and no ``redirect_uri``. That ``link`` opens a
+    private chat with the bot, and nobody comes back from it. The account is created minutes later,
+    when the person adds that bot to their channel, and it is announced over the WebSocket and the
+    ``new_account`` webhook — never as the answer to a call of yours. Which is also why
+    ``accounts.connect`` cannot finish it: for ``telegram`` that endpoint always answers 700.
+
+    So: open ``link`` in ANOTHER TAB and keep listening. Redirect to it and there is nobody left to
+    tell — no error, nothing broken to look at, which is exactly how WhatsApp's empty ``link`` cost
+    the API a year.
+
+    **The two fields are required here and optional in the generated type**, which is the whole
+    point of splitting it, and the same reason the Meta half exists.
+    """
+
+    type: Literal["telegram_bot"]
+    bot_username: str
+    """The bot's ``@name``, **without the at sign**. It is what the person will see in Telegram and
+    it changes with the deployment, so read it from here instead of writing it down."""
+    add_to_group_link: str
+    """The SECOND step, which does not follow from the first: ``link`` opens the list of channels
+    and this one opens the list of groups. It adds the bot to the channel's linked discussion group,
+    which is what turns comments on — a channel with no discussion group has no comment inbox at all
+    (error 965). Optional for the user: publishing and statistics work without it."""
 
 
 class AccountConnectResponse(TypedDict):
@@ -231,13 +262,14 @@ PublishableNetwork: TypeAlias = Literal[
     "youtube",
     "bluesky",
     "discord",
+    "telegram",
 ]
-"""A network that accepts publications: the nine of the ten that have a feed.
+"""A network that accepts publications: the ten of the eleven that have a feed.
 
 ``google_business`` is the one missing, and it is not an oversight: a local listing receives
 reviews, not posts. Sending it raises error 702. It is a **narrower** type than
-``types.SocialNetwork`` and that is the whole point — an account's ``social_network`` is one of ten
-and this is one of nine, so handing one straight to the other is a type error even when a
+``types.SocialNetwork`` and that is the whole point — an account's ``social_network`` is one of
+eleven and this is one of ten, so handing one straight to the other is a type error even when a
 ``capability="publications"`` filter has already made it impossible at runtime.
 ``types.is_publishable_network`` is what bridges it.
 
@@ -262,7 +294,7 @@ class PublicationInput(TypedDict):
 
     social_network: NotRequired[PublishableNetwork]
     """Network the publication targets. **Required when creating**: error 702 if it is missing or
-    is not one of the nine. It has to match the network of the account in the path."""
+    is not one of the ten. It has to match the network of the account in the path."""
     text: NotRequired[str]
     """Body text. Either this or one entry in ``files``; with neither, the publication is still
     created but lands in ``withErrors`` with code 915. On YouTube this is the video
@@ -482,6 +514,7 @@ __all__ = [
     "PublicationsSummaryResult",
     "PublishableNetwork",
     "RedirectAuthorization",
+    "TelegramBotAuthorization",
     "TopPublicationsResult",
     "UploadUpdate",
 ]

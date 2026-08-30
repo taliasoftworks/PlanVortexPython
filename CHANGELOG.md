@@ -4,6 +4,69 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-08-30
+
+Telegram, the eleventh network, reaches the package. No endpoint was added and no signature moved:
+what changes is what the types know — and unlike in the Node library, where an open enumeration
+absorbs an unknown network in silence, here the closed `Literal`s go red until somebody looks. Which
+is the point of them.
+
+Upgrading from `0.1.0` needs no changes, and `MIGRATION.md` gains no entry.
+
+### Added
+
+- **A third authorization shape: `TelegramBotAuthorization`, with its predicate
+  `is_telegram_bot_authorization`.** This is the part that is genuinely new contract rather than one
+  more name in a list. Telegram is the one entry that carries a `link` and still is not somewhere to
+  redirect: it opens a private chat with the PlanVortex bot, with no OAuth behind it — no consent
+  screen, no `code`, no `redirect_uri` — and the account is born minutes later, when the person
+  drops that bot into their channel. It is announced over the WebSocket and the `new_account`
+  webhook, never as the answer to a call of yours, and `accounts.connect` cannot finish it: for
+  `telegram` that endpoint always answers 700. The block carries `bot_username` (the bot's `@name`,
+  without the at sign) and `add_to_group_link`, the second step, which turns comments on by adding
+  the bot to the channel's linked discussion group. **Branch on `authorization["type"]`, never on
+  whether `link` is empty** — that test was already wrong for WhatsApp and it is worse here, because
+  a filled-in `link` makes it look like it worked.
+- **`"telegram"` in `PublishableNetwork`** — the one hand-written union in `_shapes.py` — and
+  therefore in `PUBLISHABLE_NETWORKS`, `COMMENT_NETWORKS` and `SOCIAL_NETWORKS`, which derive from
+  their `Literal` and needed no edit. It is deliberately **not** in `CONTACT_CHANNELS`: Telegram has
+  no direct messages, and putting it there would promise a chat inbox that does not exist. That the
+  contact channels are now a proper subset of the networks, rather than all of them plus `email`, is
+  written down in the test that used to assert the equality.
+- **`PublicationStats.reactions` and `reactions_by_emoji`**, which are Telegram's only publication
+  metric — and neither of them is asked for. `reactions` is the COMPLETE STATE and not an increment,
+  so it goes down when somebody takes theirs back.
+- **`Publication.extra_data`**, for what one network has to remember about one publication and that
+  has no common field. Today only `telegram_message_ids` writes there: on Telegram an album is one
+  publication that is several messages, `external_identifier` holds the first and the rest live
+  here, because deleting the album means deleting all of them.
+
+### Changed
+
+- The network-counting prose, which had quietly stopped being true and that no test watches:
+  `accounts.connect_links`, `SocialAuthorizationMethod`, `ConnectLink`, `PublishableNetwork` and
+  `is_publishable_network` all said "nine of the ten" or "one of ten and one of nine".
+- Two warnings about this network are now on the methods that would otherwise surprise you, because
+  neither has an error code to announce it. **The comment inbox starts the day the channel was
+  connected** — the Bot API cannot read the past, so `comments.list` has nothing earlier and never
+  will, and `comments.thread`, which is a live read on every other network, is not live here at all.
+  And **there are no impressions and no reach**: engagement is computed over followers, the only
+  audience figure the Bot API publishes being the channel's member count.
+- `catalog.social_limits` explains Telegram's **two numbers for the same field** — 4.096 characters
+  while the publication is text only and 1.024 the moment it carries an image or a video, because
+  then the text is a media caption. The counter switches when the file is attached, not when publish
+  is pressed.
+- `publications.remove` documents Telegram's **48-hour window** (error 966, with `published_date`
+  and `max_hours` in `data`), which is a button to grey out rather than to offer and fail.
+- `examples/connect.py` grows the third branch, and its `else` — the one that skips an authorization
+  method this version does not know — is no longer hypothetical: `telegram_bot` was exactly that.
+
+### Fixed
+
+- The synchronous twin of `products.get` had been left behind by the previous release: its docstring
+  still said the Node library documented that endpoint as broken. Regenerating `resources_sync`
+  brings it back in line.
+
 ## [0.1.0] - 2026-08-28
 
 The first release with code in it. Every documented endpoint of the PlanVortex API has a method -

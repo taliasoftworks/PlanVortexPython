@@ -212,8 +212,20 @@ def test_las_redes_de_comentarios_son_un_subconjunto_de_las_redes() -> None:
 
 
 def test_el_canal_de_un_contacto_es_una_red_o_el_correo() -> None:
-    """`ContactChannel` es `SocialNetwork` mas `email`, y conviene que se note si deja de serlo."""
-    assert set(types.CONTACT_CHANNELS) == set(types.SOCIAL_NETWORKS) | {"email"}
+    """`ContactChannel` es un SUBCONJUNTO de `SocialNetwork` mas `email`, y no la lista entera.
+
+    Fue la lista entera hasta Telegram, y el dia que dejo de serlo es justo lo que habia que dejar
+    escrito: un canal de contacto es una bandeja de chat, y esa red no tiene mensajes directos —un
+    bot no puede empezar una conversacion con nadie—. Meterla ahi prometeria un buzon que no existe,
+    asi que su ausencia es una decision y no un olvido del spec.
+
+    Lo que si tiene que seguir cumpliendose es que no haya ningun canal que no sea una red (o el
+    correo): eso si seria una errata.
+    """
+    assert set(types.CONTACT_CHANNELS) <= set(types.SOCIAL_NETWORKS) | {"email"}
+    assert "email" in types.CONTACT_CHANNELS
+    assert "telegram" in types.SOCIAL_NETWORKS
+    assert "telegram" not in types.CONTACT_CHANNELS
 
 
 # --------------------------------------------------------------- la superficie de `types.py`

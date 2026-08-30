@@ -27,7 +27,11 @@ from datetime import datetime, timezone
 import pytest
 
 from planvortex import PlanVortexError
-from planvortex.types import is_meta_embedded_signup, is_redirect_authorization
+from planvortex.types import (
+    is_meta_embedded_signup,
+    is_redirect_authorization,
+    is_telegram_bot_authorization,
+)
 from tests.live.conftest import LIVE, ContextoLive
 
 pytestmark = LIVE
@@ -123,6 +127,18 @@ def test_con_el_token_temporal_se_piden_los_enlaces_de_autorizacion(live: Contex
                 if not valor
             ]
             assert not faltan, f"{red} no publica {', '.join(faltan)}"
+            continue
+
+        if is_telegram_bot_authorization(autorizacion):
+            # Esta SI trae enlace, y aun asi no es una redireccion: abre un chat con el bot. Que el
+            # servidor publique los dos campos es lo unico que la capa 3 puede confirmar; que la
+            # cuenta aparezca despues exige a una persona metiendo el bot en su canal.
+            assert autorizacion["bot_username"], "telegram no publica el @nombre del bot"
+            assert "@" not in autorizacion["bot_username"], "el @nombre viaja SIN arroba"
+            assert enlace["link"].startswith("http"), f"enlace de {red}"
+            assert "startgroup" in autorizacion["add_to_group_link"], (
+                "el segundo paso tiene que abrir la lista de GRUPOS, no la de canales"
+            )
             continue
 
         assert is_redirect_authorization(autorizacion), f"metodo de autorizacion desconocido en {red}"

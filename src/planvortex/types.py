@@ -47,7 +47,7 @@ SocialNetwork: TypeAlias = _models.SocialNetwork
 """A supported social network. The runtime list is :data:`SOCIAL_NETWORKS`."""
 
 PublishableNetwork: TypeAlias = _shapes.PublishableNetwork
-"""A network that accepts publications: nine of the ten. The runtime list is
+"""A network that accepts publications: ten of the eleven. The runtime list is
 :data:`PUBLISHABLE_NETWORKS`, and :func:`is_publishable_network` is what narrows a
 :data:`SocialNetwork` down to it."""
 
@@ -55,7 +55,11 @@ CommentNetwork: TypeAlias = _models.CommentsCommentNetworkName
 """A network whose comments PlanVortex reads. The runtime list is :data:`COMMENT_NETWORKS`."""
 
 ContactChannel: TypeAlias = _models.ContactChannel
-"""Where a contact can be reached: any network with messaging, or ``email``."""
+"""Where a contact can be reached: a network with messaging, or ``email``.
+
+It is a SUBSET of :data:`SocialNetwork` and not all of it — ``telegram`` is a network and not a
+channel, because a bot cannot start a conversation with anybody. The runtime list is
+:data:`CONTACT_CHANNELS`."""
 
 MessageType: TypeAlias = _models.MessageType
 """What kind of message it is. ``simple_message`` and ``file_message`` work on every network."""
@@ -307,10 +311,17 @@ ConnectLink: TypeAlias = _models.Link
 
 Almost always it is a link: you send the user there and the network returns them to PlanVortex,
 which completes the connection. **Almost — so look at ``authorization["type"]``, not at whether
-``link`` is empty.** WhatsApp has no authorization URL: its sign-up is Meta's Embedded Signup, a
-popup your own page raises with the Facebook JavaScript SDK, which answers over ``postMessage`` with
-data (the ``waba_id``, the ``phone_number_id``) that does not fit in a query string. Its ``link`` is
-the empty string and the popup's parameters travel in ``authorization``.
+``link`` is empty.** There are two exceptions, and neither of them fails visibly if you treat it
+as one:
+
+* **WhatsApp has no authorization URL at all.** Its sign-up is Meta's Embedded Signup, a popup your
+  own page raises with the Facebook JavaScript SDK, which answers over ``postMessage`` with data
+  (the ``waba_id``, the ``phone_number_id``) that does not fit in a query string. Its ``link`` is the
+  empty string and the popup's parameters travel in ``authorization``.
+* **Telegram has a link and still is not a redirect.** It opens a private chat with the PlanVortex
+  bot, and nobody comes back from it: the account is born when the person adds that bot to their
+  channel, and it is announced over the WebSocket and the ``new_account`` webhook. Open it in
+  another tab and keep listening.
 """
 
 ConnectToken: TypeAlias = _shapes.ConnectToken
@@ -326,13 +337,18 @@ EnableResult: TypeAlias = _shapes.EnableResult
 """What enabling an account leaves, which is only the place to send the user afterwards, if any."""
 
 SocialAuthorizationMethod: TypeAlias = _models.AccountsSocialAuthorizationMethod
-"""How a network is authorized: ``redirect`` (nine of them) or ``meta_embedded_signup`` (WhatsApp).
+"""How a network is authorized: ``redirect`` (nine of the eleven), ``meta_embedded_signup``
+(WhatsApp) or ``telegram_bot`` (Telegram).
 
 **It is a union pretending to be one type.** OpenAPI cannot say "these five fields only when ``type``
 is ``meta_embedded_signup``", so the generated shape declares all of them optional — and reading
 ``authorization["app_id"]`` off it passes ``mypy --strict`` while raising ``KeyError`` against a
-``redirect`` entry. :func:`is_redirect_authorization` and :func:`is_meta_embedded_signup` narrow it
-to :data:`RedirectAuthorization` and :data:`MetaEmbeddedSignupAuthorization`, which do say it.
+``redirect`` entry. :func:`is_redirect_authorization`, :func:`is_meta_embedded_signup` and
+:func:`is_telegram_bot_authorization` narrow it to :data:`RedirectAuthorization`,
+:data:`MetaEmbeddedSignupAuthorization` and :data:`TelegramBotAuthorization`, which do say it.
+
+**And the list grows**: skipping a ``type`` this version does not know is an honest answer, sending
+somebody to a ``link`` because the ``if/elif`` did not cover their case is not.
 """
 
 RedirectAuthorization: TypeAlias = _shapes.RedirectAuthorization
@@ -342,6 +358,11 @@ RedirectAuthorization: TypeAlias = _shapes.RedirectAuthorization
 MetaEmbeddedSignupAuthorization: TypeAlias = _shapes.MetaEmbeddedSignupAuthorization
 """``authorization`` when the network is authorized with Meta's popup — WhatsApp, and nothing else.
 Narrowed by :func:`is_meta_embedded_signup`."""
+
+TelegramBotAuthorization: TypeAlias = _shapes.TelegramBotAuthorization
+"""``authorization`` when the network is connected by adding the PlanVortex bot to a channel —
+Telegram, and nothing else. The one entry with a ``link`` that is not a redirection. Narrowed by
+:func:`is_telegram_bot_authorization`."""
 
 # =================================================================================================
 # Recursos
@@ -760,10 +781,24 @@ def is_meta_embedded_signup(
     return authorization["type"] == "meta_embedded_signup"
 
 
+def is_telegram_bot_authorization(
+    authorization: SocialAuthorizationMethod,
+) -> TypeGuard[TelegramBotAuthorization]:
+    """The network is connected by dropping the PlanVortex bot into a channel. **Telegram, alone.**
+
+    Inside this branch ``bot_username`` and ``add_to_group_link`` are strings and not a hope. And
+    the branch has to EXIST: this is the one entry that has a ``link`` and is still not somewhere to
+    redirect. Send the person there and they land in a chat nobody comes back from — the account
+    turns up minutes later, when they add the bot to their channel, and the only thing that says so
+    is the ``new_account`` notification.
+    """
+    return authorization["type"] == "telegram_bot"
+
+
 def is_publishable_network(social_network: str) -> TypeGuard[PublishableNetwork]:
     """The network accepts publications, so it can go in a :data:`PublicationInput`.
 
-    An account's ``social_network`` is one of **ten** and a publication's is one of **nine** —
+    An account's ``social_network`` is one of **eleven** and a publication's is one of **ten** —
     ``google_business`` is a business listing, it receives reviews and not posts — so handing one
     straight to the other is a type error even when you have already filtered the accounts with
     ``capability="publications"`` and it cannot happen at runtime. This is the bridge::
@@ -987,6 +1022,7 @@ __all__ = [
     "SocialLimitsMap",
     "SocialNetwork",
     "StatsSettings",
+    "TelegramBotAuthorization",
     "TopPublication",
     "TopPublicationsResult",
     "Upload",
@@ -996,6 +1032,7 @@ __all__ = [
     "is_meta_embedded_signup",
     "is_publishable_network",
     "is_redirect_authorization",
+    "is_telegram_bot_authorization",
     "message_contact",
     "message_contact_id",
     "message_direction",

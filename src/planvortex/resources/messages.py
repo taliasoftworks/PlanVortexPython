@@ -2,8 +2,8 @@
 
 WHAT TO KNOW BEFORE CALLING ANYTHING HERE:
 
-- **Not every network has a chat.** LinkedIn, X, TikTok, Bluesky and Discord do not, and neither
-  does Google Business: on those the API answers error 1502. What decides is ``messages`` in
+- **Not every network has a chat.** LinkedIn, X, TikTok, Bluesky, Discord and Telegram do not, and
+  neither does Google Business: on those the API answers error 1502. What decides is ``messages`` in
   ``pv.catalog.social_capabilities()``.
 - **It needs a paid plan** (error 516), and the chat also needs the plan to include it (515).
 - **The first read of an account is slow.** With nothing in the database, the server pulls the

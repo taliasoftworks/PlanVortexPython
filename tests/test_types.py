@@ -24,12 +24,14 @@ from planvortex.types import (
     PublishableNetwork,
     RedirectAuthorization,
     SocialAuthorizationMethod,
+    TelegramBotAuthorization,
     Upload,
     account,
     account_id,
     is_meta_embedded_signup,
     is_publishable_network,
     is_redirect_authorization,
+    is_telegram_bot_authorization,
     message_contact,
     message_contact_id,
     message_direction,
@@ -154,35 +156,63 @@ POPUP = cast(
         "session_info_version": "3",
     },
 )
+BOT = cast(
+    "SocialAuthorizationMethod",
+    {
+        "type": "telegram_bot",
+        "bot_username": "PlanVortexBot",
+        "add_to_group_link": "https://t.me/PlanVortexBot?startgroup=true&admin=delete_messages",
+    },
+)
 
 
 def test_cada_predicado_reconoce_lo_suyo_y_solo_lo_suyo() -> None:
-    """Las dos formas, con los dos predicados: es lo unico que demuestra que discriminan.
+    """Las tres formas, con los tres predicados: es lo unico que demuestra que discriminan.
 
     Uno que solo se probara con la suya pasaria igual devolviendo `True` siempre.
 
     Los que niegan van PRIMERO, y no es manía: un `TypeGuard` estrecha la rama positiva, asi que en
     cuanto se afirma `is_redirect_authorization(REDIRECT)` mypy da esa constante por
-    `RedirectAuthorization` para el resto de la funcion y pasarsela despues al otro predicado es un
+    `RedirectAuthorization` para el resto de la funcion y pasarsela despues a otro predicado es un
     error de tipos. Que ese error aparezca al reordenarlo es, de hecho, la mejor prueba de que el
     estrechado funciona de verdad y no solo sobre el papel.
     """
     assert not is_meta_embedded_signup(REDIRECT)
+    assert not is_telegram_bot_authorization(REDIRECT)
     assert not is_redirect_authorization(POPUP)
+    assert not is_telegram_bot_authorization(POPUP)
+    assert not is_redirect_authorization(BOT)
+    assert not is_meta_embedded_signup(BOT)
     assert is_redirect_authorization(REDIRECT)
     assert is_meta_embedded_signup(POPUP)
+    assert is_telegram_bot_authorization(BOT)
 
 
-def test_una_tercera_forma_de_autorizar_no_es_ninguna_de_las_dos() -> None:
+def test_telegram_tiene_enlace_y_aun_asi_no_es_una_redireccion() -> None:
+    """La trampa entera de esta red, en una linea.
+
+    Es la unica entrada con `link` lleno que NO se puede redirigir: abre un chat con el bot y de ahi
+    no vuelve nadie. Quien ramifique por "?viene `link` vacio?" —que es como se distinguia a
+    WhatsApp cuando solo habia dos formas— la trata como una redireccion y manda a su usuario a un
+    sitio del que no se sale. Por eso se ramifica por `type` y por eso este predicado existe.
+    """
+    assert not is_redirect_authorization(BOT)
+    assert BOT["bot_username"] == "PlanVortexBot"
+    assert "startgroup" in BOT["add_to_group_link"]
+
+
+def test_una_cuarta_forma_de_autorizar_no_es_ninguna_de_las_tres() -> None:
     """El caso que hace falta escribir un `else`, y que hoy no existe.
 
-    La lista de redes crece y la de metodos puede crecer con ella. Los dos predicados contestan que
-    no, que es la respuesta correcta: quien recorra `connect_links` con un `if/elif` y sin `else` se
-    saltaria esa red en silencio en vez de mandar al usuario a una pagina en blanco.
+    La lista de redes crece y la de metodos crece con ella —`telegram_bot` fue exactamente eso—. Los
+    tres predicados contestan que no, que es la respuesta correcta: quien recorra `connect_links` con
+    un `if/elif` y sin `else` se saltaria esa red en silencio en vez de mandar al usuario a una
+    pagina en blanco.
     """
     futura = cast("SocialAuthorizationMethod", {"type": "device_code"})
     assert not is_redirect_authorization(futura)
     assert not is_meta_embedded_signup(futura)
+    assert not is_telegram_bot_authorization(futura)
 
 
 def test_los_predicados_estrechan_y_no_solo_contestan_si_o_no() -> None:
@@ -195,6 +225,7 @@ def test_los_predicados_estrechan_y_no_solo_contestan_si_o_no() -> None:
     """
     assert get_type_hints(is_redirect_authorization)["return"] == TypeGuard[RedirectAuthorization]
     assert get_type_hints(is_meta_embedded_signup)["return"] == TypeGuard[MetaEmbeddedSignupAuthorization]
+    assert get_type_hints(is_telegram_bot_authorization)["return"] == TypeGuard[TelegramBotAuthorization]
 
 
 # =================================================================================================
@@ -203,7 +234,7 @@ def test_los_predicados_estrechan_y_no_solo_contestan_si_o_no() -> None:
 
 
 def test_la_red_que_publica_se_reconoce_y_google_business_no() -> None:
-    """La unica de las diez que no publica, contra una que si.
+    """La unica de las once que no publica, contra una que si.
 
     Un predicado que contestara `True` siempre pasaria la mitad de esto, asi que hacen falta las
     dos. Y `google_business` no es un caso raro: es una red conectable de pleno derecho que aparece
@@ -244,3 +275,5 @@ def test_las_que_publican_son_las_de_siempre_menos_una() -> None:
     assert set(PUBLISHABLE_NETWORKS) < set(SOCIAL_NETWORKS)
     assert set(SOCIAL_NETWORKS) - set(PUBLISHABLE_NETWORKS) == {"google_business"}
     assert all(is_publishable_network(red) for red in PUBLISHABLE_NETWORKS)
+    # Telegram publica, aunque no tenga OAuth ni bandeja de chat: son cosas distintas.
+    assert is_publishable_network("telegram")

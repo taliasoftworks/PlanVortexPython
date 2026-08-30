@@ -27,6 +27,7 @@ from planvortex.types import (
     ConnectLink,
     is_meta_embedded_signup,
     is_redirect_authorization,
+    is_telegram_bot_authorization,
 )
 
 
@@ -94,16 +95,23 @@ def main(redirect_uri: str | None) -> int:
 def _describir(enlace: ConnectLink) -> None:
     """Como se autoriza UNA red, ramificando por `authorization` y nunca por el `link`.
 
-    Aqui esta lo unico de este fichero que no es obvio. Nueve de las diez redes se autorizan con una
-    URL; WhatsApp no tiene ninguna que dar —su alta es el popup del Embedded Signup de Meta, que
-    contesta por `postMessage` con datos que no caben en una query string— y su `link` es la cadena
-    vacia. Quien recorra la lista redirigiendo a `link` manda a su usuario a su propia pagina, sin
-    error y sin nada roto que mirar: fue el fallo que la API arrastro un ano.
+    Aqui esta lo unico de este fichero que no es obvio. Nueve de las once redes se autorizan con una
+    URL, y las otras dos no — cada una a su manera, y las dos fallan en silencio si se tratan como
+    una redireccion:
 
-    Y los predicados no son adorno. El tipo que viaja por el cable es UNO y plano, con los cinco
-    campos del popup opcionales, porque OpenAPI no sabe decir "estos cinco solo cuando `type` vale
-    tal". O sea que `autorizacion["app_id"]` pasa `mypy --strict` y revienta con `KeyError` contra
-    una entrada `redirect`. `is_meta_embedded_signup` es lo que estrecha de verdad.
+      - WhatsApp no tiene ninguna URL que dar. Su alta es el popup del Embedded Signup de Meta, que
+        contesta por `postMessage` con datos que no caben en una query string, asi que su `link` es
+        la cadena vacia. Quien recorra la lista redirigiendo a `link` manda a su usuario a su propia
+        pagina, sin error y sin nada roto que mirar: fue el fallo que la API arrastro un ano.
+      - Telegram SI tiene `link`, y aun asi tampoco se redirige: abre un chat con el bot y de ahi no
+        vuelve nadie. La cuenta nace despues, cuando la persona mete el bot en su canal, y lo unico
+        que lo cuenta es la notificacion `new_account`. Redirigir aqui es peor que en WhatsApp,
+        porque el `link` lleno hace que parezca que funciona.
+
+    Y los predicados no son adorno. El tipo que viaja por el cable es UNO y plano, con todos los
+    campos opcionales, porque OpenAPI no sabe decir "estos cinco solo cuando `type` vale tal". O sea
+    que `autorizacion["app_id"]` pasa `mypy --strict` y revienta con `KeyError` contra una entrada
+    `redirect`. Los predicados son lo que estrecha de verdad.
     """
     red = enlace["social_network"]
     autorizacion = enlace["authorization"]
@@ -121,6 +129,17 @@ def _describir(enlace: ConnectLink) -> None:
             f"               extras.featureType={autorizacion['feature_type']},\n"
             f"               extras.sessionInfoVersion={autorizacion['session_info_version']})\n"
             "      El `waba_id` y el `phone_number_id` vuelven por `postMessage`, no en la URL."
+        )
+        return
+
+    if is_telegram_bot_authorization(autorizacion):
+        # Dentro de esta rama los dos campos son obligatorios, asi que se leen sin `.get`.
+        print(
+            f"  {red}: hay enlace y AUN ASI no se redirige. Abrelo en otra pestana:\n"
+            f"      1) {enlace['link'][:60]}...  -> abre el chat con @{autorizacion['bot_username']}\n"
+            f"      2) el usuario mete el bot en SU canal, y ahi nace la cuenta\n"
+            f"      3) opcional, para tener comentarios: {autorizacion['add_to_group_link'][:50]}...\n"
+            "      No hay vuelta a ninguna URL tuya: escucha la notificacion `new_account`."
         )
         return
 

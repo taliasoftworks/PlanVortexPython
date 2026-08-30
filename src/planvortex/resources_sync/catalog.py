@@ -59,8 +59,12 @@ class CatalogResource(Resource):
         It is published SEPARATELY from :meth:`social_capabilities` because that one is
         ``{capability: bool}`` and this is an object per network: putting it inside would break its
         shape. And knowing a network has comments does not say enough — Instagram, X and Bluesky do
-        not let you delete somebody else's, LinkedIn has no "hide", and Google Business only lets you
-        delete **your own reply**.
+        not let you delete somebody else's, LinkedIn has no "hide" (neither do Discord and Telegram),
+        and Google Business only lets you delete **your own reply**.
+
+        And this is about the NETWORK, not about one account of it: on Telegram deleting comes back
+        ``true`` and still answers 969 when the bot is not an administrator of the discussion group.
+        The matrix says which buttons to draw, not that each one will work on every account.
         """
         matriz: dict[str, CommentActions] = self._cached("/social_comment_actions", timeout=timeout)
         return matriz
@@ -72,6 +76,12 @@ class CatalogResource(Resource):
         ``characters`` and 3.000 bytes in ``max_post_bytes``. ``len()`` lies in both directions — a
         family emoji is ONE grapheme and 25 bytes — so a counter built on it approves what the API
         rejects and the other way round.
+
+        Telegram carries **two numbers for the same field**, and there ``len()`` is exactly the right
+        unit: ``characters["telegram"]`` (4.096) while the publication is text only and
+        ``characters["telegram_media"]`` (1.024) the moment it carries an image or a video, because
+        then the text is a media caption. The counter changes when the file is ATTACHED, not when
+        publish is pressed.
         """
         limites: SocialLimits = self._cached("/social_limits", timeout=timeout)
         return limites

@@ -66,10 +66,10 @@ def main(ruta_del_fichero: str) -> int:
             )
         red = cuenta["social_network"]
         # El `capability` de arriba ya lo ha filtrado en el servidor, asi que esto no puede fallar
-        # en ejecucion: lo que arregla es el TIPO. Una cuenta es una de las diez redes y una
-        # publicacion es una de las nueve —`google_business` recibe resenas, no posts—, y sin este
+        # en ejecucion: lo que arregla es el TIPO. Una cuenta es una de las once redes y una
+        # publicacion es una de las diez —`google_business` recibe resenas, no posts—, y sin este
         # puente pasar la una a la otra es un error de tipos. `red != "google_business"` no sirve:
-        # comparar en negativo contra una union de diez la deja en las diez.
+        # comparar en negativo contra una union de once la deja en las once.
         if not is_publishable_network(red):
             raise SystemExit(f"{red} no publica: recibe resenas, no publicaciones.")
         print(f"Cuenta: {cuenta['name']} en {red}")

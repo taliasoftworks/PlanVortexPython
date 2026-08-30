@@ -49,11 +49,23 @@ class AccountsResource(Resource):
         rather than a failure: it is what happens to Discord in an organization that has not saved
         its own bot credentials yet.
 
-        **LOOK AT ``authorization``, NOT AT WHETHER ``link`` IS EMPTY.** Nine of the ten networks are
-        ``redirect`` and the person is sent to ``link``. **WhatsApp is not a URL**: its sign-up is
-        Meta's Embedded Signup, a popup your own page raises with the Facebook JavaScript SDK, so its
-        ``link`` is the empty string and what you need to open it travels in ``authorization``.
-        Walking the list redirecting to ``link`` sends your user to your own page.
+        **LOOK AT ``authorization``, NOT AT WHETHER ``link`` IS EMPTY.** Nine of the eleven networks
+        are ``redirect`` and the person is sent to ``link``. The other two are not, and neither of them
+        fails visibly if you walk the list redirecting to ``link``:
+
+        * **WhatsApp is not a URL at all**: its sign-up is Meta's Embedded Signup, a popup your own
+          page raises with the Facebook JavaScript SDK, so its ``link`` is the empty string and what
+          you need to open it travels in ``authorization``. Redirecting to it sends your user to your
+          own page.
+        * **Telegram has a link and still is not a redirect**: it opens a private chat with the
+          PlanVortex bot and nobody comes back from it. The account is born later, when the person
+          adds the bot to their channel, and it is announced over the WebSocket and the
+          ``new_account`` webhook — never as the answer to a call of yours. Open it in another tab
+          and keep listening.
+
+        :func:`~planvortex.types.is_redirect_authorization`,
+        :func:`~planvortex.types.is_meta_embedded_signup` and
+        :func:`~planvortex.types.is_telegram_bot_authorization` are what narrow each one.
 
         CAREFUL: ``redirect_uri`` here is which PlanVortex front the NETWORK returns the user to, for
         a white-label deployment, and it has to be one the server has registered or the call answers

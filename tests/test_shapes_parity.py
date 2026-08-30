@@ -177,6 +177,17 @@ def _claves(clase: Any) -> tuple[set[str], set[str]]:
     return set(clase.__required_keys__), set(clase.__optional_keys__)
 
 
+# El reparto de `AccountsSocialAuthorizationMethod`, que el spec emite PLANO. Se enumera aqui y no
+# dentro de cada test porque lo que se vigila es el conjunto: una forma nueva de autorizar que se
+# escriba en `_shapes.py` y no se anada a esta lista deja los dos tests de abajo comprobando el
+# reparto viejo, y en verde.
+MITADES_DE_AUTORIZACION = (
+    _shapes.RedirectAuthorization,
+    _shapes.MetaEmbeddedSignupAuthorization,
+    _shapes.TelegramBotAuthorization,
+)
+
+
 @pytest.mark.parametrize(
     ("clase", "path", "metodo", "tipo", "ruta"),
     TABLA,
@@ -244,50 +255,50 @@ def test_la_introspeccion_de_los_typeddict_no_miente() -> None:
     assert set(_shapes.ConnectToken.__optional_keys__) == set()
 
 
-def test_las_dos_mitades_de_authorization_cubren_lo_que_declara_el_spec() -> None:
-    """`RedirectAuthorization` y `MetaEmbeddedSignupAuthorization`, contra el esquema del que salen.
+def test_las_mitades_de_authorization_cubren_lo_que_declara_el_spec() -> None:
+    """Las TRES mitades, contra el esquema del que salen.
 
     No son formas EN LINEA como el resto del fichero: el spec si declara
     `AccountsSocialAuthorizationMethod`, y el generador la emite. Lo que no puede emitir es que sea
     una UNION —OpenAPI no dice "estos cinco campos solo cuando `type` vale tal"—, asi que la emite
-    plana y con los cinco opcionales. Estas dos clases son el reparto, y por eso hay que vigilarlo:
-    un campo nuevo en el popup, o una tercera forma de autorizar, dejarian el reparto corto sin que
-    nada se pusiera rojo.
+    plana y con todos opcionales. Estas clases son el reparto, y por eso hay que vigilarlo: un campo
+    nuevo en el popup, o una forma nueva de autorizar, dejarian el reparto corto sin que nada se
+    pusiera rojo. Que eran DOS hasta que llego Telegram, que autoriza de una tercera manera.
     """
     esquema = _spec()["components"]["schemas"]["AccountsSocialAuthorizationMethod"]
     del_spec = set(esquema["properties"])
     assert set(esquema.get("required", [])) == {"type"}, "el spec ya no obliga solo a `type`"
 
-    redirect_obligatorias, redirect_opcionales = _claves(_shapes.RedirectAuthorization)
-    meta_obligatorias, meta_opcionales = _claves(_shapes.MetaEmbeddedSignupAuthorization)
+    obligatorias: set[str] = set()
+    for mitad in MITADES_DE_AUTORIZACION:
+        propias, opcionales = _claves(mitad)
+        # Todas obligatorias en su mitad: es el reparto entero lo que se gana partiendo el tipo. Si
+        # alguna sale opcional aqui, leerla vuelve a ser un `KeyError` que mypy no ve. Y ojo con
+        # `add_to_group_link`, que el spec SI declara opcional: aqui no lo es, porque el servidor la
+        # manda siempre en una entrada `telegram_bot` y quien ramifica ya sabe en cual esta.
+        assert not opcionales, f"{mitad.__name__} deja claves opcionales"
+        obligatorias |= propias
 
-    # Entre las dos tienen que estar TODAS las propiedades, y ninguna que el spec no declare.
-    assert redirect_obligatorias | meta_obligatorias == del_spec
-
-    # Y todas obligatorias en su mitad: es el reparto entero lo que se gana partiendo el tipo. Si
-    # alguna sale opcional aqui, leerla vuelve a ser un `KeyError` que mypy no ve.
-    assert not redirect_opcionales and not meta_opcionales
+    # Entre las tres tienen que estar TODAS las propiedades, y ninguna que el spec no declare.
+    assert obligatorias == del_spec
 
     # `redirect` no lleva nada mas que su discriminante. Es la mitad que aguanta las nueve redes.
-    assert redirect_obligatorias == {"type"}
+    assert _claves(_shapes.RedirectAuthorization)[0] == {"type"}
 
 
-def test_los_dos_tipos_de_autorizacion_son_los_que_el_spec_enumera() -> None:
+def test_los_tipos_de_autorizacion_son_los_que_el_spec_enumera() -> None:
     """En las DOS direcciones, que es donde esto vale de verdad.
 
-    El dia que una red decima-primera se autorice de una tercera forma, el servidor la mete en el
-    `enum` y aqui no hay ni mitad ni predicado que la reconozca: un integrador que recorra
-    `connect_links` se la comeria como "ninguna de las dos" y no conectaria esa red. Este test es lo
-    unico que se entera, porque el `Literal` generado si cambia solo y nadie mira un `git diff` de
-    un fichero generado buscando un valor nuevo.
+    El dia que una red se autorice de una forma nueva, el servidor la mete en el `enum` y aqui no
+    hay ni mitad ni predicado que la reconozca: un integrador que recorra `connect_links` se la
+    comeria como "ninguna de las conocidas" y no conectaria esa red. Este test es lo unico que se
+    entera, porque el `Literal` generado si cambia solo y nadie mira un `git diff` de un fichero
+    generado buscando un valor nuevo. Ya paso una vez: `telegram_bot` entro asi.
     """
     del_spec = set(
         _spec()["components"]["schemas"]["AccountsSocialAuthorizationMethod"]["properties"]["type"]["enum"]
     )
-    de_las_mitades = {
-        get_args(_shapes.RedirectAuthorization.__annotations__["type"])[0],
-        get_args(_shapes.MetaEmbeddedSignupAuthorization.__annotations__["type"])[0],
-    }
+    de_las_mitades = {get_args(mitad.__annotations__["type"])[0] for mitad in MITADES_DE_AUTORIZACION}
     assert de_las_mitades == del_spec
 
 
@@ -338,10 +349,11 @@ def test_el_cuerpo_de_publicar_solo_ensancha_publish_date() -> None:
 def test_las_redes_que_publican_son_las_que_el_spec_enumera() -> None:
     """En las dos direcciones, y contra el enum EN LINEA del que sale.
 
-    `/allowed_social_publications` no sirve de ancla: devuelve `SocialNetwork[]`, o sea las diez.
-    El unico sitio donde el spec dice cuales son las nueve es este enum dentro del cuerpo, asi que
-    es contra el que se compara. El dia que una red nueva publique, esto se pone rojo y
-    `PUBLISHABLE_NETWORKS` deja de decir que no a una red que si.
+    `/allowed_social_publications` no sirve de ancla: devuelve `SocialNetwork[]`, o sea las once.
+    El unico sitio donde el spec dice cuales son las que publican es este enum dentro del cuerpo,
+    asi que es contra el que se compara. El dia que una red nueva publique, esto se pone rojo y
+    `PUBLISHABLE_NETWORKS` deja de decir que no a una red que si — que es exactamente lo que paso
+    con `telegram`.
     """
     del_spec = set(
         _spec()["components"]["schemas"][ESQUEMA_PUBLICATION_INPUT]["properties"]["social_network"]["enum"]

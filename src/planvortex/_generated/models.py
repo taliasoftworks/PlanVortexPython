@@ -137,14 +137,17 @@ class AccountsSocialAuthorizationMethod(TypedDict):
     """
     **How** an account of this network is authorized, which is not always "send the user to this URL".
 
-    Nine of the ten networks are `redirect`: open `link` and the network sends the person back to PlanVortex with a code. **WhatsApp is not.** Its sign-up is Meta's *Embedded Signup*: a popup raised by the Facebook JavaScript SDK from your own page, which returns — over `postMessage` — session data (`waba_id`, `phone_number_id`) that no query string carries. Its `link` is therefore an empty string.
+    Nine of the eleven networks are `redirect`: open `link` and the network sends the person back to PlanVortex with a code. Two are not:
+
+    • **WhatsApp.** Its sign-up is Meta's *Embedded Signup*: a popup raised by the Facebook JavaScript SDK from your own page, which returns — over `postMessage` — session data (`waba_id`, `phone_number_id`) that no query string carries. Its `link` is therefore an empty string.
+    • **Telegram.** There is no OAuth here: no consent screen, no `code`, no account token. `link` opens a private chat with the PlanVortex bot, the person then adds that bot to their channel, and **the account is created from that event**, not from any request of yours. Which means the connection cannot be finished by calling `GET /organizations/{id_organization}/account-connect/telegram` — see that endpoint.
 
     Branch on `authorization.type`, never on whether `link` is empty.
     """
 
-    type: Literal["redirect", "meta_embedded_signup"]
+    type: Literal["redirect", "meta_embedded_signup", "telegram_bot"]
     """
-    `redirect`: send the user to `link`. `meta_embedded_signup`: open the Meta popup with the fields below.
+    `redirect`: send the user to `link`. `meta_embedded_signup`: open the Meta popup with the fields below. `telegram_bot`: open `link` in another tab and wait for the account to show up.
     """
     app_id: NotRequired[str]
     """
@@ -165,6 +168,14 @@ class AccountsSocialAuthorizationMethod(TypedDict):
     session_info_version: NotRequired[str]
     """
     `meta_embedded_signup` only. Goes to `extras.sessionInfoVersion`.
+    """
+    bot_username: NotRequired[str]
+    """
+    `telegram_bot` only. The bot's `@name`, **without the at sign**. Published here so you never have to write it by hand: it is the name the person will see in Telegram, and it changes with the deployment.
+    """
+    add_to_group_link: NotRequired[str]
+    """
+    `telegram_bot` only. The **second** step, and it does not follow from the first: `link` opens the list of channels and this one opens the list of groups. It adds the bot to the channel's linked discussion group, which is what turns comments on — a Telegram channel with no discussion group has no comment inbox at all (error 965). Optional for the user: publishing and statistics work without it.
     """
 
 
@@ -459,6 +470,8 @@ class CatalogAspectRatios(TypedDict):
 CatalogSocialLimitsMap: TypeAlias = dict[str, int]
 """
 One number per network. Every network in `/social_networks` is present.
+
+**And a few keys are not a network.** Some limits depend on the *kind* of publication rather than on the network alone, and those get a compound key next to the plain one: `instagram_story`, `facebook_reel`, `telegram_media`. Read the plain key by default and the compound one when it applies.
 """
 
 
@@ -691,7 +704,15 @@ class CommentsCommentAuthor(TypedDict):
 
 
 CommentsCommentNetworkName: TypeAlias = Literal[
-    "facebook", "instagram", "twitter", "linkedin", "youtube", "google_business", "bluesky", "discord"
+    "facebook",
+    "instagram",
+    "twitter",
+    "linkedin",
+    "youtube",
+    "google_business",
+    "bluesky",
+    "discord",
+    "telegram",
 ]
 """
 A network that has comments. Treat it as an open list: a new one is added before your integration hears about it.
@@ -1504,6 +1525,8 @@ class PublicationStats(TypedDict):
     On `discord` there are only two: `likes` (the reactions on the message) and `comments` (the messages in its thread). There is no impressions figure anywhere in Discord's API, so engagement is computed over the server's member count.
 
     On `bluesky` there are no impressions and no reach either — only the public counters — so engagement is computed over followers.
+
+    On `telegram` there are two as well, and **neither of them is asked for**: the Bot API has no method that returns a message's metrics, so `reactions` arrives on its own through the bot and `comments` is counted in PlanVortex's own inbox. There are no impressions, no reach, no views and no forwards to be had anywhere in it, so engagement is computed over followers.
     """
 
     likes: NotRequired[int]
@@ -1566,6 +1589,14 @@ class PublicationStats(TypedDict):
     share: NotRequired[int]
     shareMentions: NotRequired[int]
     views: NotRequired[int]
+    reactions: NotRequired[int]
+    """
+    Telegram. Every reaction on the post, all emoji together. It is the **complete state and not an increment**: it goes down when somebody takes theirs back. Normalised as `likes`.
+    """
+    reactions_by_emoji: NotRequired[dict[str, int]]
+    """
+    Telegram. The same total broken down by emoji. Reactions with a custom emoji are grouped under a single key: their identifier means nothing outside the server that created it.
+    """
 
 
 class PublicationsPublicationInput(TypedDict):
@@ -1584,6 +1615,7 @@ class PublicationsPublicationInput(TypedDict):
             "youtube",
             "bluesky",
             "discord",
+            "telegram",
         ]
     ]
     """
@@ -1594,6 +1626,8 @@ class PublicationsPublicationInput(TypedDict):
     text: NotRequired[str]
     """
     Body text of the publication. Either `text` or at least one entry in `files` is required: if both are empty the publication is still created, but in state `withErrors` with `publication_errors[].code = 915`. Maximum length depends on the network. On YouTube this is the video **description** (5,000 characters), and the publication must carry exactly one video file and no images — otherwise it is created in state `withErrors` with `publication_errors[].code = 943`. For X (Twitter), a text containing a link costs 200 credits instead of 15.
+
+    **On Telegram the limit depends on what else the publication carries**: 4.096 characters while it is text only, and **1.024** the moment it has an image or a video, because then the text is the caption of a photo, a video or an album and no longer a message. Over the limit it is created in state `withErrors` with `publication_errors[].code = 967`, whose `data` carries `characters`, `max_characters` and `has_media`. Both numbers are published, as `characters.telegram` and `characters.telegram_media` in `GET /social_limits`.
     """
     title: NotRequired[str]
     """
@@ -1730,6 +1764,7 @@ SocialNetwork: TypeAlias = Literal[
     "google_business",
     "bluesky",
     "discord",
+    "telegram",
 ]
 """
 A social network supported by PlanVortex.
@@ -1815,9 +1850,9 @@ class Account(TypedDict):
     """
     A social account connected to an organization.
 
-    On `discord` an account is a **channel**, not a profile: publishing to two channels of the same server costs two accounts of the plan.
+    On `discord` and on `telegram` an account is a **channel**, not a profile: publishing to two Discord channels of the same server — or to two Telegram channels of the same brand — costs two accounts of the plan.
 
-    `error_code` other than `0` means the connection is broken — an expired token, a permission taken away — and the account has to be connected again.
+    `error_code` other than `0` means the connection is broken — an expired token, a permission taken away — and the account has to be connected again. On `telegram` nothing expires, because there is no account token: what breaks the connection is the bot being removed from the channel or losing its permission to post there (error 968).
     """
 
     _id: str
@@ -1832,7 +1867,7 @@ class Account(TypedDict):
     """
     username: NotRequired[str]
     """
-    The handle, when the network has one. Absent on the networks that do not (a Discord channel, a WhatsApp number, a Google Business listing).
+    The handle, when the network has one. Absent on the networks that do not (a Discord channel, a WhatsApp number, a Google Business listing) and on a **private** Telegram channel, which has no `@name` at all — only public ones do. That is also why a private channel's publications come back with no `url`.
     """
     social_network: SocialNetwork
     """
@@ -1849,7 +1884,7 @@ class Account(TypedDict):
     """
     followers_count: NotRequired[int]
     """
-    Followers the network reports. Absent on an account that has never been measured.
+    Followers the network reports. Absent on an account that has never been measured. On `telegram` it is the channel's member count, and it is the **only** audience figure that network publishes: there are no views, no impressions and no reach anywhere in the Bot API.
     """
     next_stats_update: NotRequired[str]
     """
@@ -1878,7 +1913,9 @@ class Link(TypedDict):
     social_network: SocialNetwork
     link: str
     """
-    The network's authorization URL. Send the user there. **Empty when `authorization.type` is not `redirect`** — WhatsApp has no URL to give.
+    The network's authorization URL. Send the user there. **Empty when `authorization.type` is `meta_embedded_signup`** — WhatsApp has no URL to give at all.
+
+    On `telegram_bot` it is filled in, and it still is not somewhere to redirect: it opens a Telegram chat, not an authorization screen. Open it in another tab.
     """
     authorization: AccountsSocialAuthorizationMethod
 
@@ -1905,7 +1942,9 @@ class AiPlansAiPlanCreateRequest(TypedDict):
 class CatalogSocialLimits(TypedDict):
     characters: CatalogSocialLimitsMap
     """
-    Maximum length of a publication's text. Bluesky counts graphemes, everyone else counts characters.
+    Maximum length of a publication's text. Bluesky counts graphemes, everyone else counts characters — Telegram included, where `String.length` is exactly the right unit.
+
+    On Telegram there are **two numbers for the same field**: `telegram` (4.096) while the publication is text only, and `telegram_media` (1.024) the moment it carries an image or a video, because then the text is a media caption and not a message. Switch the counter when the file is attached, not when publish is pressed.
     """
     max_post_bytes: CatalogSocialLimitsMap
     """
@@ -2474,13 +2513,19 @@ class Publication(TypedDict):
     """
     Manual retries already spent on a failed publication, against the `max_retries` published by `GET /publication_limits`. Only `POST .../retry` increases it; updating the publication resets it to 0.
     """
+    extra_data: NotRequired[dict[str, Any]]
+    """
+    What one network needs to remember about **this** publication and that has no common field. Absent on a publication whose network needs nothing, which is almost all of them.
+
+    Today only `telegram` writes here, and only `telegram_message_ids`: the ids of every message an album turned into, because deleting the album means deleting all of them.
+    """
     external_identifier: NotRequired[str]
     """
-    The network's own identifier, once published.
+    The network's own identifier, once published. On `telegram` an album is one publication that is **several messages**, and this holds the first one; the rest travel in `extra_data.telegram_message_ids`.
     """
     url: NotRequired[str]
     """
-    Link to the publication on the network, when there is one.
+    Link to the publication on the network, when there is one. A **private** Telegram channel has no public URL, so it comes back empty even though the post went out.
     """
     statistics: NotRequired[PublicationStats]
     metrics: NotRequired[NormalizedMetrics]
@@ -2701,13 +2746,16 @@ class CommentsComment(TypedDict):
     """
     publication_external_id: str
     """
-    What the comment hangs off, on the network: the post/video id in five networks, and the **listing** (`locations/{id}`) for a Google Business review.
+    What the comment hangs off, on the network: the post/video id in most networks, the **listing** (`locations/{id}`) for a Google Business review, and the published message's id on Telegram — where the thread that holds the comments *is* the forwarded post.
     """
     external_id: str
     """
     The comment's id on the network. Unique per account, and what makes repeated webhook deliveries idempotent.
 
-    One exception worth knowing: a Google Business reply has no id of its own — it is a *field* of the review — so PlanVortex fabricates a stable one, `{reviewId}/reply`.
+    Two exceptions worth knowing, and both are composite ids you should treat as opaque:
+
+    • A Google Business reply has no id of its own — it is a *field* of the review — so PlanVortex fabricates a stable one, `{reviewId}/reply`.
+    • A Telegram comment lives in a **different chat** from the post it answers (the channel's linked discussion group), so it needs two ids at once and travels as `{thread}/{message}`: replying wants the first, deleting wants the second.
     """
     parent_external_id: NotRequired[str]
     """
@@ -2900,7 +2948,7 @@ class CommentsWebhookChange(TypedDict):
     """
     What kind of change this is. **Treat it as an open list** and ignore what you do not handle: it grows with the product.
 
-    - `new_account` / `change_state_account`: an account was connected, or its state changed — it stopped working, its token was refreshed, it was disconnected.
+    - `new_account` / `change_state_account`: an account was connected, or its state changed — it stopped working, its token was refreshed, it was disconnected. On `telegram` this is the **only** way to hear about a connection: there is no callback there, so no request of yours ever returns that account.
     - `messages`: a message came in. It travels in `messageObj`.
     - `messaging_postbacks`: the contact pressed a button or a quick reply. Also in `messageObj`.
     - `messaging_seen`: the contact read the conversation. `messageObj` carries the message they read, when we still have it.
