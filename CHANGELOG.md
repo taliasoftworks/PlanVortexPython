@@ -4,13 +4,17 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-08-31
 
 An AI plan can now be **archived**, and deleting one finally means what people thought it meant.
 
 The two look alike on a screen and have nothing in common underneath: archiving takes the plan out
 of the listing and touches nothing else, while deleting takes the publications that had not gone out
 with it. Almost every time someone reaches for "remove" they wanted the first one.
+
+Upgrading from `0.3.0` needs no changes and `MIGRATION.md` gains no entry — everything added here is
+additive. **Read the note on `remove()` anyway**: what it deletes changed in the server, so it has
+been happening to your `0.3.0` calls for a while and the docs that shipped with them say otherwise.
 
 ### Added
 
