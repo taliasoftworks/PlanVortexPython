@@ -10,10 +10,18 @@ from __future__ import annotations
 
 from typing import Any
 
+from planvortex._core.pagination import unwrap_one
 from planvortex._core.transport import HttpMethod, HttpRequest
 from planvortex._shapes import PublicationLimits
 from planvortex.resources_sync.base import RequestSender, Resource
-from planvortex.types import AspectRatios, CommentActions, SocialCapabilities, SocialLimits, SocialNetwork
+from planvortex.types import (
+    AspectRatios,
+    CommentActions,
+    PlannerTemplate,
+    SocialCapabilities,
+    SocialLimits,
+    SocialNetwork,
+)
 
 
 class CatalogResource(Resource):
@@ -101,13 +109,56 @@ class CatalogResource(Resource):
         recortes: dict[str, AspectRatios] = self._cached("/allowed_aspect_ratios", timeout=timeout)
         return recortes
 
+    def planner_templates(self, *, timeout: float | None = None) -> list[PlannerTemplate]:
+        """The AI planner templates: what a plan can be generated FROM, and what each source allows.
+
+        You send the chosen one as ``template`` when creating the plan, together with its
+        ``source``. It is catalogue for the same reason the limits are — whoever enforces
+        something is who gets to announce it — and here a copy is especially expensive, because these
+        are **prices**: a table written by hand in your interface would show a cost the server no
+        longer charges.
+
+        What to read from here rather than assume:
+
+        - **``generates_images: False`` means the pictures come from the source**, and then the
+          plan spends no image credits at all. The same week — 7 publications with a picture on each
+          — goes from 519 credits to 48, and that is said BEFORE the plan is created.
+        - **``regenerate`` is per template.** The one that did not generate the picture cannot
+          regenerate it: drawing that button anyway charges the user 70 credits to replace their own
+          photo with an invented one.
+        - **``orchestration_cost`` is an ESTIMATE**, not the bill: the real charge is per use.
+          ``orchestration_cost_per_source_item`` is what each unit of the source adds.
+        - **A plan is WEEKLY and the source does not extend it.** With more units than slots left in
+          the week, the extra ones are dropped and the plan carries warning 2117 in ``warnings``.
+        - **``source_fields`` is what the source step is made of**, each with its own
+          ``max`` and ``min`` — in the field's units: characters, items, or **days** on a
+          date — and ``source_requires_any`` naming the fields of which at least one is needed
+          (on ``from_text``, the URL or the pasted text).
+        """
+        plantillas: list[PlannerTemplate] = self._cached(
+            "/planner_templates", envelope="templates", timeout=timeout
+        )
+        return plantillas
+
     def clear_cache(self) -> None:
         """Throw the cache away, for a long-lived process that wants to notice a new network."""
         self._cache.clear()
 
-    def _cached(self, path: str, *, method: HttpMethod = "GET", timeout: float | None = None) -> Any:
+    def _cached(
+        self,
+        path: str,
+        *,
+        method: HttpMethod = "GET",
+        envelope: str | None = None,
+        timeout: float | None = None,
+    ) -> Any:
+        # `envelope` es para la unica ruta del catalogo que envuelve su respuesta
+        # (`/planner_templates` -> `{templates}`). Sin desenvolver, quien la recorriera obtendria
+        # nada y sin error: un `dict` de una clave no revienta al iterarlo.
         if path in self._cache:
             return self._cache[path]
         valor = self._request(HttpRequest(method=method, path=path, timeout=timeout))
+        if envelope is not None:
+            valor = unwrap_one(valor, envelope)
         self._cache[path] = valor
         return valor

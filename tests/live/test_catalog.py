@@ -143,6 +143,44 @@ def test_los_limites_de_publicacion_llegan_con_los_tres_tamanos(pv: PlanVortex) 
     assert len(limites) > 0
 
 
+def test_las_plantillas_del_planificador_traen_sus_costes_y_sus_campos(pv: PlanVortex) -> None:
+    """La entrada del catalogo que MAS caro sale copiar: lleva precios dentro.
+
+    La capa 2 simula la respuesta, asi que jamas veria que el servidor ha cambiado lo que cobra ni
+    que ha entrado una plantilla nueva — que es de lo que esta capa existe para enterarse.
+
+    Lo que se cruza aqui es el invariante del que cuelga el consejo que da la libreria: **la que no
+    genera la imagen tampoco la regenera**. El dia que dejara de cumplirse, el README estaria
+    mintiendo.
+    """
+    plantillas = pv.catalog.planner_templates()
+
+    assert len(plantillas) >= 5
+
+    for plantilla in plantillas:
+        nombre = plantilla.get("template")
+        assert isinstance(nombre, str) and nombre, plantilla
+        assert isinstance(plantilla.get("orchestration_cost"), int), f"{nombre}.orchestration_cost"
+        assert isinstance(plantilla.get("generates_images"), bool), f"{nombre}.generates_images"
+
+        # Sin imagen generada no hay imagen que regenerar. Lo contrario le cobraria al usuario 70
+        # creditos por cambiar su propia foto por una inventada.
+        if plantilla.get("generates_images") is False:
+            assert (plantilla.get("regenerate") or {}).get("image") is False, f"{nombre}.regenerate"
+
+        # Y un tope de unidades sin un campo que las recoja seria un numero que nadie puede usar.
+        if plantilla.get("max_source_items", 0) > 0:
+            assert plantilla.get("source_fields"), f"{nombre}.source_fields"
+
+        # `source_requires_any` solo puede nombrar campos que la plantilla declare.
+        declarados = {campo.get("name") for campo in plantilla.get("source_fields") or []}
+        for pedido in plantilla.get("source_requires_any") or []:
+            assert pedido in declarados, f"{nombre}.source_requires_any: {pedido}"
+
+    # `standard` no puede desaparecer: es lo que tarifa un plan que no manda `template`.
+    assert "standard" in [plantilla.get("template") for plantilla in plantillas]
+
+
 def test_el_catalogo_se_cachea_dos_lecturas_una_peticion() -> None:
     """Y `clear_cache()` tiene que volver a preguntar DE VERDAD, no solo de mentira en la capa 2."""
     llamadas = 0

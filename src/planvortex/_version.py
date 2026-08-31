@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import platform
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 # Sin barra final, y con el `/v1.0.0` dentro: la version de la API es parte de la ruta, no una
 # cabecera, asi que una `base_url` sin ella da 404 en todo.
@@ -20,7 +20,7 @@ PLANVORTEX_API_URL = "https://api.planvortex.com/v1.0.0"
 
 
 def user_agent() -> str:
-    """``planvortex-python/0.2.0 python/3.12.4``.
+    """``planvortex-python/0.3.0 python/3.12.4``.
 
     Both halves earn their place in our logs: ours says which version of the library is failing and
     the interpreter's says whether the failure belongs to one row of the support matrix.

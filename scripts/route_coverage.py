@@ -3,7 +3,7 @@
     uv run python scripts/route_coverage.py
 
 QUE PREGUNTA CONTESTA: la libreria cubre la API publica ENTERA menos roles, y esa afirmacion no la
-puede sostener nadie leyendo. Son 112 operaciones repartidas en catorce recursos, y la unica forma
+puede sostener nadie leyendo. Son 113 operaciones repartidas en catorce recursos, y la unica forma
 de que "no falta ninguna" siga siendo verdad dentro de un ano es que lo compruebe una maquina.
 
 COMO SE SABE QUE UNA RUTA ESTA CUBIERTA: no hay ninguna tabla escrita a mano. El script parsea

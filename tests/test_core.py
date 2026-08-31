@@ -308,6 +308,10 @@ def test_cada_rango_del_catalogo_cae_en_su_clase() -> None:
     assert error_class_for_code(1300).__name__ == "PlanLimitError"
     assert error_class_for_code(1408).__name__ == "PlanLimitError"
     assert error_class_for_code(2299).__name__ == "IntegrationError"
+    # Los siete de las plantillas del planificador. No hay nada que registrar para que caigan aqui:
+    # entran por el rango 2100-2199, y eso es justo lo que hay que comprobar en vez de suponerlo.
+    for codigo in range(2111, 2118):
+        assert error_class_for_code(codigo).__name__ == "AiPlanError", codigo
     # Fuera de todo rango conocido, y el catalogo crece cada mes.
     assert error_class_for_code(9999) is PlanVortexError
     assert error_class_for_code(1000) is PlanVortexError

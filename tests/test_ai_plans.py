@@ -8,6 +8,13 @@ Lo que se fija aqui:
   encolar es el presupuesto.
 - **Validar y reintentar SI vienen envueltos** en `{ai_plan}`.
 - **Regenerar lleva `target` en el cuerpo** y devuelve la publicacion mas el gasto TOTAL del plan.
+
+Y de las plantillas:
+
+- **`template` y `source` son OPCIONALES**: un cuerpo sin ellos tiene que salir tal cual, porque es
+  lo que manda quien integro con esta libreria antes de que existieran.
+- **La fuente se valida al CREAR**, asi que sus errores (2112-2116) llegan en esa llamada.
+- **`warnings` viaja DENTRO del plan generado**: el 2117 no es un error de la respuesta.
 """
 
 from __future__ import annotations
@@ -52,6 +59,114 @@ def test_encolar_devuelve_el_plan_y_el_presupuesto(cliente: ClienteDePrueba, htt
     assert encolado["ai_plan"]["state"] == "pending"
     assert ruta(unica(httpx_mock)) == "/clients/cli1/organizations/org1/ai_plans"
     assert cuerpo(unica(httpx_mock))["options"]["publish_days"] == [1, 3, 5]
+
+
+def test_sin_plantilla_el_cuerpo_sale_como_siempre(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:
+    """Es contrato, no una comodidad: el servidor tarifa como `standard` lo que llega sin `template`.
+
+    Una libreria que rellenara el hueco con un `"template": "standard"` "por claridad" estaria
+    cambiando lo que sale por el cable de todos los integradores que ya estaban.
+    """
+    httpx_mock.add_response(url=PLANES, method="POST", json={"ai_plan": PLAN, "estimate": {}})
+
+    cliente.esperar(
+        cliente.pv.ai_plans.create("cli1", "org1", {"prompt": "Pan de masa madre", "accounts": ["acc1"]})
+    )
+
+    assert cuerpo(unica(httpx_mock)) == {"prompt": "Pan de masa madre", "accounts": ["acc1"]}
+
+
+def test_la_plantilla_y_su_fuente_viajan_con_las_fotos_en_orden(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    """El ORDEN de las fotos es la historia.
+
+    El orquestador se queda con la posicion de cada una como `source_index`, y es lo que deja que la
+    foto 3 sea el "antes" y la 7 el "despues". Reordenarlas por el camino seria el copy del entrante
+    con la foto del postre.
+    """
+    imagenes = [
+        {"id_upload": "up1", "description": "Masa reposando en el banco"},
+        {"id_upload": "up2", "description": "La hogaza saliendo del horno"},
+    ]
+    httpx_mock.add_response(
+        url=PLANES,
+        method="POST",
+        json={
+            "ai_plan": {**PLAN, "template": "from_images", "source": {"images": imagenes}},
+            "estimate": {"base_cost": 48, "estimated_cost": 48, "images_target": 0},
+        },
+    )
+
+    encolado = cliente.esperar(
+        cliente.pv.ai_plans.create(
+            "cli1",
+            "org1",
+            {
+                "prompt": "Nuestra carta de otono",
+                "accounts": ["acc1"],
+                "template": "from_images",
+                "source": {"images": imagenes},
+            },
+        )
+    )
+
+    enviado = cuerpo(unica(httpx_mock))
+    assert enviado["template"] == "from_images"
+    assert enviado["source"]["images"] == imagenes
+    # Las fotos las pone la fuente, asi que el plan no financia ni una imagen: es de donde sale el
+    # 519 -> 48 de la misma semana.
+    assert encolado["estimate"]["images_target"] == 0
+    assert encolado["ai_plan"]["source"]["images"][0]["description"] == "Masa reposando en el banco"
+
+
+def test_la_fecha_de_campaign_viaja_como_dia_de_calendario(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    """Un `YYYY-MM-DD`, nunca un instante ISO.
+
+    `2026-09-15T00:00:00Z` es medianoche UTC, o sea el 14 por la tarde en Nueva York: un dia entero
+    de desfase en una cuenta atras, para media America y sin error en ninguna parte.
+    """
+    httpx_mock.add_response(url=PLANES, method="POST", json={"ai_plan": PLAN, "estimate": {}})
+
+    cliente.esperar(
+        cliente.pv.ai_plans.create(
+            "cli1",
+            "org1",
+            {
+                "prompt": "Abrimos tienda en el barrio",
+                "accounts": ["acc1"],
+                "template": "campaign",
+                "source": {"event_name": "Apertura del local", "event_date": "2026-09-15"},
+            },
+        )
+    )
+
+    assert cuerpo(unica(httpx_mock))["source"]["event_date"] == "2026-09-15"
+
+
+def test_el_2117_es_un_aviso_del_plan_y_no_un_error(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:
+    """El plan se genero perfectamente: lo que paso es que la fuente traia mas unidades que huecos.
+
+    Va en `warnings` DENTRO del plan, junto a un `state` que dice `generated`, y no en el error de
+    la respuesta — que es donde lo buscaria quien no lo sepa.
+    """
+    aviso = {
+        "code": 2117,
+        "message": "Some source items did not fit in the plan week",
+        "data": {"source_items": 12, "capacity": 6},
+    }
+    httpx_mock.add_response(
+        url=f"{PLANES}/plan1",
+        json={"ai_plan": {**PLAN, "state": "generated", "template": "from_images", "warnings": [aviso]}},
+    )
+
+    plan = cliente.esperar(cliente.pv.ai_plans.get("cli1", "org1", "plan1"))
+
+    assert plan["state"] == "generated"
+    assert "error" not in plan
+    assert plan["warnings"][0]["data"] == {"source_items": 12, "capacity": 6}
 
 
 def test_leer_listar_e_iterar(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:

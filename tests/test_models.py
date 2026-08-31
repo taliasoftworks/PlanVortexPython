@@ -180,19 +180,44 @@ def test_el_modulo_generado_avisa_de_que_es_generado() -> None:
         (get_args(types.FileType), "Upload", "file_type"),
         (get_args(types.FileFormat), "Upload", "file_format"),
         (get_args(types.EngagementBase), "Publication", "engagement_base"),
+        (types.PLANNER_TEMPLATES, "CatalogPlannerTemplate", "template"),
+        (get_args(types.PlannerTemplateFieldType), "CatalogPlannerTemplateField", "type"),
     ],
-    ids=["states", "types", "ai_plan", "file_type", "file_format", "engagement"],
+    ids=[
+        "states",
+        "types",
+        "ai_plan",
+        "file_type",
+        "file_format",
+        "engagement",
+        "planner_templates",
+        "planner_field_types",
+    ],
 )
 def test_los_literales_escritos_a_mano_dicen_lo_que_dice_el_spec(
     tupla: tuple[str, ...], esquema: str, campo: str
 ) -> None:
-    """Estas seis no tienen esquema propio: el spec las declara en linea, asi que el generador las
+    """Estas ocho no tienen esquema propio: el spec las declara en linea, asi que el generador las
     emite como un `Literal` anonimo dentro del campo y no hay nada que importar.
 
     Son la unica parte de `types.py` que puede quedarse atras sola, y por eso se comparan con el
     bundle en vez de darlas por buenas.
     """
     assert list(tupla) == ESQUEMAS[esquema]["properties"][campo]["enum"]
+
+
+def test_la_plantilla_que_se_manda_es_la_misma_que_la_que_se_lee() -> None:
+    """El spec declara el mismo enum en TRES sitios: la ficha del catalogo, el cuerpo de crear y el
+    plan guardado. Son tres copias, y una copia que derive es una plantilla que se puede pedir y no
+    se puede leer —o al reves— sin que nada lo diga.
+    """
+    del_catalogo = ESQUEMAS["CatalogPlannerTemplate"]["properties"]["template"]["enum"]
+    de_crear = ESQUEMAS["AiPlansAiPlanCreateRequest"]["properties"]["template"]["enum"]
+    del_plan = ESQUEMAS["AiPlansAiPlan"]["properties"]["template"]["enum"]
+
+    assert de_crear == del_catalogo
+    assert del_plan == del_catalogo
+    assert list(types.PLANNER_TEMPLATES) == del_catalogo
 
 
 def test_las_redes_de_la_tupla_son_las_del_spec() -> None:

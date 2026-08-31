@@ -111,6 +111,24 @@ not comparable**: if you put them in the same table, say which one it is.
 AiPlanState: TypeAlias = Literal["pending", "generating", "generated", "validated", "failed", "cancelled"]
 """The state of an AI plan. ``pending`` and ``generating`` are the two you poll on."""
 
+PlannerTemplateName: TypeAlias = Literal["standard", "from_images", "from_text", "from_catalog", "campaign"]
+"""What an AI plan is generated FROM: the source of the content, not a different flow.
+
+Publish days, language, tone, ``shared`` and the images stay cross-cutting options, and each
+template declares which of them it accepts. It is **closed** on purpose, unlike the Node library's:
+here a template you have not heard of goes red where you branch on it instead of slipping through.
+"""
+
+PlannerTemplateFieldType: TypeAlias = Literal[
+    "text", "textarea", "url", "boolean", "select", "date", "uploads_with_description", "catalog_products"
+]
+"""The control one field of the source step needs.
+
+``uploads_with_description`` (photos, each with its own description) and ``catalog_products``
+(products read live from a connected catalogue) are the signal that the field needs a component of
+its own; the rest are ordinary controls.
+"""
+
 # --- las tuplas de runtime -----------------------------------------------------------------------
 #
 # Se derivan del propio `Literal` con `get_args` y no se copian a mano: son las dos caras de lo
@@ -179,6 +197,16 @@ PUBLICATION_TYPES: tuple[PublicationType, ...] = cast(
 AI_PLAN_STATES: tuple[AiPlanState, ...] = cast("tuple[AiPlanState, ...]", get_args(AiPlanState))
 """Every state an AI plan can be in."""
 
+PLANNER_TEMPLATES: tuple[PlannerTemplateName, ...] = cast(
+    "tuple[PlannerTemplateName, ...]", get_args(PlannerTemplateName)
+)
+"""Every planner template this release knows about, as a tuple you can iterate at runtime.
+
+**This list grows too**, and what is authoritative at any moment is ``GET /planner_templates`` —
+which also publishes what each one COSTS, and that is the part you must never copy: a price written
+by hand in your interface shows what the server no longer charges.
+"""
+
 # =================================================================================================
 # Catalogo
 # =================================================================================================
@@ -207,6 +235,28 @@ PublicationLimits: TypeAlias = _shapes.PublicationLimits
 
 Written by hand because the specification declares it inline and the generator only emits
 ``components/schemas``; ``tests/test_shapes_parity.py`` is what keeps it honest.
+"""
+
+PlannerTemplate: TypeAlias = _models.CatalogPlannerTemplate
+"""One planner template, as ``GET /planner_templates`` publishes it.
+
+**``generates_images: False`` means the pictures come from the SOURCE** — the user's own, the
+catalogue's — and the plan spends no image credits at all: the same week of 7 publications with a
+picture on each goes from 519 credits to 48. That is worth saying BEFORE the plan is created, not
+after.
+
+And ``regenerate`` is per template: the one that did not generate the picture cannot regenerate
+it. Offering that button anyway charges the user 70 credits to replace their own photo with an
+invented one.
+"""
+
+PlannerTemplateField: TypeAlias = _models.CatalogPlannerTemplateField
+"""One field of the source step.
+
+``max`` and ``min`` are in the FIELD's own units: characters of a text, items of a list, and
+**days** of a date — the 60 of ``event_date`` are how far ahead of the plan week the countdown
+may point. Read them from here: hardcoding them is how an interface ends up rejecting at a number
+the server does not use, or accepting one it does.
 """
 
 CommentActions: TypeAlias = _models.CommentsCommentActions
@@ -655,6 +705,14 @@ AiPlan: TypeAlias = _models.AiPlansAiPlan
 reading one plan returns the whole publications with their files, and the LISTING returns their
 identifiers. ``organization_context`` is a SNAPSHOT of the organization's brand context at the time
 the plan was created, not today's — which is what makes a retry reproducible.
+
+``template`` is ALWAYS there — a plan created before templates existed reads ``standard`` —
+and ``source`` is the same kind of snapshot as ``organization_context``: the article already
+downloaded, the photos chosen or the products copied, never a live reference. That is why a retry
+three days later does not depend on the article still being online.
+
+And ``warnings`` is not an error: they are notices about the LAST attempt on a plan that
+generated perfectly well.
 """
 
 AiPlanOptions: TypeAlias = _models.AiPlansAiPlanOptions
@@ -664,7 +722,67 @@ AiPlanOptionsInput: TypeAlias = _models.AiPlansAiPlanOptionsInput
 """The options as they are SENT: all optional, the defaults are the server's."""
 
 AiPlanCreateRequest: TypeAlias = _models.AiPlansAiPlanCreateRequest
-"""What you send to queue a plan."""
+"""What you send to queue a plan.
+
+``template`` and ``source`` are OPTIONAL: without them the plan is ``standard``, which is
+exactly what every plan did before templates existed. Sending an option the chosen template does not
+accept — a ``shared`` on ``from_images`` — is a 2106, not a silent ignore.
+"""
+
+AiPlanSourceInput: TypeAlias = _models.AiPlansAiPlanSourceInput
+"""The plan's source, as you SEND it. **One shape per template**.
+
+Send only the fields of the one you chose: what it does not read is ignored, and what it needs and
+does not get is a 2112. ``standard`` has no source; ``from_images`` takes ``images``;
+``from_text`` takes ``url`` **or** ``text``; ``from_catalog`` takes
+``id_account_catalog``, ``product_catalog_id`` and ``products``; ``campaign`` takes
+``event_name`` and ``event_date``.
+
+Two traps, neither of which has an error code, so neither fails visibly. **``text`` wins over
+``url``** when both arrive — pasting the article is what a user does when the download did not
+work, so re-downloading to ignore what they wrote would take away their only way out. And
+**``event_date`` is a calendar day**, ``YYYY-MM-DD``, never an ISO instant: it is read in the
+plan's timezone, and ``2026-09-15T00:00:00Z`` is the 14th in the afternoon in New York — a whole
+day off in a countdown, for half of America.
+
+It is a single ``TypedDict`` with everything optional and not five, because a discriminated union
+would need its discriminant inside it and ``template`` travels OUTSIDE ``source``.
+"""
+
+AiPlanSourceImageInput: TypeAlias = _models.AiPlansAiPlanSourceImageInput
+"""One photo of ``from_images``.
+
+The description is mandatory on purpose: without it the model writes about what it believes it sees,
+and with a product photo it gets the product wrong about half the time.
+"""
+
+AiPlanSource: TypeAlias = _models.AiPlansAiPlanSource
+"""The source as it was STORED: a snapshot taken when the plan was created, not a live reference.
+
+It is what makes a retry reproduce the same plan even if the article went offline or the product
+left the catalogue — the same reason as ``organization_context``.
+"""
+
+AiPlanSourceProduct: TypeAlias = _models.AiPlansAiPlanSourceProduct
+"""A product of the catalogue, copied when the plan was created.
+
+``price`` comes **exactly as the network returned it** (``"9,99 EUR"``) and is never
+converted: the same field is a number in other paths of Meta's API and there is no way to tell units
+from cents, and dividing by 100 "just in case" is precisely how a 10 EUR product gets advertised at
+0,10 EUR. ``id_upload`` is the picture already copied into an upload of the organization,
+because the network's CDN URL expires.
+"""
+
+AiPlanNotice: TypeAlias = _models.AiPlansAiPlanNotice
+"""Something a plan has to say about itself, in the shape of an API error.
+
+It is shared by ``error`` (only in state ``failed``) and by ``warnings``, which travels
+on a plan that generated **fine**. Today there is one warning: **2117 — part of the source did not
+fit in the plan week.** A plan is WEEKLY and the source does not extend it, so 12 photos with 6 slots
+left publish 6 and the rest are dropped; ``data`` carries
+``{"source_items": ..., "capacity": ...}``. The slots are your publish days times your accounts,
+so it is better said before creating the plan than after charging for it.
+"""
 
 AiPlanCostEstimate: TypeAlias = _models.AiPlansAiPlanCostEstimate
 """The DETERMINISTIC budget of a plan, computed by the server and never by the model.
@@ -912,6 +1030,7 @@ __all__ = [
     "CONTACT_CHANNELS",
     "INTEGRATION_PROVIDERS",
     "MESSAGE_TYPES",
+    "PLANNER_TEMPLATES",
     "PUBLICATION_STATES",
     "PUBLICATION_TYPES",
     "PUBLISHABLE_NETWORKS",
@@ -926,9 +1045,14 @@ __all__ = [
     "AiPlanCostEstimate",
     "AiPlanCreateRequest",
     "AiPlanCreateResult",
+    "AiPlanNotice",
     "AiPlanOptions",
     "AiPlanOptionsInput",
     "AiPlanRegenerateResult",
+    "AiPlanSource",
+    "AiPlanSourceImageInput",
+    "AiPlanSourceInput",
+    "AiPlanSourceProduct",
     "AiPlanState",
     "AiSettings",
     "AspectRatios",
@@ -991,6 +1115,10 @@ __all__ = [
     "PersistentMenu",
     "PlanData",
     "PlanUse",
+    "PlannerTemplate",
+    "PlannerTemplateField",
+    "PlannerTemplateFieldType",
+    "PlannerTemplateName",
     "Product",
     "ProductCatalog",
     "ProductCatalogInput",

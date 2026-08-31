@@ -227,16 +227,6 @@ class AiContext(TypedDict):
     """
 
 
-class Error(TypedDict):
-    """
-    Last generation error, in the same shape as an API error. Present only in state `failed`.
-    """
-
-    code: int
-    message: str
-    data: NotRequired[dict[str, Any]]
-
-
 class AiPlansAiPlanCostEstimate(TypedDict):
     """
     Deterministic cost estimate computed by the backend (never by the model). BYOK scopes cost 0 credits.
@@ -244,7 +234,7 @@ class AiPlansAiPlanCostEstimate(TypedDict):
 
     base_cost: int
     """
-    Mandatory cost (orchestration + target texts). The plan is rejected if this exceeds the available credits.
+    Mandatory cost (orchestration + target texts). The orchestration half depends on the TEMPLATE and on the size of its source: `orchestration_cost` + `orchestration_cost_per_source_item` x units, both published in `GET /planner_templates`. The plan is rejected if this exceeds the available credits.
     """
     estimated_cost: int
     """
@@ -252,7 +242,20 @@ class AiPlansAiPlanCostEstimate(TypedDict):
     """
     texts_target: int
     images_target: int
+    """
+    How many images the plan will generate. **0 when the template does not generate them** (`from_images`, `from_catalog`): the pictures come from the source, so the plan spends no image credits at all — a week of 7 publications with a picture on each goes from 519 credits to 48. That is worth saying out loud before the plan is created.
+    """
     available_credits: int
+
+
+class AiPlansAiPlanNotice(TypedDict):
+    """
+    Something the plan has to say about itself, in the same shape as an API error.
+    """
+
+    code: int
+    message: str
+    data: NotRequired[dict[str, Any]]
 
 
 class AiPlansAiPlanOptions(TypedDict):
@@ -329,7 +332,7 @@ class AiPlansAiPlanOptionsInput(TypedDict):
     """
     allow_images: NotRequired[bool]
     """
-    Whether images may be generated. Each image costs 70 AI credits. Optional; defaults to `true`.
+    Whether images may be generated. Each image costs 70 AI credits. Optional; defaults to `true`. Forced to `false` when the template does not generate images (`generates_images: false`), where the picture comes from the source and costs nothing.
     """
     max_images: NotRequired[int]
     """
@@ -337,15 +340,114 @@ class AiPlansAiPlanOptionsInput(TypedDict):
     """
     gallery_uploads: NotRequired[list[str]]
     """
-    Upload ids from the organization's gallery used as visual reference for the generated images.
+    Upload ids from the organization's gallery used as visual reference for the generated images. They are references for the images the model GENERATES, so a template that does not generate them does not accept them either (`allows_gallery`): sending them to `from_images` or `from_catalog` is a 2106.
     """
     shared: NotRequired[bool]
     """
-    Generate ONE piece of content per day and replicate it across every account, each scheduled at the best hour for ITS network, instead of one publication per account and day. Cheaper — one text and one image per day — and it caps images at 7. Optional; defaults to `false`.
+    Generate ONE piece of content per day and replicate it across every account, each scheduled at the best hour for ITS network, instead of one publication per account and day. Cheaper — one text and one image per day — and it caps images at 7. Optional; defaults to `false`. **Not every template accepts it** (`allows_shared` in `GET /planner_templates`): `from_images` and `from_catalog` do not, because each of their publications carries a photo of its own, and sending `true` to them is rejected with 2106.
     """
     use_organization_context: NotRequired[bool]
     """
     Use the organization's brand context in the prompts. It is copied into the plan as a SNAPSHOT when the plan is created, so a retry or a regeneration uses the context the plan was asked with even if the configuration changed meanwhile. Optional; defaults to `true`.
+    """
+
+
+class Image(TypedDict):
+    id_upload: NotRequired[str]
+    description: NotRequired[str]
+
+
+class Event(TypedDict):
+    """
+    `campaign`. The event and its date, already normalised to the start of ITS day in the plan timezone.
+    """
+
+    name: NotRequired[str]
+    date: NotRequired[str]
+
+
+class AiPlansAiPlanSourceImageInput(TypedDict):
+    """
+    One photo of `from_images`.
+    """
+
+    id_upload: str
+    """
+    An upload of the organization. It has to be an image: a video or an audio is rejected here, not later at publish time.
+    """
+    description: str
+    """
+    What is in the photo. **Mandatory on purpose**: without it the model writes about what it believes it sees, and with a product photo it gets the product wrong about half the time.
+    """
+
+
+class AiPlansAiPlanSourceInput(TypedDict):
+    """
+    The plan's source, as you SEND it. **One shape per template**: send only the fields of the template you chose — what it does not read is ignored, and what it needs and does not get is a 2112.
+
+    It is validated when the plan is **created**, not when it is generated: the article is downloaded, the catalogue is read live and the product pictures are copied. So a source that does not work fails while the user is still there and can fix it, and what gets stored is a SNAPSHOT — a retry three days later does not depend on the article still being online or the product still being in the catalogue.
+
+    | Template | Fields |
+    | --- | --- |
+    | `standard` | none — no source |
+    | `from_images` | `images` |
+    | `from_text` | `url` **or** `text` |
+    | `from_catalog` | `id_account_catalog`, `product_catalog_id`, `products` |
+    | `campaign` | `event_name`, `event_date` |
+    """
+
+    images: NotRequired[list[AiPlansAiPlanSourceImageInput]]
+    """
+    `from_images`. Your own photos, each with its own description, **in the order that tells the story**: the orchestrator picks one per publication and keeps its position in `source_index`, so photo 3 can be the "before" and photo 7 the "after". Up to 20 (`max_source_items`), and each one has to be an image upload of this organization (806 otherwise).
+    """
+    url: NotRequired[str]
+    """
+    `from_text`. The article the plan is written from. It is downloaded at creation, and only `http`/`https` addresses that resolve to a **public** IP are accepted — checked again before every redirect (2114). A page that answers something that is not text or HTML, or that carries no usable text once stripped, is a 2113: paste the text in `text` instead.
+    """
+    text: NotRequired[str]
+    """
+    `from_text`. The article pasted by hand. **It wins over `url`** when both come: pasting is what a user does when the download did not work (a paywall, a page that needs JavaScript), so re-downloading to ignore what they wrote would take away their only way out. Truncated to 12.000 characters — the cap is what keeps the estimate honest, since the real charge is per use. Under 200 characters it is not an article, it is the theme, which is `prompt` and another field (2116).
+    """
+    id_account_catalog: NotRequired[str]
+    """
+    `from_catalog`. Which account's catalogue the products come from. It has to belong to the organization (2103) and be on a network that supports products (2115). It only chooses the catalogue: the publications still go to every account in `accounts` — a LinkedIn account can publish a product from a Facebook catalogue.
+    """
+    product_catalog_id: NotRequired[str]
+    """
+    `from_catalog`. The catalogue itself, as the network identifies it.
+    """
+    products: NotRequired[list[str]]
+    """
+    `from_catalog`. Ids of the chosen products, **in the order they should tell the week**. Up to 12 — a unit here is not an id already in the database: it is a live read plus a real download inside this request, with the user waiting. Repeated ids are deduplicated. They are ALL checked against the catalogue before a single picture is downloaded (2112 naming the missing one), and each picture is copied into an upload of the organization: the network CDN URL expires, and a plan published weeks later would carry a broken file. Those uploads count against the storage quota.
+    """
+    event_name: NotRequired[str]
+    """
+    `campaign`. What the countdown is towards ("Rebajas de verano", "Apertura del local"). Over 120 characters it is **rejected, not truncated**: a name cut mid-word would come out that way in all seven publications, and whatever else needs saying goes in `prompt`.
+    """
+    event_date: NotRequired[str]
+    """
+    `campaign`. The day of the event. **Send a calendar day, `YYYY-MM-DD` — never an ISO instant.** A bare date is read in the plan's `options.timezone`, which is the whole point: `2026-09-15T00:00:00Z` is midnight UTC, that is the 14th in the afternoon in New York — a whole day off in a countdown, for half of America, with no error anywhere. It cannot fall before the plan week (`options.week_start`) nor more than 60 days after it (2112). And it does **not** move `publish_days`: if the event lands on a day you did not choose, the plan respects your choice and it is up to you to say so.
+    """
+
+
+class AiPlansAiPlanSourceProduct(TypedDict):
+    """
+    A product of the catalogue, copied when the plan was created.
+    """
+
+    external_id: NotRequired[str]
+    """
+    The id it has in the network catalogue.
+    """
+    name: NotRequired[str]
+    description: NotRequired[str]
+    price: NotRequired[str]
+    """
+    The price **exactly as the network returned it** ("9,99 €"). It is never converted: the same field is a number in other paths of Meta's API and there is no way to tell units from cents, and dividing by 100 "just in case" is precisely how a 10 € product gets advertised at 0,10 €. The prompt is told to copy it verbatim or to say nothing.
+    """
+    id_upload: NotRequired[str]
+    """
+    The product picture, copied into an upload of the organization. The network CDN URL expires; this one does not.
     """
 
 
@@ -464,6 +566,46 @@ class CatalogAspectRatios(TypedDict):
     text: list[str]
     """
     The same ratio written the way a person reads it.
+    """
+
+
+class Regenerate(TypedDict):
+    """
+    What can be regenerated on a publication of this plan.
+    """
+
+    text: NotRequired[bool]
+    image: NotRequired[bool]
+
+
+class CatalogPlannerTemplateField(TypedDict):
+    """
+    One field of the source step. `uploads_with_description` (photos, each with its own description) and `catalog_products` (products read live from a connected catalogue) need a dedicated component; the rest are ordinary controls.
+    """
+
+    name: NotRequired[str]
+    type: NotRequired[
+        Literal[
+            "text",
+            "textarea",
+            "url",
+            "boolean",
+            "select",
+            "date",
+            "uploads_with_description",
+            "catalog_products",
+        ]
+    ]
+    required: NotRequired[bool]
+    default: NotRequired[Any]
+    options: NotRequired[list[str]]
+    max: NotRequired[int]
+    """
+    Cap in the field's **own units**: characters of a text, items of a list, and **days** of a `date` — the `event_date` of `campaign` carries 60, which is how far ahead of the plan week the countdown may point.
+    """
+    min: NotRequired[int]
+    """
+    Floor in the field's own units. Today only `from_text`: under 200 characters it is not an article, it is the theme, which is `prompt` and another field. Published for the same reason as `max` — without it your UI hardcodes the 200 and the user gets a 2116 AFTER pasting the text instead of while pasting it.
     """
 
 
@@ -839,7 +981,7 @@ class Messages(TypedDict):
     unread: int
 
 
-class Error1(TypedDict):
+class Error(TypedDict):
     code: int
     message: str
     data: NotRequired[dict[str, Any]]
@@ -857,7 +999,7 @@ class DashboardDashboardAiPlanRef(TypedDict):
     publications: NotRequired[list[str]]
     creation_date: str
     generation_end_date: NotRequired[str]
-    error: NotRequired[Error1]
+    error: NotRequired[Error]
 
 
 class PublicationError(TypedDict):
@@ -914,7 +1056,7 @@ class ByDayItem(TypedDict):
     total: NotRequired[int]
 
 
-class Error2(TypedDict):
+class Error1(TypedDict):
     """
     Error payload returned by every failing request.
 
@@ -1932,11 +2074,102 @@ class AiPlansAiPlanCreateRequest(TypedDict):
     """
     Theme prompt written by the user.
     """
+    template: NotRequired[Literal["standard", "from_images", "from_text", "from_catalog", "campaign"]]
+    """
+    What the plan is generated FROM. Optional; defaults to `standard`, which is exactly what every plan did before templates existed — send nothing and nothing changes.
+
+    A template is the **source** of the content, not a different flow: `shared`, `publish_days`, `language`, `tone` and the images stay cross-cutting options, and each template declares which of them it accepts. Sending one it does not accept is a 2106, not a silent ignore.
+
+    Read the list, the costs and the fields from `GET /planner_templates`; do not hardcode them.
+    """
+    source: NotRequired[AiPlansAiPlanSourceInput]
+    """
+    The source itself. Which fields it carries depends on `template`. Required for every template except `standard`, and validated at creation — 2112, 2113, 2114, 2115 or 2116 come back while the user is still there.
+    """
     accounts: list[str]
     """
     Account ids (belonging to the organization) to generate the plan for.
     """
     options: NotRequired[AiPlansAiPlanOptionsInput]
+
+
+class AiPlansAiPlanSource(TypedDict):
+    """
+    The plan source as it was STORED: a snapshot taken when the plan was created, not a live reference. It is what makes a retry reproduce the same plan even if the article went offline or the product left the catalogue — same reason as `organization_context`.
+    """
+
+    text: NotRequired[str]
+    """
+    `from_text`. The article, already downloaded and truncated. It is never downloaded again.
+    """
+    url: NotRequired[str]
+    """
+    `from_text`. The original address, kept for the record and to show where the plan came from.
+    """
+    images: NotRequired[list[Image]]
+    """
+    `from_images`. The chosen photos with their descriptions, in the order they were sent — the position IS the `source_index` of the publication that uses it.
+    """
+    id_account_catalog: NotRequired[str]
+    """
+    `from_catalog`. The account whose catalogue was read.
+    """
+    products: NotRequired[list[AiPlansAiPlanSourceProduct]]
+    """
+    `from_catalog`. Snapshot of the chosen products.
+    """
+    event: NotRequired[Event]
+    """
+    `campaign`. The event and its date, already normalised to the start of ITS day in the plan timezone.
+    """
+
+
+class CatalogPlannerTemplate(TypedDict):
+    template: NotRequired[Literal["standard", "from_images", "from_text", "from_catalog", "campaign"]]
+    """
+    What the plan is generated FROM, and what you send as `template` when creating it:
+
+    • **`standard`** — a theme prompt, images generated by the model. What every plan was before templates existed.
+    • **`from_images`** — the user's own photos, each with its own description. One vision pass over ALL of them at once, so the model can sequence a narrative (photo 3 the "before", photo 7 the "after") instead of writing seven independent posts. It generates no images.
+    • **`from_text`** — an article: a URL that is downloaded at creation, or the text pasted by hand.
+    • **`from_catalog`** — products read LIVE from a connected catalogue, with their name, their price and their picture. The one template that cannot be copied by a generic AI tool, because it needs the catalogue connection.
+    • **`campaign`** — a countdown towards a date, with a narrative arc: teaser, announcement, reminder, today, thank you. The only plan that is a story instead of seven loose posts.
+    """
+    allows_shared: NotRequired[bool]
+    """
+    Does it accept `options.shared` (one content replicated across every account)?
+    """
+    allows_gallery: NotRequired[bool]
+    """
+    Does it accept `options.gallery_uploads` (visual references for the generated images)?
+    """
+    generates_images: NotRequired[bool]
+    """
+    false = the pictures come from the source, and the plan spends no image credits.
+    """
+    regenerate: NotRequired[Regenerate]
+    """
+    What can be regenerated on a publication of this plan.
+    """
+    orchestration_cost: NotRequired[int]
+    """
+    Estimated credits for this template's orchestration pass. The real charge is per use.
+    """
+    orchestration_cost_per_source_item: NotRequired[int]
+    """
+    Extra estimated credits per unit of source (per image, in `from_images`). 0 when the source does not scale the prompt.
+    """
+    max_source_items: NotRequired[int]
+    """
+    Hard cap of source units accepted. 0 = this template has no unit-based source.
+    """
+    source_fields: NotRequired[list[CatalogPlannerTemplateField]]
+    source_requires_any: NotRequired[list[str]]
+    """
+    Fields of which AT LEAST ONE is needed, even though none of them is required on its own. Today it is `from_text`: either the URL or the pasted text, never both empty (2116).
+
+    It exists because a field's `required` cannot say "one or the other", and without it your UI would have to hardcode that rule — exactly the copy this catalogue exists to avoid. Absent = there is nothing of the sort to resolve.
+    """
 
 
 class CatalogSocialLimits(TypedDict):
@@ -2626,6 +2859,14 @@ class AiPlansAiPlan(TypedDict):
     Accounts the plan was generated for.
     """
     prompt: str
+    template: NotRequired[Literal["standard", "from_images", "from_text", "from_catalog", "campaign"]]
+    """
+    What this plan was generated from. Always present: a plan created before templates existed reads `standard`.
+    """
+    source: NotRequired[AiPlansAiPlanSource]
+    """
+    The source snapshot. Absent on a `standard` plan, which has no source.
+    """
     options: AiPlansAiPlanOptions
     state: Literal["pending", "generating", "generated", "validated", "failed", "cancelled"]
     """
@@ -2645,9 +2886,15 @@ class AiPlansAiPlan(TypedDict):
     """
     AI credits actually consumed by the generation.
     """
-    error: NotRequired[Error]
+    error: NotRequired[AiPlansAiPlanNotice]
     """
-    Last generation error, in the same shape as an API error. Present only in state `failed`.
+    Last generation error. Present only in state `failed`.
+    """
+    warnings: NotRequired[list[AiPlansAiPlanNotice]]
+    """
+    Non-blocking notices about the LAST attempt (they are cleared when a new one starts). The plan is generated and perfectly usable; your UI just has to say what happened.
+
+    Today there is one: **2117 — some source items did not fit in the plan week.** A plan is weekly and the source does not extend it, so 12 photos with 6 slots left publish 6 and the rest are dropped. `data` carries `{ source_items, capacity }`. Better said BEFORE creating the plan (the slots are the publish days x the accounts) than after charging for it.
     """
     attempts: int
     """
@@ -2910,7 +3157,7 @@ class Message(TypedDict):
     """
     message_type: MessageType
     message_options: MessageOptions
-    message_errors: list[Error2]
+    message_errors: list[Error1]
     """
     Why the network refused this message, if it did. Same shape as an API error. Empty when nothing went wrong.
     """

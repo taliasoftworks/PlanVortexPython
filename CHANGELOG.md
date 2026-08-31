@@ -4,6 +4,78 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-08-31
+
+The AI planner stops being one thing. A plan can now be generated from **your own photos**, from an
+**article**, from the **products of a connected catalogue** or as a **countdown towards a date**, and
+the package publishes the catalogue that says what each of those accepts and what each of them
+costs.
+
+Everything here is additive: `template` and `source` are optional, and a plan created without them
+is a `standard` one — exactly what every plan was before templates existed. Upgrading from `0.2.0`
+needs no changes and `MIGRATION.md` gains no entry.
+
+**The headline is a price, and it is worth saying out loud before your user creates the plan.**
+Images are 94 % of what a plan costs. A template whose pictures come from the source generates none,
+so the same week — 7 publications with a picture on each, one account — goes from **519 credits to
+48**. That is not a rounding: it is the difference between a feature a customer uses once a month
+and one they use every week.
+
+### Added
+
+- **`catalog.planner_templates()`**, in both clients and cached like the rest of the catalogue. It
+  answers what a plan can be generated FROM and what each source allows: `allows_shared`,
+  `allows_gallery`, `generates_images`, the `regenerate` matrix, `orchestration_cost` and
+  `orchestration_cost_per_source_item`, `max_source_items`, and the `source_fields` the source step
+  is made of. **Read it, do not copy it** — it is the one catalogue entry that carries prices, and a
+  table written by hand in your interface would show a cost the server no longer charges. It is also
+  the only route of the catalogue that **wraps its answer** (`{"templates": [...]}`), which is the
+  kind of thing that fails without an error: iterating the envelope gives you the string
+  `"templates"` and nothing complains.
+- **`template` and `source` on `ai_plans.create()`**, with the five templates: `standard`,
+  `from_images`, `from_text`, `from_catalog` and `campaign`. A template is the **source** of the
+  content and not a different flow — publish days, language, tone, `shared` and the images stay
+  cross-cutting options, and each template declares which of them it accepts. Sending one it does
+  not accept is a 2106, not a silent ignore.
+- **`PlannerTemplateName` and `PLANNER_TEMPLATES`**, plus `PlannerTemplate`,
+  `PlannerTemplateField`, `PlannerTemplateFieldType`, `AiPlanSourceInput`,
+  `AiPlanSourceImageInput`, `AiPlanSource`, `AiPlanSourceProduct` and `AiPlanNotice`. The
+  `Literal` is **closed**, unlike the Node library's open enumeration and for the same reason the
+  networks are closed here: a template you have not heard of should go red where you branch on it
+  rather than slip through. `AiPlan` now carries `template` — always, a plan created before
+  templates existed reads `standard` — and `source`.
+- **Errors 2111 to 2117 arrive as `AiPlanError`**, with nothing registered to make them: they fall
+  in the 2100-2199 range on their own, and there is now a test that says so rather than assuming it.
+  They come back from `create()`, which is the part that surprises: **the source is validated when
+  the plan is created, not when it is generated.** The article is downloaded, the catalogue is read
+  live and the product pictures are copied inside that call, so a source that does not work fails
+  while your user is still in front of it. What gets stored is a snapshot — a `retry` three days
+  later does not depend on the article still being online or the product still being in the
+  catalogue.
+
+### Changed
+
+- `ai_plans.regenerate` documents that **`"image"` depends on the plan's template**, not only on
+  whether the plan allowed images. The template that did not generate the picture cannot regenerate
+  it: read `regenerate["image"]` from the catalogue before you draw that button, because on
+  `from_images` it charges 70 credits to replace the user's own photo with an invented one.
+- `ai_plans.get` documents **`warnings`**, which is a notice on a plan that generated **fine** and
+  not an error of the response — the place nobody looks. Today it carries one: **2117**, part of the
+  source did not fit in the plan week. A plan is weekly and the source does not extend it, so twelve
+  photos with six slots left publish six; `data` brings `{"source_items": ..., "capacity": ...}`,
+  and the slots are your publish days times your accounts, so it can be said before creating the
+  plan rather than after charging for it.
+- Two traps are now written on the types that carry them, because neither has an error code and both
+  fail silently. **`source["text"]` wins over `source["url"]`** when both arrive — pasting the
+  article is what a user does when the download did not work, so re-downloading to ignore what they
+  wrote would take away their only way out. And **`event_date` is a calendar day, `YYYY-MM-DD`**,
+  never an ISO instant: it is read in the plan's timezone, and `2026-09-15T00:00:00Z` is the 14th in
+  the afternoon in New York — a whole day off in a countdown, for half of America.
+- `AiPlanSourceProduct["price"]` says why the price is **never converted**: it comes exactly as the
+  network returned it, the same field is a number elsewhere in Meta's API, and dividing by 100 "just
+  in case" is precisely how a 10 EUR product gets advertised at 0,10 EUR.
+- The route census is **113 of 113**. The new one is `GET /planner_templates`.
+
 ## [0.2.0] - 2026-08-30
 
 Telegram, the eleventh network, reaches the package. No endpoint was added and no signature moved:

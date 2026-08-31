@@ -9,7 +9,7 @@ name = "planvortex"
 # entonces `project.version` desapareceria del pyproject y el paso del workflow de release que
 # compara el tag con la version —que lo lee con `tomllib`— dejaria de encontrarla. Se quedan las dos
 # y las ata `tests/test_packaging.py`, que falla si se separan.
-version = "0.2.0"
+version = "0.3.0"
 description = "Official Python client for the PlanVortex API"
 readme = "README.md"
 requires-python = ">=3.10"

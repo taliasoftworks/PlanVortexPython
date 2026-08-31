@@ -1,4 +1,4 @@
-"""El catalogo (capa 2). Lo que se fija aqui, ademas del contrato de cada una de las nueve rutas:
+"""El catalogo (capa 2). Lo que se fija aqui, ademas del contrato de cada una de las diez rutas:
 
 - **Que se cachea.** Es la razon de existir del recurso: un compositor que valide mientras se
   escribe pediria `/social_limits` en cada tecla.
@@ -6,6 +6,9 @@
   un despliegue en marcha dejaria la instancia rota para siempre.
 - **Que `allowed_social_messages` va en POST**, que es raro y es lo que hay. Escrito en GET, el
   servidor contesta 404 y el metodo devolveria una lista vacia sin que nadie se entere.
+- **Que `planner_templates` DESENVUELVE su sobre**, que es la unica ruta del catalogo que lo lleva.
+  Sin desenvolver, el metodo devolveria `{"templates": [...]}` y recorrerlo daria las claves del
+  `dict` —una cadena— en vez de las plantillas, sin error en ninguna parte.
 """
 
 from __future__ import annotations
@@ -113,6 +116,110 @@ def test_clear_cache_vuelve_a_preguntar(cliente: ClienteDePrueba, httpx_mock: HT
     assert cliente.esperar(cliente.pv.catalog.social_networks()) == ["instagram"]
     cliente.pv.catalog.clear_cache()
     assert cliente.esperar(cliente.pv.catalog.social_networks()) == ["instagram", "bluesky"]
+
+
+def test_las_plantillas_del_planificador_salen_de_su_sobre(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    """La ficha se fija ENTERA porque son precios: lo que el servidor cobra.
+
+    Una tabla copiada a mano en la interfaz de un integrador ensenaria un coste que ya no es, y esa
+    es exactamente la clase de copia que este catalogo existe para evitar.
+    """
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/planner_templates",
+        json={
+            "templates": [
+                {
+                    "template": "standard",
+                    "allows_shared": True,
+                    "allows_gallery": True,
+                    "generates_images": True,
+                    "regenerate": {"text": True, "image": True},
+                    "orchestration_cost": 15,
+                    "orchestration_cost_per_source_item": 0,
+                    "max_source_items": 0,
+                    "source_fields": [],
+                },
+                {
+                    "template": "from_images",
+                    "allows_shared": False,
+                    "allows_gallery": False,
+                    "generates_images": False,
+                    "regenerate": {"text": True, "image": False},
+                    "orchestration_cost": 20,
+                    "orchestration_cost_per_source_item": 2,
+                    "max_source_items": 20,
+                    "source_fields": [
+                        {"name": "images", "type": "uploads_with_description", "required": True, "max": 20}
+                    ],
+                },
+            ]
+        },
+    )
+
+    plantillas = cliente.esperar(cliente.pv.catalog.planner_templates())
+
+    assert ruta(unica(httpx_mock)) == "/planner_templates"
+    assert [plantilla["template"] for plantilla in plantillas] == ["standard", "from_images"]
+
+    de_fotos = plantillas[1]
+    # Lo que hace barata la plantilla, y lo que hay que decir ANTES de crear el plan: las fotos las
+    # pone la fuente, asi que el plan no gasta un solo credito de imagen.
+    assert de_fotos["generates_images"] is False
+    # Y por eso mismo el boton de regenerar imagen no se pinta: serian 70 creditos por cambiar la
+    # foto del usuario por una inventada.
+    assert de_fotos["regenerate"]["image"] is False
+    assert de_fotos["orchestration_cost_per_source_item"] == 2
+    assert de_fotos["source_fields"][0]["type"] == "uploads_with_description"
+
+
+def test_las_plantillas_publican_los_campos_de_los_que_hace_falta_uno(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    """`source_requires_any` es lo que el `required` de un campo no sabe decir.
+
+    En `from_text` hace falta la URL **o** el texto pegado, y ninguno de los dos por separado es
+    obligatorio. Sin publicarlo, esa regla acabaria escrita a mano en cada interfaz. Y el `min`
+    viaja por lo mismo que el `max`: si lo escribe la interfaz, el usuario se come un 2116 DESPUES
+    de haber pegado el texto en vez de mientras lo pega.
+    """
+    httpx_mock.add_response(
+        url=f"{BASE_URL}/planner_templates",
+        json={
+            "templates": [
+                {
+                    "template": "from_text",
+                    "generates_images": True,
+                    "orchestration_cost": 17,
+                    "max_source_items": 0,
+                    "source_fields": [
+                        {"name": "url", "type": "url", "required": False},
+                        {"name": "text", "type": "textarea", "required": False, "min": 200, "max": 12000},
+                    ],
+                    "source_requires_any": ["url", "text"],
+                }
+            ]
+        },
+    )
+
+    de_texto = cliente.esperar(cliente.pv.catalog.planner_templates())[0]
+
+    assert de_texto["source_requires_any"] == ["url", "text"]
+    assert de_texto["source_fields"][1]["min"] == 200
+    assert de_texto["source_fields"][1]["max"] == 12000
+
+
+def test_las_plantillas_se_cachean_como_el_resto_del_catalogo(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    """Son constantes del despliegue: no dependen del cliente ni de la organizacion."""
+    httpx_mock.add_response(url=f"{BASE_URL}/planner_templates", json={"templates": []})
+
+    assert cliente.esperar(cliente.pv.catalog.planner_templates()) == []
+    assert cliente.esperar(cliente.pv.catalog.planner_templates()) == []
+
+    assert len(peticiones(httpx_mock)) == 1
 
 
 def test_el_catalogo_es_el_mismo_objeto_en_toda_la_instancia(cliente: ClienteDePrueba) -> None:

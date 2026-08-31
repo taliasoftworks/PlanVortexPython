@@ -150,6 +150,60 @@ if (pv.comments.actions_for("linkedin") or {}).get("hide"):
     ...
 ```
 
+## AI plans, and what they are generated from
+
+A plan is a **week** of drafts written by a model: you queue it, a job generates it, and what comes
+out are ordinary publications in `draft` that you edit and validate. `template` says what the
+content is generated FROM, and it is the only thing that changes between one plan and another —
+publish days, language, tone and images stay cross-cutting options, and each template declares which
+of them it accepts.
+
+```python
+# The list, the prices and the fields of the source step. Cached, like the rest of the catalogue.
+templates = pv.catalog.planner_templates()
+
+# A week written from the customer's own photos, in the order that tells the story.
+queued = pv.ai_plans.create(
+    client_id,
+    org_id,
+    {
+        "prompt": "Our autumn menu",
+        "accounts": [account_id],
+        "template": "from_images",
+        "source": {
+            "images": [
+                {"id_upload": first, "description": "Dough resting on the bench"},
+                {"id_upload": second, "description": "The loaf coming out of the oven"},
+            ]
+        },
+    },
+)
+queued["estimate"]["images_target"]  # 0 — the pictures come from the source
+```
+
+Four things worth knowing before you build the screen:
+
+- **The template that does not generate images does not spend image credits, and images are 94 % of
+  a plan.** The same week — 7 publications with a picture on each, one account — costs 519 credits
+  as `standard` and **48** as `from_images`. Say it before the plan is created, not after it is
+  charged.
+- **`regenerate(..., "image")` is per template**, not just per plan: the one that did not generate
+  the picture cannot regenerate it. Read `regenerate["image"]` from the catalogue before you draw
+  the button — on `from_images` it would charge 70 credits to replace the user's own photo with an
+  invented one.
+- **The source is validated when the plan is CREATED**, not when it is generated: the article is
+  downloaded, the catalogue is read live and the product pictures are copied inside that call. So a
+  broken source fails while your user is still there — errors 2111 to 2116, all of them
+  `AiPlanError` — and what gets stored is a snapshot: a `retry` three days later does not depend on
+  the article still being online.
+- **A plan is weekly and the source does not extend it.** Twelve photos with six slots left publish
+  six, and the plan carries warning **2117** in `ai_plan["warnings"]` — a notice on a plan that
+  generated fine, not an error. The slots are your publish days times your accounts, so you can say
+  it in advance.
+
+Do not hardcode the list, the costs or the field limits: `GET /planner_templates` publishes them
+because the server is what charges them.
+
 ## Errors
 
 Errors are classified by `code`, **never by the HTTP status** — every domain error in this API
@@ -264,7 +318,7 @@ you missed.
 · `pv.comments` · `pv.messages` · `pv.contacts` · `pv.products` · `pv.integrations` · `pv.ai_plans`
 · `pv.dashboard` · `pv.apps`
 
-That is **112 of the 112 operations** the specification documents — everything except the 19 routes
+That is **113 of the 113 operations** the specification documents — everything except the 19 routes
 of roles and invitations, which are out of scope. A script walks the OpenAPI bundle on every test
 run and fails if a route is left without a method, so the sentence above stays true.
 

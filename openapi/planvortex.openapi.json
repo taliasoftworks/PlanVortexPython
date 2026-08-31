@@ -945,7 +945,7 @@
           "ai_plans"
         ],
         "summary": "Create an AI publication plan",
-        "description": "Create a weekly AI publication plan. The plan is queued in state 'pending' and generated asynchronously by the generate-ai-plans job; poll GET by id while state is pending or generating. Validations at creation: the client plan allows AI (artificial_inteligence), the accounts belong to the organization, there are enough AI credits for the deterministic base cost (orchestration + target texts), and there is room in the organization's monthly publication limit. Returns the created plan together with the deterministic cost estimate. Requires the ai_plans:create permission.",
+        "description": "Create a weekly AI publication plan. The plan is queued in state 'pending' and generated asynchronously by the generate-ai-plans job; poll GET by id while state is pending or generating. Validations at creation: the client plan allows AI (artificial_inteligence), the accounts belong to the organization, there are enough AI credits for the deterministic base cost (orchestration + target texts), and there is room in the organization's monthly publication limit. Returns the created plan together with the deterministic cost estimate. Requires the ai_plans:create permission. Since the plan can be generated from a SOURCE (`template` + `source`), part of that validation is the source itself: the article is downloaded, the catalogue is read live and the product pictures are copied — all of it inside this request, so what does not work fails with the user in front of it. A plan whose source did not fit in the week is still created, and says so in ai_plan.warnings (2117).",
         "operationId": "addAiPlan",
         "x-planvortex-identity": [
           "current_user",
@@ -981,7 +981,7 @@
             }
           },
           "400": {
-            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `1101` | Invalid organization |\n| `806` | Invalid upload identifier. One of the gallery_uploads does not belong to the organization. |\n| `924` | Max publications reached per month. There is no room in the organization's monthly publication limit for the generated posts. |\n| `941` | AI credits exhausted for this month. The base cost of the plan exceeds the remaining AI credits. The response data carries { used, limit, cost }. |\n| `2101` | This functionality requires a plan with artificial intelligence (available from the basic plan). |\n| `2103` | All accounts must belong to the organization. |\n| `2105` | AI plan requires at least one account. |\n| `2106` | Invalid AI plan options (missing prompt, invalid timezone, invalid week_start, invalid max_images or invalid publish_days). |\n| `2108` | The selected publish days leave no available slot in the plan week: every slot of the chosen days is already in the past. Pick more days or a later week_start. The response data carries { publish_days, week_start, timezone }. |\n| `521` | Invalid client. The identifier is invalid or doesn't exist |",
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `1101` | Invalid organization |\n| `806` | Invalid upload identifier. One of the gallery_uploads, or one of the `source.images`, does not belong to the organization. |\n| `924` | Max publications reached per month. There is no room in the organization's monthly publication limit for the generated posts. |\n| `941` | AI credits exhausted for this month. The base cost of the plan exceeds the remaining AI credits. The response data carries { used, limit, cost }. |\n| `2101` | This functionality requires a plan with artificial intelligence (available from the basic plan). |\n| `2103` | All accounts must belong to the organization. Also when `source.id_account_catalog` is not one of them. |\n| `2105` | AI plan requires at least one account. |\n| `2106` | Invalid AI plan options (missing prompt, invalid timezone, invalid week_start, invalid max_images or invalid publish_days). Also when an option is not accepted by the chosen template: `shared` on one whose `allows_shared` is false, or `gallery_uploads` on one whose `allows_gallery` is false. |\n| `2108` | The selected publish days leave no available slot in the plan week: every slot of the chosen days is already in the past. Pick more days or a later week_start. The response data carries { publish_days, week_start, timezone }. |\n| `2111` | Invalid planner template: `template` is not one of the ones published by `GET /planner_templates`. |\n| `2112` | Invalid or missing `source` for the chosen template: a field is missing, an id is not valid, there are more units than `max_source_items`, an image has no description, a product is no longer in the catalogue, or the event date falls before the plan week or more than 60 days after it. `data` says which one and why. |\n| `2113` | Could not read the source URL (`from_text`): the download failed, answered something that is not text or HTML, or the page carried no usable text. Paste the article in `source.text` instead. |\n| `2114` | The source URL points to a non-public address (`from_text`): loopback, private, link-local or CGNAT. Checked before every redirect and again when the socket opens. |\n| `2115` | The selected account has no usable product catalogue (`from_catalog`): its network has no products, or the catalogue could not be read — expired token, deleted catalogue, missing permission — or came back empty. |\n| `2116` | The source has no usable items: no images, no products, or no text at all (neither `url` nor `text`, or a pasted text under 200 characters). |\n| `521` | Invalid client. The identifier is invalid or doesn't exist |",
             "content": {
               "application/json": {
                 "schema": {
@@ -1264,7 +1264,7 @@
           "ai_plans"
         ],
         "summary": "Regenerate the text or the image of one publication of the plan",
-        "description": "Asks the model for another version of a single publication, for when the generated one does not work.\n\n**It costs credits, and they are charged per use.** The balance is checked before the call and the real cost is charged afterwards, accumulating in the plan's `credits_spent`. As a reference: regenerating a text is billed around 2 credits and an image around 70, but what is actually charged is the provider's real cost.\n\nIt only works **while the plan is under review** (state `generated`) and on its drafts: a publication already validated or published is not a draft any more.",
+        "description": "Asks the model for another version of a single publication, for when the generated one does not work.\n\n**It costs credits, and they are charged per use.** The balance is checked before the call and the real cost is charged afterwards, accumulating in the plan's `credits_spent`. As a reference: regenerating a text is billed around 2 credits and an image around 70, but what is actually charged is the provider's real cost.\n\nIt only works **while the plan is under review** (state `generated`) and on its drafts: a publication already validated or published is not a draft any more.\n\n**What can be regenerated depends on the plan template**, and it is published in `regenerate` (`GET /planner_templates`). `from_images` and `from_catalog` cannot regenerate the image: nobody regenerates the photo they took themselves, and offering the button anyway charges the user 70 credits to replace their own photo with an invented one. Asking for it anyway is a 2102.",
         "operationId": "regenerateAiPlanPublication",
         "x-planvortex-identity": [
           "current_user",
@@ -1356,7 +1356,7 @@
             }
           },
           "400": {
-            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `2102` | The plan is not under review: only a `generated` plan can be regenerated |\n| `2106` | Invalid `target`: it has to be `text` or `image` |\n| `935` | That publication does not belong to this plan, or is no longer a draft |\n| `941` | AI credits exhausted for this month |\n| `2101` | This functionality requires a plan with artificial intelligence |\n| `521` | Invalid client. The identifier is invalid or doesn't exist |",
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `2102` | The plan is not under review (only a `generated` plan can be regenerated), or this plan template does not allow regenerating that target — read `regenerate` in `GET /planner_templates` |\n| `2106` | Invalid `target`: it has to be `text` or `image` |\n| `935` | That publication does not belong to this plan, or is no longer a draft |\n| `941` | AI credits exhausted for this month |\n| `2101` | This functionality requires a plan with artificial intelligence |\n| `521` | Invalid client. The identifier is invalid or doesn't exist |",
             "content": {
               "application/json": {
                 "schema": {
@@ -1992,6 +1992,51 @@
                     "text": [
                       "9:16"
                     ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/planner_templates": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "AI planner templates",
+        "description": "What an AI plan can be generated FROM, and what each source allows.\n\nA template is the **source** of the content, not the wizard's flow: sharing, publish days, language, tone and images stay cross-cutting options, and every template declares which of them it accepts. Send the chosen one as `template` when creating a plan (`POST /ai_plans`), together with its `source`.\n\n• **`generates_images: false` means the pictures come from the source** — your own photos, your catalogue — so the plan spends **no image credits at all**. A week of 7 publications with a picture on each goes from 519 credits to 48, and it is worth saying out loud before the plan is created.\n• **`regenerate` is per template.** A template that did not generate the image cannot regenerate it: offer that button anyway and the user pays 70 credits to replace their own photo with an invented one.\n• **`orchestration_cost` is an ESTIMATE, not the bill.** The real charge is per use (what the provider reports). `orchestration_cost_per_source_item` is what each unit of the source adds on top — one vision pass per image.\n• **A plan is WEEKLY, and the source does not extend it.** With `max_source_items` photos but fewer slots left in the week, the extra ones are dropped and the plan carries warning 2117 in `ai_plan.warnings`. Say it in your UI *before* creating the plan, not after charging for it.\n• **`source_fields` is what the source step is made of.** The simple types are ordinary controls; `uploads_with_description` and `catalog_products` are the signal that the step needs a component of its own.\n• **The fields carry their own limits.** `max` and `min` are in the field's own units — characters of a text, items of a list, **days** for a date — and `source_requires_any` names the fields of which at least one is needed (`from_text`: the URL or the pasted text). Read them from here; hardcoding them is how a wizard ends up rejecting at a number the server does not use.",
+        "operationId": "getPlannerTemplates",
+        "x-planvortex-identity": [
+          "current_user",
+          "current_app",
+          "temporal_token"
+        ],
+        "responses": {
+          "200": {
+            "description": "Available planner templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "templates": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CatalogPlannerTemplate"
+                      }
+                    }
                   }
                 }
               }
@@ -9518,6 +9563,25 @@
           "prompt": {
             "type": "string"
           },
+          "template": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "from_images",
+              "from_text",
+              "from_catalog",
+              "campaign"
+            ],
+            "description": "What this plan was generated from. Always present: a plan created before templates existed reads `standard`."
+          },
+          "source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiPlansAiPlanSource"
+              }
+            ],
+            "description": "The source snapshot. Absent on a `standard` plan, which has no source."
+          },
           "options": {
             "$ref": "#/components/schemas/AiPlansAiPlanOptions"
           },
@@ -9556,23 +9620,18 @@
             "description": "AI credits actually consumed by the generation."
           },
           "error": {
-            "type": "object",
-            "required": [
-              "code",
-              "message"
-            ],
-            "description": "Last generation error, in the same shape as an API error. Present only in state `failed`.",
-            "properties": {
-              "code": {
-                "type": "integer"
-              },
-              "message": {
-                "type": "string"
-              },
-              "data": {
-                "type": "object",
-                "additionalProperties": true
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiPlansAiPlanNotice"
               }
+            ],
+            "description": "Last generation error. Present only in state `failed`."
+          },
+          "warnings": {
+            "type": "array",
+            "description": "Non-blocking notices about the LAST attempt (they are cleared when a new one starts). The plan is generated and perfectly usable; your UI just has to say what happened.\n\nToday there is one: **2117 — some source items did not fit in the plan week.** A plan is weekly and the source does not extend it, so 12 photos with 6 slots left publish 6 and the rest are dropped. `data` carries `{ source_items, capacity }`. Better said BEFORE creating the plan (the slots are the publish days x the accounts) than after charging for it.",
+            "items": {
+              "$ref": "#/components/schemas/AiPlansAiPlanNotice"
             }
           },
           "attempts": {
@@ -9616,7 +9675,7 @@
         "properties": {
           "base_cost": {
             "type": "integer",
-            "description": "Mandatory cost (orchestration + target texts). The plan is rejected if this exceeds the available credits."
+            "description": "Mandatory cost (orchestration + target texts). The orchestration half depends on the TEMPLATE and on the size of its source: `orchestration_cost` + `orchestration_cost_per_source_item` x units, both published in `GET /planner_templates`. The plan is rejected if this exceeds the available credits."
           },
           "estimated_cost": {
             "type": "integer",
@@ -9626,7 +9685,8 @@
             "type": "integer"
           },
           "images_target": {
-            "type": "integer"
+            "type": "integer",
+            "description": "How many images the plan will generate. **0 when the template does not generate them** (`from_images`, `from_catalog`): the pictures come from the source, so the plan spends no image credits at all — a week of 7 publications with a picture on each goes from 519 credits to 48. That is worth saying out loud before the plan is created."
           },
           "available_credits": {
             "type": "integer"
@@ -9650,6 +9710,25 @@
           "prompt": {
             "type": "string",
             "description": "Theme prompt written by the user."
+          },
+          "template": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "from_images",
+              "from_text",
+              "from_catalog",
+              "campaign"
+            ],
+            "description": "What the plan is generated FROM. Optional; defaults to `standard`, which is exactly what every plan did before templates existed — send nothing and nothing changes.\n\nA template is the **source** of the content, not a different flow: `shared`, `publish_days`, `language`, `tone` and the images stay cross-cutting options, and each template declares which of them it accepts. Sending one it does not accept is a 2106, not a silent ignore.\n\nRead the list, the costs and the fields from `GET /planner_templates`; do not hardcode them."
+          },
+          "source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AiPlansAiPlanSourceInput"
+              }
+            ],
+            "description": "The source itself. Which fields it carries depends on `template`. Required for every template except `standard`, and validated at creation — 2112, 2113, 2114, 2115 or 2116 come back while the user is still there."
           },
           "accounts": {
             "type": "array",
@@ -9700,6 +9779,26 @@
           "ai_plans",
           "total"
         ]
+      },
+      "AiPlansAiPlanNotice": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "description": "Something the plan has to say about itself, in the same shape as an API error.",
+        "properties": {
+          "code": {
+            "type": "integer"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
       },
       "AiPlansAiPlanOne": {
         "type": "object",
@@ -9823,7 +9922,7 @@
           },
           "allow_images": {
             "type": "boolean",
-            "description": "Whether images may be generated. Each image costs 70 AI credits. Optional; defaults to `true`."
+            "description": "Whether images may be generated. Each image costs 70 AI credits. Optional; defaults to `true`. Forced to `false` when the template does not generate images (`generates_images: false`), where the picture comes from the source and costs nothing."
           },
           "max_images": {
             "type": "integer",
@@ -9834,15 +9933,161 @@
             "items": {
               "type": "string"
             },
-            "description": "Upload ids from the organization's gallery used as visual reference for the generated images."
+            "description": "Upload ids from the organization's gallery used as visual reference for the generated images. They are references for the images the model GENERATES, so a template that does not generate them does not accept them either (`allows_gallery`): sending them to `from_images` or `from_catalog` is a 2106."
           },
           "shared": {
             "type": "boolean",
-            "description": "Generate ONE piece of content per day and replicate it across every account, each scheduled at the best hour for ITS network, instead of one publication per account and day. Cheaper — one text and one image per day — and it caps images at 7. Optional; defaults to `false`."
+            "description": "Generate ONE piece of content per day and replicate it across every account, each scheduled at the best hour for ITS network, instead of one publication per account and day. Cheaper — one text and one image per day — and it caps images at 7. Optional; defaults to `false`. **Not every template accepts it** (`allows_shared` in `GET /planner_templates`): `from_images` and `from_catalog` do not, because each of their publications carries a photo of its own, and sending `true` to them is rejected with 2106."
           },
           "use_organization_context": {
             "type": "boolean",
             "description": "Use the organization's brand context in the prompts. It is copied into the plan as a SNAPSHOT when the plan is created, so a retry or a regeneration uses the context the plan was asked with even if the configuration changed meanwhile. Optional; defaults to `true`."
+          }
+        }
+      },
+      "AiPlansAiPlanSource": {
+        "type": "object",
+        "description": "The plan source as it was STORED: a snapshot taken when the plan was created, not a live reference. It is what makes a retry reproduce the same plan even if the article went offline or the product left the catalogue — same reason as `organization_context`.",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "`from_text`. The article, already downloaded and truncated. It is never downloaded again."
+          },
+          "url": {
+            "type": "string",
+            "description": "`from_text`. The original address, kept for the record and to show where the plan came from."
+          },
+          "images": {
+            "type": "array",
+            "description": "`from_images`. The chosen photos with their descriptions, in the order they were sent — the position IS the `source_index` of the publication that uses it.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id_upload": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "id_account_catalog": {
+            "type": "string",
+            "description": "`from_catalog`. The account whose catalogue was read."
+          },
+          "products": {
+            "type": "array",
+            "description": "`from_catalog`. Snapshot of the chosen products.",
+            "items": {
+              "$ref": "#/components/schemas/AiPlansAiPlanSourceProduct"
+            }
+          },
+          "event": {
+            "type": "object",
+            "description": "`campaign`. The event and its date, already normalised to the start of ITS day in the plan timezone.",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "date": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        }
+      },
+      "AiPlansAiPlanSourceImageInput": {
+        "type": "object",
+        "required": [
+          "id_upload",
+          "description"
+        ],
+        "description": "One photo of `from_images`.",
+        "properties": {
+          "id_upload": {
+            "type": "string",
+            "description": "An upload of the organization. It has to be an image: a video or an audio is rejected here, not later at publish time."
+          },
+          "description": {
+            "type": "string",
+            "description": "What is in the photo. **Mandatory on purpose**: without it the model writes about what it believes it sees, and with a product photo it gets the product wrong about half the time."
+          }
+        }
+      },
+      "AiPlansAiPlanSourceInput": {
+        "type": "object",
+        "description": "The plan's source, as you SEND it. **One shape per template**: send only the fields of the template you chose — what it does not read is ignored, and what it needs and does not get is a 2112.\n\nIt is validated when the plan is **created**, not when it is generated: the article is downloaded, the catalogue is read live and the product pictures are copied. So a source that does not work fails while the user is still there and can fix it, and what gets stored is a SNAPSHOT — a retry three days later does not depend on the article still being online or the product still being in the catalogue.\n\n| Template | Fields |\n| --- | --- |\n| `standard` | none — no source |\n| `from_images` | `images` |\n| `from_text` | `url` **or** `text` |\n| `from_catalog` | `id_account_catalog`, `product_catalog_id`, `products` |\n| `campaign` | `event_name`, `event_date` |",
+        "properties": {
+          "images": {
+            "type": "array",
+            "maxItems": 20,
+            "description": "`from_images`. Your own photos, each with its own description, **in the order that tells the story**: the orchestrator picks one per publication and keeps its position in `source_index`, so photo 3 can be the \"before\" and photo 7 the \"after\". Up to 20 (`max_source_items`), and each one has to be an image upload of this organization (806 otherwise).",
+            "items": {
+              "$ref": "#/components/schemas/AiPlansAiPlanSourceImageInput"
+            }
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "`from_text`. The article the plan is written from. It is downloaded at creation, and only `http`/`https` addresses that resolve to a **public** IP are accepted — checked again before every redirect (2114). A page that answers something that is not text or HTML, or that carries no usable text once stripped, is a 2113: paste the text in `text` instead."
+          },
+          "text": {
+            "type": "string",
+            "minLength": 200,
+            "maxLength": 12000,
+            "description": "`from_text`. The article pasted by hand. **It wins over `url`** when both come: pasting is what a user does when the download did not work (a paywall, a page that needs JavaScript), so re-downloading to ignore what they wrote would take away their only way out. Truncated to 12.000 characters — the cap is what keeps the estimate honest, since the real charge is per use. Under 200 characters it is not an article, it is the theme, which is `prompt` and another field (2116)."
+          },
+          "id_account_catalog": {
+            "type": "string",
+            "description": "`from_catalog`. Which account's catalogue the products come from. It has to belong to the organization (2103) and be on a network that supports products (2115). It only chooses the catalogue: the publications still go to every account in `accounts` — a LinkedIn account can publish a product from a Facebook catalogue."
+          },
+          "product_catalog_id": {
+            "type": "string",
+            "description": "`from_catalog`. The catalogue itself, as the network identifies it."
+          },
+          "products": {
+            "type": "array",
+            "maxItems": 12,
+            "items": {
+              "type": "string"
+            },
+            "description": "`from_catalog`. Ids of the chosen products, **in the order they should tell the week**. Up to 12 — a unit here is not an id already in the database: it is a live read plus a real download inside this request, with the user waiting. Repeated ids are deduplicated. They are ALL checked against the catalogue before a single picture is downloaded (2112 naming the missing one), and each picture is copied into an upload of the organization: the network CDN URL expires, and a plan published weeks later would carry a broken file. Those uploads count against the storage quota."
+          },
+          "event_name": {
+            "type": "string",
+            "maxLength": 120,
+            "description": "`campaign`. What the countdown is towards (\"Rebajas de verano\", \"Apertura del local\"). Over 120 characters it is **rejected, not truncated**: a name cut mid-word would come out that way in all seven publications, and whatever else needs saying goes in `prompt`."
+          },
+          "event_date": {
+            "type": "string",
+            "format": "date",
+            "description": "`campaign`. The day of the event. **Send a calendar day, `YYYY-MM-DD` — never an ISO instant.** A bare date is read in the plan's `options.timezone`, which is the whole point: `2026-09-15T00:00:00Z` is midnight UTC, that is the 14th in the afternoon in New York — a whole day off in a countdown, for half of America, with no error anywhere. It cannot fall before the plan week (`options.week_start`) nor more than 60 days after it (2112). And it does **not** move `publish_days`: if the event lands on a day you did not choose, the plan respects your choice and it is up to you to say so."
+          }
+        }
+      },
+      "AiPlansAiPlanSourceProduct": {
+        "type": "object",
+        "description": "A product of the catalogue, copied when the plan was created.",
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "description": "The id it has in the network catalogue."
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "price": {
+            "type": "string",
+            "description": "The price **exactly as the network returned it** (\"9,99 €\"). It is never converted: the same field is a number in other paths of Meta's API and there is no way to tell units from cents, and dividing by 100 \"just in case\" is precisely how a 10 € product gets advertised at 0,10 €. The prompt is told to copy it verbatim or to say nothing."
+          },
+          "id_upload": {
+            "type": "string",
+            "description": "The product picture, copied into an upload of the organization. The network CDN URL expires; this one does not."
           }
         }
       },
@@ -10039,6 +10284,111 @@
           "values",
           "text"
         ]
+      },
+      "CatalogPlannerTemplate": {
+        "type": "object",
+        "properties": {
+          "template": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "from_images",
+              "from_text",
+              "from_catalog",
+              "campaign"
+            ],
+            "description": "What the plan is generated FROM, and what you send as `template` when creating it:\n\n• **`standard`** — a theme prompt, images generated by the model. What every plan was before templates existed.\n• **`from_images`** — the user's own photos, each with its own description. One vision pass over ALL of them at once, so the model can sequence a narrative (photo 3 the \"before\", photo 7 the \"after\") instead of writing seven independent posts. It generates no images.\n• **`from_text`** — an article: a URL that is downloaded at creation, or the text pasted by hand.\n• **`from_catalog`** — products read LIVE from a connected catalogue, with their name, their price and their picture. The one template that cannot be copied by a generic AI tool, because it needs the catalogue connection.\n• **`campaign`** — a countdown towards a date, with a narrative arc: teaser, announcement, reminder, today, thank you. The only plan that is a story instead of seven loose posts."
+          },
+          "allows_shared": {
+            "type": "boolean",
+            "description": "Does it accept `options.shared` (one content replicated across every account)?"
+          },
+          "allows_gallery": {
+            "type": "boolean",
+            "description": "Does it accept `options.gallery_uploads` (visual references for the generated images)?"
+          },
+          "generates_images": {
+            "type": "boolean",
+            "description": "false = the pictures come from the source, and the plan spends no image credits."
+          },
+          "regenerate": {
+            "type": "object",
+            "description": "What can be regenerated on a publication of this plan.",
+            "properties": {
+              "text": {
+                "type": "boolean"
+              },
+              "image": {
+                "type": "boolean"
+              }
+            }
+          },
+          "orchestration_cost": {
+            "type": "integer",
+            "description": "Estimated credits for this template's orchestration pass. The real charge is per use."
+          },
+          "orchestration_cost_per_source_item": {
+            "type": "integer",
+            "description": "Extra estimated credits per unit of source (per image, in `from_images`). 0 when the source does not scale the prompt."
+          },
+          "max_source_items": {
+            "type": "integer",
+            "description": "Hard cap of source units accepted. 0 = this template has no unit-based source."
+          },
+          "source_fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogPlannerTemplateField"
+            }
+          },
+          "source_requires_any": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Fields of which AT LEAST ONE is needed, even though none of them is required on its own. Today it is `from_text`: either the URL or the pasted text, never both empty (2116).\n\nIt exists because a field's `required` cannot say \"one or the other\", and without it your UI would have to hardcode that rule — exactly the copy this catalogue exists to avoid. Absent = there is nothing of the sort to resolve."
+          }
+        }
+      },
+      "CatalogPlannerTemplateField": {
+        "type": "object",
+        "description": "One field of the source step. `uploads_with_description` (photos, each with its own description) and `catalog_products` (products read live from a connected catalogue) need a dedicated component; the rest are ordinary controls.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "textarea",
+              "url",
+              "boolean",
+              "select",
+              "date",
+              "uploads_with_description",
+              "catalog_products"
+            ]
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "default": {},
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "max": {
+            "type": "integer",
+            "description": "Cap in the field's **own units**: characters of a text, items of a list, and **days** of a `date` — the `event_date` of `campaign` carries 60, which is how far ahead of the plan week the countdown may point."
+          },
+          "min": {
+            "type": "integer",
+            "description": "Floor in the field's own units. Today only `from_text`: under 200 characters it is not an article, it is the theme, which is `prompt` and another field. Published for the same reason as `max` — without it your UI hardcodes the 200 and the user gets a 2116 AFTER pasting the text instead of while pasting it."
+          }
+        }
       },
       "CatalogSocialLimits": {
         "type": "object",
