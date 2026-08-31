@@ -2872,6 +2872,14 @@ class AiPlansAiPlan(TypedDict):
     """
     State machine: pending -> generating -> generated -> validated | failed | cancelled. Poll the plan while state is pending or generating.
     """
+    archived_date: NotRequired[str]
+    """
+    When the plan was archived. Absent means it is active, which is how every plan created before archiving existed comes back.
+
+    It is a field of its own and NOT a value of `state` on purpose: `state` is the generation lifecycle and archiving is orthogonal to it — a `validated` plan that already published gets archived just like a `failed` one. Inside the enum you would have to decide which state it returns to when unarchived, and that question has no answer.
+
+    Archiving is visibility only: it takes the plan out of the default listing and touches no publication. Anything it had scheduled keeps publishing.
+    """
     orchestrator_result: NotRequired[dict[str, Any]]
     """
     Raw plan returned by the orchestrator, kept for audit (before validation/trimming).

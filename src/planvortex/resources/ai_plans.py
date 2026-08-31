@@ -22,7 +22,13 @@ AND WHAT SURPRISES PEOPLE:
   so Monday/Wednesday/Friday with 3 accounts is 9 publications, not 21.
 - **These routes hang off the CLIENT**, not only off the organization: they carry both identifiers.
 - **Deleting is cancelling.** The plan moves to ``cancelled`` and stops appearing in the listing, but
-  :meth:`AsyncAiPlansResource.get` still returns it.
+  :meth:`AsyncAiPlansResource.get` still returns it. What does go for good are its publications that
+  had not gone out yet: the drafts and, if the plan was already validated, whatever was still
+  scheduled.
+- **Archiving is NOT deleting, and it is the action people are usually after.**
+  :meth:`AsyncAiPlansResource.archive` takes the plan out of the listing and touches no publication
+  — anything scheduled keeps publishing — works in any state and can be undone. The archived ones
+  are read with ``list(..., archived=True)``, never next to the active ones.
 
 THE TEMPLATES: WHAT THE PLAN IS GENERATED FROM
 
@@ -67,7 +73,7 @@ from collections.abc import AsyncIterator
 
 from planvortex._core.pagination import Page, PageParams
 from planvortex._shapes import AiPlanRegenerateResult
-from planvortex.resources.base import AsyncResource, require_id
+from planvortex.resources.base import AsyncResource, Query, require_id
 from planvortex.types import AiPlan, AiPlanCreateRequest, AiPlanCreateResult
 
 
@@ -166,17 +172,27 @@ class AsyncAiPlansResource(AsyncResource):
         *,
         limit: int | None = None,
         offset: int | None = None,
+        archived: bool | None = None,
         timeout: float | None = None,
     ) -> Page[AiPlan]:
-        """The organization's plans, from the newest to the oldest.
+        """The organization's ACTIVE plans, from the newest to the oldest.
 
-        **The cancelled ones do not show up**, and here ``publications`` are identifiers, not the
-        whole publications: for that there is :meth:`get`. With no ``limit`` they all come back.
+        **The cancelled ones do not show up** — nor the archived ones, which are asked for with
+        ``archived=True`` — and here ``publications`` are identifiers, not the whole publications:
+        for that there is :meth:`get`. With no ``limit`` they all come back.
+
+        ``archived`` opens the other cupboard, never both at once: archiving moves a plan somewhere
+        else, it does not put a label on it and leave it where it was.
+
+        .. code-block:: python
+
+            activos = await pv.ai_plans.list(client_id, org_id)
+            guardados = await pv.ai_plans.list(client_id, org_id, archived=True)
         """
         pagina: Page[AiPlan] = await self._list(
             self._path(id_client, id_organization),
             "ai_plans",
-            {"limit": limit, "offset": offset},
+            self._list_query(limit, offset, archived),
             timeout=timeout,
         )
         return pagina
@@ -188,6 +204,7 @@ class AsyncAiPlansResource(AsyncResource):
         *,
         limit: int | None = None,
         offset: int | None = None,
+        archived: bool | None = None,
         timeout: float | None = None,
     ) -> AsyncIterator[AiPlan]:
         """The organization's plans, chaining pages."""
@@ -198,6 +215,7 @@ class AsyncAiPlansResource(AsyncResource):
                 id_organization,
                 limit=params.limit,
                 offset=params.offset,
+                archived=archived,
                 timeout=timeout,
             )
 
@@ -274,6 +292,47 @@ class AsyncAiPlansResource(AsyncResource):
         resultado: AiPlanRegenerateResult = await self._post(ruta, {"target": target}, timeout=timeout)
         return resultado
 
+    async def archive(
+        self,
+        id_client: str,
+        id_organization: str,
+        id_ai_plan: str,
+        *,
+        timeout: float | None = None,
+    ) -> AiPlan:
+        """Archive the plan: it leaves the listing and moves to the archived one
+        (``list(..., archived=True)``).
+
+        It is **visibility only**. No publication is touched — anything scheduled keeps publishing —
+        no credits are refunded and nothing is cancelled, so it works in ANY state, ``generating``
+        included: it does not interrupt the job. Undone with :meth:`unarchive`.
+
+        It is what people are after almost every time they think of "removing" a plan: :meth:`remove`
+        takes the publications that have not gone out with it, and this does not.
+        """
+        plan: AiPlan = await self._post_one(
+            f"{self._one_path(id_client, id_organization, id_ai_plan)}/archive",
+            "ai_plan",
+            timeout=timeout,
+        )
+        return plan
+
+    async def unarchive(
+        self,
+        id_client: str,
+        id_organization: str,
+        id_ai_plan: str,
+        *,
+        timeout: float | None = None,
+    ) -> AiPlan:
+        """Put the plan back in the active listing. On a plan that was not archived it does nothing."""
+        plan: AiPlan = await self._post_one(
+            f"{self._one_path(id_client, id_organization, id_ai_plan)}/unarchive",
+            "ai_plan",
+            timeout=timeout,
+        )
+        return plan
+
     async def remove(
         self,
         id_client: str,
@@ -282,10 +341,27 @@ class AsyncAiPlansResource(AsyncResource):
         *,
         timeout: float | None = None,
     ) -> None:
-        """Cancel the plan. **It does not delete it**: it moves to ``cancelled``, disappears from
-        :meth:`list` and :meth:`get` still returns it.
+        """Delete the plan **and its publications that have not gone out yet**: the generated drafts
+        and, if it had already been validated, whatever was still scheduled. The already published
+        ones stay — deleting them here would not take them off the network, it would only lose their
+        history — and neither is the one being published at that very moment touched.
+
+        The plan itself is not wiped: it moves to ``cancelled``, disappears from :meth:`list` and
+        :meth:`get` still returns it. Spent credits are not refunded and a ``generating`` plan cannot
+        be deleted (2102): wait for the job to finish.
+
+        To stop seeing it without losing anything, :meth:`archive`.
         """
         await self._delete(self._one_path(id_client, id_organization, id_ai_plan), timeout=timeout)
+
+    def _list_query(self, limit: int | None, offset: int | None, archived: bool | None) -> Query:
+        return {
+            "limit": limit,
+            "offset": offset,
+            # El servidor enciende el filtro con el literal "true": mandar `archived=false` pediria
+            # lo mismo que no mandar nada, asi que un `False` se omite en vez de viajar como ruido.
+            "archived": True if archived else None,
+        }
 
     def _path(self, id_client: str, id_organization: str) -> str:
         cliente = require_id(id_client, "id_client")

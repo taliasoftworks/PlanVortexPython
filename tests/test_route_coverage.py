@@ -45,10 +45,14 @@ RECURSOS = (
 
 
 def test_no_queda_ninguna_ruta_del_alcance_sin_metodo() -> None:
-    """113 de 113. Si esto falla, el mensaje dice exactamente cual falta."""
+    """115 de 115. Si esto falla, el mensaje dice exactamente cual falta.
+
+    Las dos ultimas son `archive` y `unarchive` de un plan de IA: son DOS rutas y no un cuerpo con
+    un booleano, asi que el alcance crece de dos en dos cuando aparece una pareja de estas.
+    """
     sin_cubrir, _, total = route_coverage.informe()
 
-    assert total == 113, "el alcance ha cambiado de tamano: mira si el spec ha crecido"
+    assert total == 115, "el alcance ha cambiado de tamano: mira si el spec ha crecido"
     assert not sin_cubrir, "rutas del spec que ningun recurso construye:\n" + "\n".join(
         str(operacion) for operacion in sin_cubrir
     )

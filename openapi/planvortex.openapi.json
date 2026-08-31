@@ -1000,7 +1000,7 @@
           "ai_plans"
         ],
         "summary": "List AI publication plans",
-        "description": "Return the organization's AI plans ordered by creation date (desc), paginated. Requires the ai_plans:read permission.\n\n**Cancelled plans are not listed.** Deleting a plan sets it to `cancelled` rather than removing it, and this listing filters those out — so a plan you deleted simply stops appearing, while `GET` by id still returns it.\n\nWithout `limit` the whole list comes back.",
+        "description": "Return the organization's AI plans ordered by creation date (desc), paginated. Requires the ai_plans:read permission.\n\n**Active plans by default, archived ones with `archived=true`** — never both at once. Archiving is visibility only (see `POST .../archive`): the plan leaves this listing and keeps every publication it had.\n\n**Cancelled plans are not listed either.** Deleting a plan sets it to `cancelled` rather than removing it, and this listing filters those out — so a plan you deleted simply stops appearing, while `GET` by id still returns it.\n\nWithout `limit` the whole list comes back.",
         "operationId": "getAiPlans",
         "x-planvortex-identity": [
           "current_user",
@@ -1030,6 +1030,16 @@
             "required": false,
             "schema": {
               "type": "integer"
+            }
+          },
+          {
+            "name": "archived",
+            "in": "query",
+            "description": "`true` returns the archived plans instead of the active ones. Anything other than the literal string `true` is read as false.",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
             }
           }
         ],
@@ -1113,8 +1123,8 @@
         "tags": [
           "ai_plans"
         ],
-        "summary": "Cancel / discard an AI publication plan",
-        "description": "Discard the plan and delete its generated draft publications. AI credits already spent on generation are NOT refunded (same criterion as X: if the provider charged, we charge). Requires the ai_plans:delete permission.",
+        "summary": "Delete an AI publication plan and its pending publications",
+        "description": "Delete the plan **and every publication of it that has not gone out yet**: the generated drafts and, if the plan was already validated, whatever was still scheduled. Two states are deliberately left alone: `sended`, because it is already live on the network and deleting it here would only lose its history while the post stays up, and `publishing`, which the publishing job holds at that very moment.\n\nAI credits already spent on generation are NOT refunded (same criterion as X: if the provider charged, we charge). A plan being generated cannot be deleted (state `generating`, error 2102): wait for the job to finish.\n\nTo keep the plan and its publications and only take it out of the listing, archive it instead (`POST .../archive`). Requires the ai_plans:delete permission.",
         "operationId": "deleteAiPlan",
         "x-planvortex-identity": [
           "current_user",
@@ -1244,6 +1254,106 @@
           },
           "400": {
             "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `1101` | Invalid organization |\n| `2100` | AI plan doesn't exist. The identifier is invalid or doesn't exist. |\n| `2102` | Invalid AI plan state for this operation. Only a plan in state 'failed' can be retried. |\n| `521` | Invalid client. The identifier is invalid or doesn't exist |",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled error by the server"
+          }
+        }
+      }
+    },
+    "/clients/{id_client}/organizations/{id_organization}/ai_plans/{id_ai_plan}/archive": {
+      "post": {
+        "tags": [
+          "ai_plans"
+        ],
+        "summary": "Archive an AI publication plan",
+        "description": "Take the plan out of the default listing and move it to the archived one (`GET .../ai_plans?archived=true`). It is **visibility only**: no publication is touched — anything scheduled keeps publishing — no credits are refunded, and nothing is cancelled. It is reversible with `POST .../unarchive` and valid in **any state**, `generating` included, because it does not interrupt the generation job.\n\nArchiving an already archived plan just refreshes `archived_date`. Requires the ai_plans:update permission.",
+        "operationId": "archiveAiPlan",
+        "x-planvortex-identity": [
+          "current_user",
+          "current_app"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AiPlansidClient"
+          },
+          {
+            "$ref": "#/components/parameters/AiPlansidOrganization"
+          },
+          {
+            "$ref": "#/components/parameters/AiPlansidAiPlan"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation. Returns the plan with `archived_date` set.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiPlansAiPlanOne"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `1101` | Invalid organization |\n| `2100` | AI plan doesn't exist. The identifier is invalid or doesn't exist. |\n| `521` | Invalid client. The identifier is invalid or doesn't exist |",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled error by the server"
+          }
+        }
+      }
+    },
+    "/clients/{id_client}/organizations/{id_organization}/ai_plans/{id_ai_plan}/unarchive": {
+      "post": {
+        "tags": [
+          "ai_plans"
+        ],
+        "summary": "Unarchive an AI publication plan",
+        "description": "Return the plan to the default listing: `archived_date` is cleared. Unarchiving a plan that was not archived does nothing and answers 200. Requires the ai_plans:update permission.",
+        "operationId": "unarchiveAiPlan",
+        "x-planvortex-identity": [
+          "current_user",
+          "current_app"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AiPlansidClient"
+          },
+          {
+            "$ref": "#/components/parameters/AiPlansidOrganization"
+          },
+          {
+            "$ref": "#/components/parameters/AiPlansidAiPlan"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation. Returns the plan without `archived_date`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiPlansAiPlanOne"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `1101` | Invalid organization |\n| `2100` | AI plan doesn't exist. The identifier is invalid or doesn't exist. |\n| `521` | Invalid client. The identifier is invalid or doesn't exist |",
             "content": {
               "application/json": {
                 "schema": {
@@ -9596,6 +9706,11 @@
               "cancelled"
             ],
             "description": "State machine: pending -> generating -> generated -> validated | failed | cancelled. Poll the plan while state is pending or generating."
+          },
+          "archived_date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the plan was archived. Absent means it is active, which is how every plan created before archiving existed comes back.\n\nIt is a field of its own and NOT a value of `state` on purpose: `state` is the generation lifecycle and archiving is orthogonal to it — a `validated` plan that already published gets archived just like a `failed` one. Inside the enum you would have to decide which state it returns to when unarchived, and that question has no answer.\n\nArchiving is visibility only: it takes the plan out of the default listing and touches no publication. Anything it had scheduled keeps publishing."
           },
           "orchestrator_result": {
             "type": "object",

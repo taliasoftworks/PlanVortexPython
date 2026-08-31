@@ -22,7 +22,7 @@ from __future__ import annotations
 from pytest_httpx2 import HTTPXMock
 
 from tests.conftest import BASE_URL, ClienteDePrueba
-from tests.contrato import cuerpo, peticiones, ruta, unica
+from tests.contrato import cuerpo, peticiones, query, ruta, unica
 
 PLANES = f"{BASE_URL}/clients/cli1/organizations/org1/ai_plans"
 PLAN = {
@@ -222,3 +222,47 @@ def test_borrar_es_cancelar(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> 
 
     assert cliente.esperar(cliente.pv.ai_plans.remove("cli1", "org1", "plan1")) is None
     assert unica(httpx_mock).method == "DELETE"
+
+
+def test_archivar_y_desarchivar_van_a_dos_rutas(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:
+    """Son DOS rutas y no un cuerpo con un booleano: lo que hay que fijar es que cada metodo vaya a
+    la suya, y que el estado del plan no cambie al archivarlo.
+    """
+    archivado = {**PLAN, "state": "validated", "archived_date": "2026-08-31T09:00:00.000Z"}
+    httpx_mock.add_response(url=f"{PLANES}/plan1/archive", method="POST", json={"ai_plan": archivado})
+    httpx_mock.add_response(
+        url=f"{PLANES}/plan1/unarchive", method="POST", json={"ai_plan": {**PLAN, "state": "validated"}}
+    )
+
+    guardado = cliente.esperar(cliente.pv.ai_plans.archive("cli1", "org1", "plan1"))
+    devuelto = cliente.esperar(cliente.pv.ai_plans.unarchive("cli1", "org1", "plan1"))
+
+    assert guardado["archived_date"] == "2026-08-31T09:00:00.000Z"
+    # Ausente, no `None`: es como llega cualquier plan activo, incluidos los anteriores al campo
+    assert "archived_date" not in devuelto
+    # Archivar no toca el ciclo de vida: un plan validado archivado sigue siendo `validated`
+    assert guardado["state"] == "validated"
+    archivar, desarchivar = peticiones(httpx_mock)
+    assert ruta(archivar) == "/clients/cli1/organizations/org1/ai_plans/plan1/archive"
+    assert ruta(desarchivar) == "/clients/cli1/organizations/org1/ai_plans/plan1/unarchive"
+    # POST vacios, como validar y reintentar
+    assert cuerpo(archivar) is None
+    assert cuerpo(desarchivar) is None
+
+
+def test_el_listado_pide_el_otro_armario_solo_cuando_se_le_pide(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    httpx_mock.add_response(url=f"{PLANES}?archived=true", json={"ai_plans": [], "total": 0})
+    httpx_mock.add_response(url=PLANES, json={"ai_plans": [PLAN], "total": 1}, is_reusable=True)
+
+    cliente.esperar(cliente.pv.ai_plans.list("cli1", "org1", archived=True))
+    cliente.esperar(cliente.pv.ai_plans.list("cli1", "org1", archived=False))
+    cliente.esperar(cliente.pv.ai_plans.list("cli1", "org1"))
+
+    archivados, negado, sin_decir = peticiones(httpx_mock)
+    assert query(archivados) == {"archived": ["true"]}
+    # `False` no viaja: el servidor enciende el filtro con el literal "true", asi que mandarlo seria
+    # ruido, y ademas invitaria a creer que hay un tercer modo con los dos armarios a la vez
+    assert "archived" not in query(negado)
+    assert "archived" not in query(sin_decir)

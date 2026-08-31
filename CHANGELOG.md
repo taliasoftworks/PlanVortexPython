@@ -4,6 +4,38 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+An AI plan can now be **archived**, and deleting one finally means what people thought it meant.
+
+The two look alike on a screen and have nothing in common underneath: archiving takes the plan out
+of the listing and touches nothing else, while deleting takes the publications that had not gone out
+with it. Almost every time someone reaches for "remove" they wanted the first one.
+
+### Added
+
+- **`ai_plans.archive()` and `ai_plans.unarchive()`**, in both clients. Archiving is **visibility
+  only**: the plan leaves the listing and moves to the archived one, no publication is touched —
+  anything scheduled keeps publishing — no credits come back, nothing is cancelled. It therefore
+  works in **any state**, `generating` included, and it is undone. On the object it is
+  `archived_date`: a field, **not** a value of `state`, so reading the state to find out whether a
+  plan is archived will never work. Absent means active, which is how every plan created before the
+  field existed comes back.
+- **`archived` on `ai_plans.list()` and `ai_plans.aiterate()`/`iterate()`.** `True` returns the
+  archived plans instead of the active ones, never both at once. A `False` is not sent: the server
+  switches the filter on with the literal `"true"`, so it would be noise — and it would suggest a
+  third mode with both cupboards open that does not exist.
+
+### Changed
+
+- **`ai_plans.remove()` deletes the plan's publications that have not gone out yet**, not only the
+  drafts: if the plan had already been validated, whatever was still scheduled goes too. This is a
+  change **in the server**, so it reached your existing calls the day it shipped — before it, a
+  validated plan you deleted kept publishing by itself the following week. Two states are
+  deliberately left alone: the already published one, because deleting it here would not take it off
+  the network and would only lose its history, and the one being published at that very moment.
+  If you wanted the plan out of the way without losing anything, that is `archive()`.
+
 ## [0.3.0] - 2026-08-31
 
 The AI planner stops being one thing. A plan can now be generated from **your own photos**, from an
