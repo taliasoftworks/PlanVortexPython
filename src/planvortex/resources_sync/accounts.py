@@ -49,7 +49,7 @@ class AccountsResource(Resource):
         rather than a failure: it is what happens to Discord in an organization that has not saved
         its own bot credentials yet.
 
-        **LOOK AT ``authorization``, NOT AT WHETHER ``link`` IS EMPTY.** Nine of the eleven networks
+        **LOOK AT ``authorization``, NOT AT WHETHER ``link`` IS EMPTY.** Ten of the twelve networks
         are ``redirect`` and the person is sent to ``link``. The other two are not, and neither of them
         fails visibly if you walk the list redirecting to ``link``:
 

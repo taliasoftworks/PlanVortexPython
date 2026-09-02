@@ -137,7 +137,7 @@ class AccountsSocialAuthorizationMethod(TypedDict):
     """
     **How** an account of this network is authorized, which is not always "send the user to this URL".
 
-    Nine of the eleven networks are `redirect`: open `link` and the network sends the person back to PlanVortex with a code. Two are not:
+    Ten of the twelve networks are `redirect`: open `link` and the network sends the person back to PlanVortex with a code. Two are not:
 
     • **WhatsApp.** Its sign-up is Meta's *Embedded Signup*: a popup raised by the Facebook JavaScript SDK from your own page, which returns — over `postMessage` — session data (`waba_id`, `phone_number_id`) that no query string carries. Its `link` is therefore an empty string.
     • **Telegram.** There is no OAuth here: no consent screen, no `code`, no account token. `link` opens a private chat with the PlanVortex bot, the person then adds that bot to their channel, and **the account is created from that event**, not from any request of yours. Which means the connection cannot be finished by calling `GET /organizations/{id_organization}/account-connect/telegram` — see that endpoint.
@@ -855,6 +855,7 @@ CommentsCommentNetworkName: TypeAlias = Literal[
     "bluesky",
     "discord",
     "telegram",
+    "threads",
 ]
 """
 A network that has comments. Treat it as an open list: a new one is added before your integration hears about it.
@@ -1668,6 +1669,8 @@ class PublicationStats(TypedDict):
 
     On `bluesky` there are no impressions and no reach either — only the public counters — so engagement is computed over followers.
 
+    On `threads` there are six, and the one that matters is `views`: it is the only one of the four newest networks with something like impressions, so its engagement rate is computed over a real base and not over followers. Sharing arrives split in three — `reposts`, `quotes` and `shares` (outside Threads) — and the three are added into one figure, the same criterion as on X; the breakdown stays in `raw`. A reply is what every other network calls a comment.
+
     On `telegram` there are two as well, and **neither of them is asked for**: the Bot API has no method that returns a message's metrics, so `reactions` arrives on its own through the bot and `comments` is counted in PlanVortex's own inbox. There are no impressions, no reach, no views and no forwards to be had anywhere in it, so engagement is computed over followers.
     """
 
@@ -1758,6 +1761,7 @@ class PublicationsPublicationInput(TypedDict):
             "bluesky",
             "discord",
             "telegram",
+            "threads",
         ]
     ]
     """
@@ -1907,6 +1911,7 @@ SocialNetwork: TypeAlias = Literal[
     "bluesky",
     "discord",
     "telegram",
+    "threads",
 ]
 """
 A social network supported by PlanVortex.
@@ -2175,7 +2180,7 @@ class CatalogPlannerTemplate(TypedDict):
 class CatalogSocialLimits(TypedDict):
     characters: CatalogSocialLimitsMap
     """
-    Maximum length of a publication's text. Bluesky counts graphemes, everyone else counts characters — Telegram included, where `String.length` is exactly the right unit.
+    Maximum length of a publication's text. **Bluesky and Threads count GRAPHEMES**, everyone else counts characters — Telegram included, where `String.length` is exactly the right unit. The difference is not academic: an emoji is one grapheme and two `String.length` units, so counting a Threads post with `.length` rejects at 250 emojis what the network publishes happily at 500.
 
     On Telegram there are **two numbers for the same field**: `telegram` (4.096) while the publication is text only, and `telegram_media` (1.024) the moment it carries an image or a video, because then the text is a media caption and not a message. Switch the counter when the file is attached, not when publish is pressed.
     """

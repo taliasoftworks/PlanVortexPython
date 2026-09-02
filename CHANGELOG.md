@@ -4,6 +4,26 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-02
+
+**Threads is the twelfth network**, and the types now know it.
+
+Nothing here removes anything: `SocialNetwork` gains a value, `PublishableNetwork` gains another,
+and everything that type-checked before type-checks now. What was wrong until today was quieter than
+an error — the committed copy of the spec predated Threads, so an account coming back from a real
+API arrived with a `social_network` no `Literal` had ever heard of, and the prose still counted
+eleven networks where the API had twelve.
+
+### Changed
+
+- The OpenAPI copy and the generated models are rebuilt from the published document, so `threads`
+  is a `SocialNetwork`, a `CommentNetwork` and a publishable network.
+- `PublishableNetwork` — hand-maintained, because generating it is not possible — includes
+  `threads`: **eleven of the twelve** networks have a feed, and `google_business` is still the one
+  that does not.
+- The prose that counts networks: a connection link is a `redirect` on **ten of the twelve**, not
+  nine of eleven. WhatsApp and Telegram are still the two that are not.
+
 ## [0.4.0] - 2026-08-31
 
 An AI plan can now be **archived**, and deleting one finally means what people thought it meant.

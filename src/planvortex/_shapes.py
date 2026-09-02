@@ -137,7 +137,7 @@ class AccountUpdate(TypedDict):
 
 
 class RedirectAuthorization(TypedDict):
-    """Send the person to the entry's ``link``. Nine of the eleven networks.
+    """Send the person to the entry's ``link``. Ten of the twelve networks.
 
     One of the THREE halves of the ``authorization`` block of a connection link. The generated type
     is a single flat ``TypedDict`` with every field ``NotRequired``, because that is the only way
@@ -255,6 +255,7 @@ class EnableResult(TypedDict):
 PublishableNetwork: TypeAlias = Literal[
     "facebook",
     "instagram",
+    "threads",
     "twitter",
     "linkedin",
     "tiktok",
@@ -264,12 +265,12 @@ PublishableNetwork: TypeAlias = Literal[
     "discord",
     "telegram",
 ]
-"""A network that accepts publications: the ten of the eleven that have a feed.
+"""A network that accepts publications: the eleven of the twelve that have a feed.
 
 ``google_business`` is the one missing, and it is not an oversight: a local listing receives
 reviews, not posts. Sending it raises error 702. It is a **narrower** type than
 ``types.SocialNetwork`` and that is the whole point — an account's ``social_network`` is one of
-eleven and this is one of ten, so handing one straight to the other is a type error even when a
+twelve and this is one of eleven, so handing one straight to the other is a type error even when a
 ``capability="publications"`` filter has already made it impossible at runtime.
 ``types.is_publishable_network`` is what bridges it.
 

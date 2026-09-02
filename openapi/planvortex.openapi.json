@@ -107,7 +107,7 @@
           "accounts"
         ],
         "summary": "Get the connection links of every connectable network",
-        "description": "The authorization URL of each network, so the user can connect an account to this organization.\n\n**A network that cannot produce a link simply does not appear.** That is a legitimate answer, not a failure: it is what happens with `discord` in an organization that has not saved its own bot credentials yet (see `PUT /organizations/{id_organization}/social_credentials/{social_network}`).\n\n**An app cannot call this.** Connecting a social account is an OAuth flow with a person in front of it, so this endpoint only accepts a user token or a temporal connect token; with app credentials it answers error 519. The way an integration does it is to issue a temporal connect token with `GET /organizations/{id_organization}/temporal_connect_token` and hand it to its end user.\n\n**Read `authorization`, not `link`.** Nine of the eleven networks are `redirect` and you send the person to `link`. Two are not, and neither of them fails visibly if you treat it as one:\n\n• **WhatsApp is not a URL at all.** Its sign-up is Meta's Embedded Signup, a popup you raise with the Facebook JavaScript SDK, so its `link` is an empty string and everything you need to open that popup travels in `authorization`. A client that loops over the list and redirects to `link` sends its user to its own page.\n• **Telegram has a link and still is not a redirect.** It opens a chat with the PlanVortex bot, and nobody comes back from it: the account is born minutes later, from the bot being added to a channel, and it is announced over the WebSocket. Open it in another tab and keep listening; redirect to it and there is nobody left to tell.",
+        "description": "The authorization URL of each network, so the user can connect an account to this organization.\n\n**A network that cannot produce a link simply does not appear.** That is a legitimate answer, not a failure: it is what happens with `discord` in an organization that has not saved its own bot credentials yet (see `PUT /organizations/{id_organization}/social_credentials/{social_network}`).\n\n**An app cannot call this.** Connecting a social account is an OAuth flow with a person in front of it, so this endpoint only accepts a user token or a temporal connect token; with app credentials it answers error 519. The way an integration does it is to issue a temporal connect token with `GET /organizations/{id_organization}/temporal_connect_token` and hand it to its end user.\n\n**Read `authorization`, not `link`.** Ten of the twelve networks are `redirect` and you send the person to `link`. Two are not, and neither of them fails visibly if you treat it as one:\n\n• **WhatsApp is not a URL at all.** Its sign-up is Meta's Embedded Signup, a popup you raise with the Facebook JavaScript SDK, so its `link` is an empty string and everything you need to open that popup travels in `authorization`. A client that loops over the list and redirects to `link` sends its user to its own page.\n• **Telegram has a link and still is not a redirect.** It opens a chat with the PlanVortex bot, and nobody comes back from it: the account is born minutes later, from the bot being added to a channel, and it is announced over the WebSocket. Open it in another tab and keep listening; redirect to it and there is nobody left to tell.",
         "operationId": "getConnectLinks",
         "x-planvortex-identity": [
           "current_user",
@@ -1872,7 +1872,8 @@
                   "google_business",
                   "bluesky",
                   "discord",
-                  "telegram"
+                  "telegram",
+                  "threads"
                 ]
               }
             }
@@ -3597,7 +3598,7 @@
           "comments"
         ],
         "summary": "The inbox: first-level comments across the whole organization",
-        "description": "Served from PlanVortex's database, so it costs nothing and calls no social network. It is a **snapshot**: `collected_date` says when each row was last read. Open a thread to see what the network says right now.\n\nOrdered by `creation_date` descending — the date on the network, not the date we collected it — so rows from nine networks interleave correctly.\n\n**On `telegram` the inbox starts the day the channel was connected.** The Bot API has no way to read the past: a bot only learns what happens while it is inside, so nothing written before the connection exists here and never will. Say so in your UI — an inbox that opens empty on a busy channel reads like a failure.\n\n**Your own replies are not in here.** Anything with `author.is_own: true` is filtered out: what you wrote is not incoming mail. They are still stored, and they do show up in the thread.\n\nRequires the `comments:read` permission (`client_organization_comments:read` for apps) and a paid plan.",
+        "description": "Served from PlanVortex's database, so it costs nothing and calls no social network. It is a **snapshot**: `collected_date` says when each row was last read. Open a thread to see what the network says right now.\n\nOrdered by `creation_date` descending — the date on the network, not the date we collected it — so rows from ten networks interleave correctly.\n\n**On `telegram` the inbox starts the day the channel was connected.** The Bot API has no way to read the past: a bot only learns what happens while it is inside, so nothing written before the connection exists here and never will. Say so in your UI — an inbox that opens empty on a busy channel reads like a failure.\n\n**Your own replies are not in here.** Anything with `author.is_own: true` is filtered out: what you wrote is not incoming mail. They are still stored, and they do show up in the thread.\n\nRequires the `comments:read` permission (`client_organization_comments:read` for apps) and a paid plan.",
         "operationId": "getComments",
         "x-planvortex-identity": [
           "current_user",
@@ -4086,7 +4087,7 @@
           "catalog"
         ],
         "summary": "What every network supports",
-        "description": "The full matrix network → capabilities. It is the **single source of truth** about what a network can do: the catalogue publishes it, the backend checks it before acting, and your integration should filter its account pickers with it rather than keeping a list of its own.\n\n`comments` is the coarse gate — whether the network has comments at all. Which *actions* it allows on one is a finer question and lives in `GET /social_comment_actions`, because the shape here is `{[capability]: boolean}` and nesting an object inside would break it.\n\nToday nine networks answer `comments: true`: Facebook, Instagram, LinkedIn, X, YouTube, Google Business, Bluesky, Discord and Telegram. TikTok and WhatsApp answer `false`, for reasons of theirs and not ours.\n\nA `true` here is about the **network**, not about one account of it: a Telegram channel with no linked discussion group answers 965 on its comments even though the network has them.\n\nOnly needs authentication.",
+        "description": "The full matrix network → capabilities. It is the **single source of truth** about what a network can do: the catalogue publishes it, the backend checks it before acting, and your integration should filter its account pickers with it rather than keeping a list of its own.\n\n`comments` is the coarse gate — whether the network has comments at all. Which *actions* it allows on one is a finer question and lives in `GET /social_comment_actions`, because the shape here is `{[capability]: boolean}` and nesting an object inside would break it.\n\nToday ten networks answer `comments: true`: Facebook, Instagram, Threads, LinkedIn, X, YouTube, Google Business, Bluesky, Discord and Telegram. TikTok and WhatsApp answer `false`, for reasons of theirs and not ours.\n\nA `true` here is about the **network**, not about one account of it: a Telegram channel with no linked discussion group answers 965 on its comments even though the network has them.\n\nOnly needs authentication.",
         "operationId": "getSocialCapabilities",
         "x-planvortex-identity": [
           "current_user",
@@ -4144,7 +4145,7 @@
           "catalog"
         ],
         "summary": "What each network lets you do to a comment",
-        "description": "The fine-grained matrix: reply, hide, delete your own, delete somebody else's — network by network. Read it before painting controls. Networks without comments answer `false` to all four.\n\nThe differences are real and each has a reason in the network's own API:\n\n| Network | reply | hide | delete_own | delete_others |\n| --- | --- | --- | --- | --- |\n| `facebook` | yes | yes | yes | yes |\n| `instagram` | yes | yes | yes | **no** — Instagram only lets you hide someone else's |\n| `youtube` | yes | yes | yes | yes — the channel owner really does moderate |\n| `linkedin` | yes | **no** — there is no hide endpoint | yes | yes |\n| `twitter` | yes | yes | yes | **no** — you cannot delete another account's post |\n| `google_business` | yes | **no** | yes — **your reply**, never the review | **no** |\n| `bluesky` | yes | yes — through the post's `threadgate` | yes | **no** — the reply lives in somebody else's repository |\n| `discord` | yes | **no** — Discord has no hide, only delete | yes | yes |\n| `telegram` | yes | **no** — Telegram has no hide either | yes | yes — with the bot as an admin of the discussion group, otherwise error 969 |\n| `tiktok`, `whatsapp` | no | no | no | no |\n\nOnly needs authentication.",
+        "description": "The fine-grained matrix: reply, hide, delete your own, delete somebody else's — network by network. Read it before painting controls. Networks without comments answer `false` to all four.\n\nThe differences are real and each has a reason in the network's own API:\n\n| Network | reply | hide | delete_own | delete_others |\n| --- | --- | --- | --- | --- |\n| `facebook` | yes | yes | yes | yes |\n| `instagram` | yes | yes | yes | **no** — Instagram only lets you hide someone else's |\n| `youtube` | yes | yes | yes | yes — the channel owner really does moderate |\n| `linkedin` | yes | **no** — there is no hide endpoint | yes | yes |\n| `twitter` | yes | yes | yes | **no** — you cannot delete another account's post |\n| `google_business` | yes | **no** | yes — **your reply**, never the review | **no** |\n| `bluesky` | yes | yes — through the post's `threadgate` | yes | **no** — the reply lives in somebody else's repository |\n| `discord` | yes | **no** — Discord has no hide, only delete | yes | yes |\n| `telegram` | yes | **no** — Telegram has no hide either | yes | yes — with the bot as an admin of the discussion group, otherwise error 969 |\n| `threads` | yes | yes | yes | **no** — deleting somebody else's reply is not a permission you lack, it is a call that does not exist in the API |\n| `tiktok`, `whatsapp` | no | no | no | no |\n\nOnly needs authentication.",
         "operationId": "getSocialCommentActions",
         "x-planvortex-identity": [
           "current_user",
@@ -9510,7 +9511,7 @@
         "required": [
           "type"
         ],
-        "description": "**How** an account of this network is authorized, which is not always \"send the user to this URL\".\n\nNine of the eleven networks are `redirect`: open `link` and the network sends the person back to PlanVortex with a code. Two are not:\n\n• **WhatsApp.** Its sign-up is Meta's *Embedded Signup*: a popup raised by the Facebook JavaScript SDK from your own page, which returns — over `postMessage` — session data (`waba_id`, `phone_number_id`) that no query string carries. Its `link` is therefore an empty string.\n• **Telegram.** There is no OAuth here: no consent screen, no `code`, no account token. `link` opens a private chat with the PlanVortex bot, the person then adds that bot to their channel, and **the account is created from that event**, not from any request of yours. Which means the connection cannot be finished by calling `GET /organizations/{id_organization}/account-connect/telegram` — see that endpoint.\n\nBranch on `authorization.type`, never on whether `link` is empty.",
+        "description": "**How** an account of this network is authorized, which is not always \"send the user to this URL\".\n\nTen of the twelve networks are `redirect`: open `link` and the network sends the person back to PlanVortex with a code. Two are not:\n\n• **WhatsApp.** Its sign-up is Meta's *Embedded Signup*: a popup raised by the Facebook JavaScript SDK from your own page, which returns — over `postMessage` — session data (`waba_id`, `phone_number_id`) that no query string carries. Its `link` is therefore an empty string.\n• **Telegram.** There is no OAuth here: no consent screen, no `code`, no account token. `link` opens a private chat with the PlanVortex bot, the person then adds that bot to their channel, and **the account is created from that event**, not from any request of yours. Which means the connection cannot be finished by calling `GET /organizations/{id_organization}/account-connect/telegram` — see that endpoint.\n\nBranch on `authorization.type`, never on whether `link` is empty.",
         "properties": {
           "type": {
             "type": "string",
@@ -10514,7 +10515,7 @@
                 "$ref": "#/components/schemas/CatalogSocialLimitsMap"
               }
             ],
-            "description": "Maximum length of a publication's text. Bluesky counts graphemes, everyone else counts characters — Telegram included, where `String.length` is exactly the right unit.\n\nOn Telegram there are **two numbers for the same field**: `telegram` (4.096) while the publication is text only, and `telegram_media` (1.024) the moment it carries an image or a video, because then the text is a media caption and not a message. Switch the counter when the file is attached, not when publish is pressed."
+            "description": "Maximum length of a publication's text. **Bluesky and Threads count GRAPHEMES**, everyone else counts characters — Telegram included, where `String.length` is exactly the right unit. The difference is not academic: an emoji is one grapheme and two `String.length` units, so counting a Threads post with `.length` rejects at 250 emojis what the network publishes happily at 500.\n\nOn Telegram there are **two numbers for the same field**: `telegram` (4.096) while the publication is text only, and `telegram_media` (1.024) the moment it carries an image or a video, because then the text is a media caption and not a message. Switch the counter when the file is attached, not when publish is pressed."
           },
           "max_post_bytes": {
             "allOf": [
@@ -11257,7 +11258,8 @@
           "google_business",
           "bluesky",
           "discord",
-          "telegram"
+          "telegram",
+          "threads"
         ]
       },
       "CommentsCommentThread": {
@@ -13725,7 +13727,7 @@
       },
       "PublicationStats": {
         "type": "object",
-        "description": "Raw, per-network metrics for a publication. Only the fields that belong to the publication's own social network are returned.\n\n**An absent field is not a zero.** A field is present only when the network actually reported it; `0` means the network measured zero. This matters most on X (Twitter), where metrics are split into groups with different access levels: `public_metrics` (likes, replys, retwets, quotes, bookmarks, impressions) is always available, while clicks, the pre-computed `engagement` and the video playback quartiles come from X's non-public metrics — only for your own posts, within 30 days of publishing, and only if the app is entitled to them. When they are unavailable they are omitted rather than returned as `0`. Do not default missing fields to zero when displaying them.\n\nOn `discord` there are only two: `likes` (the reactions on the message) and `comments` (the messages in its thread). There is no impressions figure anywhere in Discord's API, so engagement is computed over the server's member count.\n\nOn `bluesky` there are no impressions and no reach either — only the public counters — so engagement is computed over followers.\n\nOn `telegram` there are two as well, and **neither of them is asked for**: the Bot API has no method that returns a message's metrics, so `reactions` arrives on its own through the bot and `comments` is counted in PlanVortex's own inbox. There are no impressions, no reach, no views and no forwards to be had anywhere in it, so engagement is computed over followers.",
+        "description": "Raw, per-network metrics for a publication. Only the fields that belong to the publication's own social network are returned.\n\n**An absent field is not a zero.** A field is present only when the network actually reported it; `0` means the network measured zero. This matters most on X (Twitter), where metrics are split into groups with different access levels: `public_metrics` (likes, replys, retwets, quotes, bookmarks, impressions) is always available, while clicks, the pre-computed `engagement` and the video playback quartiles come from X's non-public metrics — only for your own posts, within 30 days of publishing, and only if the app is entitled to them. When they are unavailable they are omitted rather than returned as `0`. Do not default missing fields to zero when displaying them.\n\nOn `discord` there are only two: `likes` (the reactions on the message) and `comments` (the messages in its thread). There is no impressions figure anywhere in Discord's API, so engagement is computed over the server's member count.\n\nOn `bluesky` there are no impressions and no reach either — only the public counters — so engagement is computed over followers.\n\nOn `threads` there are six, and the one that matters is `views`: it is the only one of the four newest networks with something like impressions, so its engagement rate is computed over a real base and not over followers. Sharing arrives split in three — `reposts`, `quotes` and `shares` (outside Threads) — and the three are added into one figure, the same criterion as on X; the breakdown stays in `raw`. A reply is what every other network calls a comment.\n\nOn `telegram` there are two as well, and **neither of them is asked for**: the Bot API has no method that returns a message's metrics, so `reactions` arrives on its own through the bot and `comments` is counted in PlanVortex's own inbox. There are no impressions, no reach, no views and no forwards to be had anywhere in it, so engagement is computed over followers.",
         "properties": {
           "likes": {
             "type": "integer"
@@ -13864,7 +13866,8 @@
               "youtube",
               "bluesky",
               "discord",
-              "telegram"
+              "telegram",
+              "threads"
             ],
             "description": "Network the publication targets. **Required when creating**: the request fails with error 702 if it is missing or not one of these values. It must match the network of the account in the path.\n\nNot every connectable network publishes — a local business listing receives reviews, not posts — so this list is shorter than the one in `GET /social_networks`. Ask `GET /allowed_social_publications` rather than hardcoding it, because it grows."
           },
@@ -14207,7 +14210,8 @@
           "google_business",
           "bluesky",
           "discord",
-          "telegram"
+          "telegram",
+          "threads"
         ],
         "type": "string",
         "description": "A social network supported by PlanVortex.\n\n**This list grows.** Treat it as an open enumeration: a client that rejects an unknown value breaks the day a network is added, which happens several times a year. Not every network does everything — ask `GET /social_capabilities`."

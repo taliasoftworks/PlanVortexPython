@@ -95,7 +95,7 @@ def main(redirect_uri: str | None) -> int:
 def _describir(enlace: ConnectLink) -> None:
     """Como se autoriza UNA red, ramificando por `authorization` y nunca por el `link`.
 
-    Aqui esta lo unico de este fichero que no es obvio. Nueve de las once redes se autorizan con una
+    Aqui esta lo unico de este fichero que no es obvio. Diez de las doce redes se autorizan con una
     URL, y las otras dos no — cada una a su manera, y las dos fallan en silencio si se tratan como
     una redireccion:
 

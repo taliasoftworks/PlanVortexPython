@@ -502,7 +502,7 @@ for whoever is in Docker.
 
 That ``datetime`` is why this is the one shape written by hand on top of the generated type: OpenAPI
 has a ``string`` with ``format: date-time`` and no way to say "or the language's own date". Its
-``social_network`` is :data:`PublishableNetwork`, which is **nine** networks and not ten.
+``social_network`` is :data:`PublishableNetwork`, which is **eleven** networks and not twelve.
 """
 
 PublicationErrorDetail: TypeAlias = _models.PublicationError
