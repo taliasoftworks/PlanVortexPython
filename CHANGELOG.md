@@ -4,6 +4,46 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-03
+
+**Publications are unlimited on every plan**, so the quota that said otherwise is gone from the
+types.
+
+It was never a number this package invented: `PlanData["publications"]` came from the spec, and the
+server stopped charging for it on 02-09-2026. What stayed behind was worse than a wrong number — it
+was a key mypy kept promising, so `limits["publications"]` type-checked and raised `KeyError` at
+runtime.
+
+### Changed
+
+- **BREAKING (types only): `PlanData` no longer has a `publications` key.** The count moved to the
+  new `PlanUseData`, which is what `actual_use` has always been in practice: the same shape as a
+  plan plus `publications`, and `NotRequired` because a brand-new organization has spent nothing.
+  Nothing changes on the wire.
+- `OrganizationUse["actual_use"]` is a `PlanUseData`; `actual_asigned` stays a `PlanData`, which is
+  the real asymmetry: what a child organization was handed cannot include a metric.
+- The `publish` example prints publications as what they are — a monthly count with no ceiling —
+  instead of `12 de 100`. What throttles publishing is rate (per hour and account, and the
+  per-network daily caps in `GET /social_limits`), not the plan.
+- **The `publication` error family now reaches 979, not 960.** Everything above the old ceiling was
+  falling outside every range and arriving as a bare `PlanVortexError`: the Bluesky, Discord,
+  Telegram and Threads codes (961-977) and, more to the point, the two rate brakes that replaced the
+  monthly quota — **978** (publishing too fast on this account) and **979** (that network's daily
+  cap). `except PublicationError` now catches them.
+
+### Added
+
+**The public API is on every plan now, the free one included** — it used to be a Custom-plan
+feature — and the types follow the three things that came with opening it.
+
+- `PlanData["apps"]`: how many apps the plan allows (1 on Free, 2 on Basic, 5 on Pro, 10 on Custom).
+  Each app is a `client_id` with a secret, so each one is a key to the whole API. Unlike accounts,
+  users or storage it is **not** split between organizations — an app belongs to the client.
+- Three error codes, and the two ranges that were hiding them: **545** (the plan's API rate limit,
+  which arrives as a `429` with `Retry-After`) and **546** (the account's email must be verified to
+  create an app) are `AuthError`, so that range now runs to 546; **1308** (no more apps fit in this
+  plan) is a `PlanLimitError`, so that one runs to 1308.
+
 ## [0.5.0] - 2026-09-02
 
 **Threads is the twelfth network**, and the types now know it.

@@ -305,7 +305,19 @@ def test_cada_rango_del_catalogo_cae_en_su_clase() -> None:
     """
     assert error_class_for_code(500) is error_class_for_code(544)
     assert error_class_for_code(900).__name__ == "PublicationError"
+    # El rango llega hasta 979, no hasta 960: por encima del 960 estan las cuatro ultimas redes
+    # (Bluesky, Discord, Telegram y Threads) y los DOS FRENOS DE RITMO que sustituyeron al cupo
+    # mensual de publicaciones. Fuera de familia, el 978 llegaba como un error generico y quien lo
+    # recibia no tenia forma de saber que la respuesta es esperar.
+    assert error_class_for_code(975).__name__ == "PublicationError"
+    assert error_class_for_code(978).__name__ == "PublicationError"
+    assert error_class_for_code(979).__name__ == "PublicationError"
     assert error_class_for_code(1300).__name__ == "PlanLimitError"
+    # 1308 es el tope de APPS del plan, y 545/546 los dos codigos que trajo abrir la API publica
+    # a todos los planes. Los tres nacieron por encima del techo que tenian sus rangos.
+    assert error_class_for_code(1308).__name__ == "PlanLimitError"
+    assert error_class_for_code(545).__name__ == "AuthError"
+    assert error_class_for_code(546).__name__ == "AuthError"
     assert error_class_for_code(1408).__name__ == "PlanLimitError"
     assert error_class_for_code(2299).__name__ == "IntegrationError"
     # Los siete de las plantillas del planificador. No hay nada que registrar para que caigan aqui:

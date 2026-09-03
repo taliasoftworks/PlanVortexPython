@@ -31,6 +31,7 @@ from planvortex._generated.models import (
     DashboardPublicationsSummary,
     Organization,
     PlanData,
+    PlanUseData,
     Publication,
     Upload,
 )
@@ -118,7 +119,7 @@ class OrganizationUse(TypedDict):
     with ``get_use=True``.
     """
 
-    actual_use: NotRequired[PlanData]
+    actual_use: NotRequired[PlanUseData]
     actual_asigned: NotRequired[PlanData]
 
 

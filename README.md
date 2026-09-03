@@ -212,15 +212,15 @@ memorising numbers:
 
 | Codes | Family | Exception |
 |---|---|---|
-| 500-544 | `auth` | `AuthError` |
+| 500-546 | `auth` | `AuthError` |
 | 601-612 | `user` | `UserError` |
 | 700-715 | `account` | `AccountError` |
 | 800-810 | `file` | `FileError` |
-| 900-960 | `publication` | `PublicationError` |
+| 900-979 | `publication` | `PublicationError` |
 | 1000-1003 | `general` | `PlanVortexError` |
 | 1100-1111 | `organization` | `OrganizationError` |
 | 1200-1207 | `role` | `PlanVortexError` |
-| 1300-1307, 1400-1408 | `plan_limit` | `PlanLimitError` |
+| 1300-1308, 1400-1408 | `plan_limit` | `PlanLimitError` |
 | 1500-1512 | `messaging` | `MessagingError` |
 | 1600-1601 | `contact` | `ContactError` |
 | 1900-1906 | `payment` | `PlanVortexError` |

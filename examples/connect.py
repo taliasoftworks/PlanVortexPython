@@ -51,7 +51,7 @@ def main(redirect_uri: str | None) -> int:
         #    en el ultimo paso — y la culpa parece suya. Ojo: en Discord una cuenta es un CANAL, o
         #    sea que publicar en #anuncios y en #novedades son dos plazas.
         limites = pv.organizations.limits(organizacion["_id"])
-        # Ojo con el atajo `.get("actual_use") or {}`: `PlanData` tiene cinco claves OBLIGATORIAS,
+        # Ojo con el atajo `.get("actual_use") or {}`: `PlanData` tiene cuatro claves OBLIGATORIAS,
         # asi que el diccionario vacio no es un `PlanData` y mypy lo rechaza — con razon, porque
         # leerle `accounts` despues seria un `KeyError`. `actual_use` puede no venir.
         uso = pv.organizations.use(organizacion["_id"]).get("actual_use")

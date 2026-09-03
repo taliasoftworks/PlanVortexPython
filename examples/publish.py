@@ -45,12 +45,16 @@ def main(ruta_del_fichero: str) -> int:
         #    falta cuando la organizacion no tiene plan propio y hereda el del padre.
         limites = pv.organizations.limits(organizacion["_id"])
         # `actual_use` puede no venir —una organizacion recien creada no ha gastado nada—, y ese es
-        # el unico hueco: los cinco contadores de dentro son obligatorios, asi que una vez hay
+        # el unico hueco: los cuatro contadores del plan son obligatorios, asi que una vez hay
         # bloque se leen con corchetes y no con `.get`.
+        #
+        # `publications` es la excepcion, y por eso va con `.get`: NO esta en `limits`. Es una
+        # metrica del consumo —son ilimitadas en todos los planes— y lo que frena al que publica
+        # de mas es el ritmo (tope por hora y cuenta, y tope diario por red), no el plan.
         uso = pv.organizations.use(organizacion["_id"]).get("actual_use")
         print(
-            f"Publicaciones: {uso['publications'] if uso else 0} de {limites['publications']} · "
-            f"Cuentas: {uso['accounts'] if uso else 0} de {limites['accounts']}"
+            f"Cuentas: {uso['accounts'] if uso else 0} de {limites['accounts']} · "
+            f"Publicaciones este mes: {uso.get('publications', 0) if uso else 0} (sin tope de plan)"
         )
 
         # 3. Una cuenta con la que se pueda publicar. El filtro `capability` lo resuelve el servidor

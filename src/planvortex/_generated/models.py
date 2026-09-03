@@ -1072,7 +1072,7 @@ class Error1(TypedDict):
     """
     code: int
     """
-    PlanVortex error code. Ranges: 500-544 auth, tokens and client apps · 601-612 user · 700-715 social accounts · 800-810 files · 900-960 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1307 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations.
+    PlanVortex error code. Ranges: 500-546 auth, tokens and client apps · 601-612 user · 700-715 social accounts · 800-810 files · 900-979 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations.
     """
     data: NotRequired[dict[str, Any]]
     """
@@ -1553,10 +1553,6 @@ class PlanData(TypedDict):
     """
     Social accounts that may be connected.
     """
-    publications: int
-    """
-    Publications that may be sent per month.
-    """
     users: int
     """
     Users with access.
@@ -1567,7 +1563,11 @@ class PlanData(TypedDict):
     """
     integrations: int
     """
-    Connections to a third-party tool material is pulled from (Google Drive, an RSS feed). Not the same thing as an app: an app is API access, and it is a Custom-plan feature of its own.
+    Connections to a third-party tool material is pulled from (Google Drive, an RSS feed). Not the same thing as an app: an app is API access, and it has its own allowance in `apps`.
+    """
+    apps: NotRequired[int]
+    """
+    Apps this plan allows: 1 on Free, 2 on Basic, 5 on Pro, 10 on Custom. Each one is a `client_id` with a secret, so each one is a key to the whole public API — which every plan has, Free included. Unlike accounts, users or storage this is NOT split between organizations: an app belongs to the client. On a use payload it is how many exist right now.
     """
     twitter_credits: NotRequired[int]
     """
@@ -1588,6 +1588,17 @@ class PlanData(TypedDict):
     stats: NotRequired[bool]
     """
     Whether statistics collection is enabled.
+    """
+
+
+class PlanUseData(PlanData):
+    """
+    What is being consumed right now. Same shape as PlanData plus `publications`, which is counted but neither charged nor split between organizations.
+    """
+
+    publications: NotRequired[int]
+    """
+    Publications created in the current calendar month. A METRIC, not a quota: publications are unlimited on every plan, so there is no limit to compare it against. What throttles publishing is rate, not plan — see the per-hour and per-network daily caps.
     """
 
 
@@ -2399,7 +2410,7 @@ class DashboardDashboardPublicationRef(TypedDict):
 
 
 class DashboardPlanUse(TypedDict):
-    actual_use: PlanData
+    actual_use: PlanUseData
     """
     What the organization and its children are consuming right now.
     """
@@ -2641,7 +2652,7 @@ class Organization(TypedDict):
     """
     The slice of the client's plan assigned to this organization. **Absent when nothing was assigned**, and then the organization shares whatever its nearest parent with a plan has — or, failing that, the client's unassigned remainder. Ask `GET /organizations/{id_organization}/limits` for the effective numbers instead of reading this.
     """
-    actual_use: NotRequired[PlanData]
+    actual_use: NotRequired[PlanUseData]
     """
     Current consumption. **Only present with `getUse=true`.** `twitter_credits` and `ai_credits` are what has been spent in the current calendar month; the rest is what exists right now.
     """
@@ -2957,7 +2968,7 @@ class ClientsClient(TypedDict):
     """
     Read-only view of the client's own AI provider configuration (BYOK). Written via `PUT /clients/{id_client}/ai-settings`. API keys are stored encrypted and are NEVER returned: each scope only exposes provider, model and has_api_key.
     """
-    actual_use: NotRequired[PlanData]
+    actual_use: NotRequired[PlanUseData]
     """
     Current consumption across every organization of the client. **Only present with `getUse=true`.** `twitter_credits` and `ai_credits` are what has been spent this calendar month.
     """

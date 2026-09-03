@@ -92,7 +92,7 @@ def _camino(
         url=f"{BASE_URL}/clients/cli1/organizations?limit=1",
         json={"organizations": [ORGANIZACION], "total": 1},
     )
-    httpx_mock.add_response(url=f"{ORG}/limits", json={"accounts": 5, "publications": 100})
+    httpx_mock.add_response(url=f"{ORG}/limits", json={"accounts": 5, "users": 3})
     httpx_mock.add_response(
         url=f"{ORG}?getUse=true",
         json={

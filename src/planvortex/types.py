@@ -289,6 +289,18 @@ CAREFUL WITH THE SUM: what is assigned to a client's organizations can never exc
 has contracted — asking for more comes back as a 1400-1408.
 """
 
+PlanUseData: TypeAlias = _models.PlanUseData
+"""What is being CONSUMED right now: a :data:`PlanData` plus ``publications``.
+
+``publications`` is a METRIC, not a quota — publications are unlimited on every plan — so there is
+no ceiling to compare it against: do not draw it as a bar. What throttles whoever publishes too
+much is RATE (a per-hour cap per account, and the per-network daily caps in ``GET /social_limits``),
+not the plan.
+
+Not to be confused with :data:`PlanUse`, which is the dashboard's whole block: consumption, what
+was handed down, and the limits together.
+"""
+
 Organization: TypeAlias = _models.Organization
 """An organization: the container of accounts, publications and files. They nest.
 
@@ -1115,6 +1127,7 @@ __all__ = [
     "PersistentMenu",
     "PlanData",
     "PlanUse",
+    "PlanUseData",
     "PlannerTemplate",
     "PlannerTemplateField",
     "PlannerTemplateFieldType",

@@ -27,15 +27,22 @@ class ErrorRange(NamedTuple):
 # Los mismos 16 rangos que publica `swagger/common.json`, `PLANVORTEX_ERROR_RANGES` del paquete de
 # Node y el apendice A del roadmap. SI SE TOCA UN RANGO, SE TOCAN LOS CINCO SITIOS.
 PLANVORTEX_ERROR_RANGES: tuple[ErrorRange, ...] = (
-    ErrorRange(500, 544, "auth"),
+    # Hasta 546, no 544: la API publica se abrio a todos los planes y trajo dos codigos nuevos
+    # —545 (ritmo por plan, que sale 429) y 546 (correo sin verificar al crear una app)—.
+    ErrorRange(500, 546, "auth"),
     ErrorRange(601, 612, "user"),
     ErrorRange(700, 715, "account"),
     ErrorRange(800, 810, "file"),
-    ErrorRange(900, 960, "publication"),
+    # El techo sube con el catalogo del servidor, y subir tarde no da un error: da un consejo
+    # equivocado. Los codigos de Bluesky, Discord, Telegram y Threads (961-977) y los dos frenos
+    # de ritmo de la fase de publicaciones ilimitadas (978, 979) nacieron por encima de 960 y
+    # caian fuera de toda familia.
+    ErrorRange(900, 979, "publication"),
     ErrorRange(1000, 1003, "general"),
     ErrorRange(1100, 1111, "organization"),
     ErrorRange(1200, 1207, "role"),
-    ErrorRange(1300, 1307, "plan_limit"),
+    # 1308 es el tope de APPS del plan, que nacio al quitar el candado de precio de la API.
+    ErrorRange(1300, 1308, "plan_limit"),
     ErrorRange(1400, 1408, "plan_limit"),
     ErrorRange(1500, 1512, "messaging"),
     ErrorRange(1600, 1601, "contact"),
@@ -101,7 +108,7 @@ class PlanVortexError(Exception):
 
 
 class AuthError(PlanVortexError):
-    """500-544 — tokens, client apps, permissions. Includes 501 and 522, the expired-token ones."""
+    """500-546 — tokens, client apps, permissions. Includes 501 and 522, the expired-token ones."""
 
 
 class UserError(PlanVortexError):
@@ -117,7 +124,9 @@ class FileError(PlanVortexError):
 
 
 class PublicationError(PlanVortexError):
-    """900-960 — publications, including per-network limits (characters, images, duration)."""
+    """900-979 — publications, including per-network limits (characters, images, duration) and the
+    two rate brakes: 978 (publishing too fast on this account) and 979 (that network's daily cap).
+    """
 
 
 class OrganizationError(PlanVortexError):
@@ -125,7 +134,7 @@ class OrganizationError(PlanVortexError):
 
 
 class PlanLimitError(PlanVortexError):
-    """1300-1307 and 1400-1408 — the plan's quota, on the client or on the organization.
+    """1300-1308 and 1400-1408 — the plan's quota, on the client or on the organization.
 
     This is the error an integrator actually wants to tell apart: it is not fixed by retrying, it is
     fixed by changing plan. That is why both ranges share a class.

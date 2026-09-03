@@ -2449,7 +2449,6 @@
                     "name": "Client X",
                     "actual_plan": {
                       "accounts": 4,
-                      "publications": 150,
                       "users": 1,
                       "space": 0.25,
                       "integrations": 1,
@@ -2625,7 +2624,6 @@
                   "value": {
                     "actual_plan": {
                       "accounts": 8,
-                      "publications": 300,
                       "users": 3,
                       "space": 1,
                       "integrations": 3,
@@ -6024,7 +6022,6 @@
                   "value": {
                     "actual_plan": {
                       "accounts": 8,
-                      "publications": 300,
                       "users": 3,
                       "space": 1,
                       "integrations": 3,
@@ -6343,7 +6340,6 @@
                     "name": "Client X - Spain",
                     "actual_plan": {
                       "accounts": 3,
-                      "publications": 100,
                       "users": 1,
                       "space": 0.25,
                       "integrations": 0,
@@ -10702,7 +10698,7 @@
           "actual_use": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/PlanData"
+                "$ref": "#/components/schemas/PlanUseData"
               }
             ],
             "description": "Current consumption across every organization of the client. **Only present with `getUse=true`.** `twitter_credits` and `ai_credits` are what has been spent this calendar month."
@@ -12079,7 +12075,7 @@
           "actual_use": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/PlanData"
+                "$ref": "#/components/schemas/PlanUseData"
               }
             ],
             "description": "What the organization and its children are consuming right now."
@@ -12265,7 +12261,7 @@
           },
           "code": {
             "type": "integer",
-            "description": "PlanVortex error code. Ranges: 500-544 auth, tokens and client apps · 601-612 user · 700-715 social accounts · 800-810 files · 900-960 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1307 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations."
+            "description": "PlanVortex error code. Ranges: 500-546 auth, tokens and client apps · 601-612 user · 700-715 social accounts · 800-810 files · 900-979 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations."
           },
           "data": {
             "additionalProperties": true,
@@ -12943,7 +12939,7 @@
           "actual_use": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/PlanData"
+                "$ref": "#/components/schemas/PlanUseData"
               }
             ],
             "description": "Current consumption. **Only present with `getUse=true`.** `twitter_credits` and `ai_credits` are what has been spent in the current calendar month; the rest is what exists right now."
@@ -13385,7 +13381,6 @@
         "description": "The resources a plan grants. On a client it is what was contracted; on an organization, the slice of it that was assigned. The sum across all the organizations of a client can never exceed what the client has contracted.",
         "required": [
           "accounts",
-          "publications",
           "users",
           "space",
           "integrations"
@@ -13394,10 +13389,6 @@
           "accounts": {
             "type": "integer",
             "description": "Social accounts that may be connected."
-          },
-          "publications": {
-            "type": "integer",
-            "description": "Publications that may be sent per month."
           },
           "users": {
             "type": "integer",
@@ -13409,7 +13400,11 @@
           },
           "integrations": {
             "type": "integer",
-            "description": "Connections to a third-party tool material is pulled from (Google Drive, an RSS feed). Not the same thing as an app: an app is API access, and it is a Custom-plan feature of its own."
+            "description": "Connections to a third-party tool material is pulled from (Google Drive, an RSS feed). Not the same thing as an app: an app is API access, and it has its own allowance in `apps`."
+          },
+          "apps": {
+            "type": "integer",
+            "description": "Apps this plan allows: 1 on Free, 2 on Basic, 5 on Pro, 10 on Custom. Each one is a `client_id` with a secret, so each one is a key to the whole public API — which every plan has, Free included. Unlike accounts, users or storage this is NOT split between organizations: an app belongs to the client. On a use payload it is how many exist right now."
           },
           "twitter_credits": {
             "type": "integer",
@@ -13430,6 +13425,21 @@
           "stats": {
             "type": "boolean",
             "description": "Whether statistics collection is enabled."
+          }
+        }
+      },
+      "PlanUseData": {
+        "type": "object",
+        "description": "What is being consumed right now. Same shape as PlanData plus `publications`, which is counted but neither charged nor split between organizations.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/PlanData"
+          }
+        ],
+        "properties": {
+          "publications": {
+            "type": "integer",
+            "description": "Publications created in the current calendar month. A METRIC, not a quota: publications are unlimited on every plan, so there is no limit to compare it against. What throttles publishing is rate, not plan — see the per-hour and per-network daily caps."
           }
         }
       },

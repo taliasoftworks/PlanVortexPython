@@ -73,9 +73,9 @@ def test_las_hijas_se_listan_se_iteran_y_se_crean(cliente: ClienteDePrueba, http
 
 def test_limits_llega_sin_sobre(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:
     """La cascada ya resuelta, y en crudo. Es lo que hay que mirar, no `actual_plan`."""
-    httpx_mock.add_response(url=f"{ORG}/limits", json={"accounts": 5, "publications": 100})
+    httpx_mock.add_response(url=f"{ORG}/limits", json={"accounts": 5, "users": 3})
 
-    assert cliente.esperar(cliente.pv.organizations.limits("org1")) == {"accounts": 5, "publications": 100}
+    assert cliente.esperar(cliente.pv.organizations.limits("org1")) == {"accounts": 5, "users": 3}
     assert ruta(unica(httpx_mock)) == "/organizations/org1/limits"
 
 
