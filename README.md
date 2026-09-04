@@ -23,7 +23,7 @@ pip install planvortex
 - Python 3.10 and newer.
 
 **Reference:** <https://taliasoftworks.github.io/PlanVortexPython/> · **Guides:**
-[planvortex.com/developers](https://planvortex.com/developers)
+[planvortex.com/en/developers](https://planvortex.com/en/developers)
 
 ## Authentication
 
@@ -341,7 +341,7 @@ and reaches a person.
 
 - [Reference](https://taliasoftworks.github.io/PlanVortexPython/)
 - [API documentation](https://planvortex.com/documentation)
-- [Developers](https://planvortex.com/developers)
+- [Developers](https://planvortex.com/en/developers)
 - [Node client](https://github.com/taliasoftworks/PlanVortexNode)
 - [Contributing](https://github.com/taliasoftworks/PlanVortexPython/blob/main/CONTRIBUTING.md) · [Security](https://github.com/taliasoftworks/PlanVortexPython/blob/main/SECURITY.md) · [Changelog](https://github.com/taliasoftworks/PlanVortexPython/blob/main/CHANGELOG.md)
 

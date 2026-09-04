@@ -67,7 +67,7 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://planvortex.com/developers"
+Homepage = "https://planvortex.com/en/developers"
 # `Documentation` es la referencia generada de ESTE paquete, que es lo que busca quien llega a la
 # ficha de PyPI. La especificacion de la API entera vive aparte, en `API`: son dos cosas distintas y
 # apuntar las dos al mismo sitio dejaba una de las dos sin enlace.
