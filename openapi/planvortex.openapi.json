@@ -656,7 +656,7 @@
           "accounts"
         ],
         "summary": "Complete the connection of a social account",
-        "description": "The endpoint the social network sends the user back to after they authorize. It turns the network's callback into one or more PlanVortex accounts.\n\n**You do not build this URL, the network does.** It is the `redirect_uri` inside the link that `GET /organizations/{id_organization}/connect_links` handed out, so the query parameters are whatever the network appends — typically `code` and `state`. Pass them through untouched.\n\n**One authorization can produce several accounts.** A Facebook user with four pages ends up with four; a Discord authorization produces the channel that was picked.\n\n**It answers 200 even when it fails.** The result carries `errorCode` and `errorMsg` instead of an error body, because the browser lands here from a redirect and a raw 400 would be a broken page. Check `errorCode`: empty means everything went well.\n\n**An app cannot call this** — it needs a user token or a temporal connect token (error 519 otherwise). See `GET /organizations/{id_organization}/temporal_connect_token`.\n\n**A temporal connect token is spent here.** Once this call succeeds, that token cannot connect anything else and answers error 543; the `enable` calls that finish the same connection still work until it expires. And if the token was issued for one network, calling this for another answers error 544.\n\n**Telegram does not come through here, and cannot be made to.** That network has no callback: the account is created by PlanVortex when the bot is added to a channel, and what authorizes it is a single-use voucher minted at that moment and spent in the same breath — it never leaves the server, so calling this endpoint for `telegram` answers error 700. It is deliberate: the bot is shared, so without it anyone could hang any channel where that bot is an admin off their own organization by passing a chat id by hand. What an integration listens for instead is the `new_account` webhook notification.",
+        "description": "The endpoint the social network sends the user back to after they authorize. It turns the network's callback into one or more PlanVortex accounts.\n\n**You do not build this URL, the network does.** It is the `redirect_uri` inside the link that `GET /organizations/{id_organization}/connect_links` handed out, so the query parameters are whatever the network appends — typically `code` and `state`. Pass them through untouched.\n\n**One authorization can produce several accounts.** A Facebook user with four pages ends up with four; a Discord authorization produces the channel that was picked.\n\n**It answers 200 even when it fails.** The result carries `errorCode` and `errorMsg` instead of an error body, because the browser lands here from a redirect and a raw 400 would be a broken page. Check `errorCode`: empty means everything went well.\n\n**An app cannot call this** — it needs a user token or a temporal connect token (error 519 otherwise). See `GET /organizations/{id_organization}/temporal_connect_token`.\n\n**A temporal connect token is spent here.** Once this call succeeds, that token cannot connect anything else and answers error 543; the `enable` calls that finish the same connection still work until it expires. And if the token was issued for one network, calling this for another answers error 544.\n\n**Telegram does not come through here, and cannot be made to.** That network has no callback: the account is created by PlanVortex when the bot is added to a channel, and what authorizes it is a single-use voucher minted at that moment and spent in the same breath — it never leaves the server, so calling this endpoint for `telegram` answers error 700. It is deliberate: the bot is shared, so without it anyone could hang any channel where that bot is an admin off their own organization by passing a chat id by hand. What an integration listens for instead is the `new_account` webhook notification.\n\n**And a Telegram account arrives already active.** In the other eleven networks this endpoint hands you accounts that are still off, and you pick which ones spend a plan slot with `POST .../accounts/{id_account}/enable`. Here there is nothing to call: one channel arrives — the one the person picked in Telegram — and PlanVortex takes the slot for it right then. If the plan has no free slot the account is still created, off, and the person is told so in the bot chat; `GET /organizations/{id_organization}/accounts` will not list it, because that listing only returns active accounts, but naming it in the `accounts` filter does return it.",
         "operationId": "connectAccount",
         "x-planvortex-identity": [
           "current_user",
@@ -736,7 +736,7 @@
           "accounts"
         ],
         "summary": "Re-enable a disconnected account",
-        "description": "Brings back an account that was removed, without going through the authorization again — as long as its stored token still works.\n\nIt takes a **slot of the plan**, so it fails with error 706 when the organization is already at its account limit. It also turns the network's webhooks back on, on any plan but the free one.",
+        "description": "Brings back an account that was removed, without going through the authorization again — as long as its stored token still works.\n\nIt takes a **slot of the plan**, so it fails with error 706 when the organization is already at its account limit. It also turns the network's webhooks back on, on any plan but the free one.\n\n**On `telegram` you normally never call this.** That network's accounts are born active — there is no authorization return in which to choose them, so PlanVortex takes the slot when the bot is added to the channel. The one case left is a channel that arrived while the plan was full: it stays off until a slot frees up, and this is what turns it on.",
         "operationId": "enableAccount",
         "x-planvortex-identity": [
           "current_user",
@@ -945,7 +945,7 @@
           "ai_plans"
         ],
         "summary": "Create an AI publication plan",
-        "description": "Create a weekly AI publication plan. The plan is queued in state 'pending' and generated asynchronously by the generate-ai-plans job; poll GET by id while state is pending or generating. Validations at creation: the client plan allows AI (artificial_inteligence), the accounts belong to the organization, there are enough AI credits for the deterministic base cost (orchestration + target texts), and there is room in the organization's monthly publication limit. Returns the created plan together with the deterministic cost estimate. Requires the ai_plans:create permission. Since the plan can be generated from a SOURCE (`template` + `source`), part of that validation is the source itself: the article is downloaded, the catalogue is read live and the product pictures are copied — all of it inside this request, so what does not work fails with the user in front of it. A plan whose source did not fit in the week is still created, and says so in ai_plan.warnings (2117).",
+        "description": "Create a weekly AI publication plan. The plan is queued in state 'pending' and generated asynchronously by the generate-ai-plans job; poll GET by id while state is pending or generating. Validations at creation: the client plan allows AI (it contracts AI credits; Free does not), the accounts belong to the organization, there are enough AI credits for the deterministic base cost (orchestration + target texts), and there is room in the organization's monthly publication limit. Returns the created plan together with the deterministic cost estimate. Requires the ai_plans:create permission. Since the plan can be generated from a SOURCE (`template` + `source`), part of that validation is the source itself: the article is downloaded, the catalogue is read live and the product pictures are copied — all of it inside this request, so what does not work fails with the user in front of it. A plan whose source did not fit in the week is still created, and says so in ai_plan.warnings (2117).",
         "operationId": "addAiPlan",
         "x-planvortex-identity": [
           "current_user",
@@ -1564,7 +1564,7 @@
           "apps"
         ],
         "summary": "List the client's apps",
-        "description": "The apps of a client. Secrets never travel here: to read one, ask for it explicitly with the `secret` endpoint.\n\n**Needs a USER token, not an app token.** With client credentials it answers `ERROR_CODE_512`. It also needs the **Custom plan** (`ERROR_CODE_542`): apps are what that plan adds, and they are the door to this whole API.",
+        "description": "The apps of a client. Secrets never travel here: to read one, ask for it explicitly with the `secret` endpoint.\n\n**Needs a USER token, not an app token.** With client credentials it answers `ERROR_CODE_512`. **No plan is required**: apps are on all four plans, the free one included — what the plan decides is how many you can hold at once and how fast you can call.",
         "operationId": "getClientApps",
         "x-planvortex-identity": [
           "current_user"
@@ -1616,7 +1616,7 @@
           "apps"
         ],
         "summary": "Create an app",
-        "description": "Creates the app and its credentials.\n\n**A client can have one app.** Creating a second answers error 536. If you need to rotate credentials, update the existing app rather than creating another.\n\nEvery URL is validated: a bad entry in `allowed_domains` answers 531, in `redirect_urls` 532, and a bad `webhook_url` answers 535.\n\n**The secret is not in the response.** Read it with `GET /clients/{id_client}/apps/{id_app}/secret`.\n\n**A client can only have ONE app.** Creating a second one is rejected with `ERROR_CODE_536`: delete or update the one that exists. The listing is paginated because every listing in this API is, not because there can be more than one.\n\n**Needs a USER token, not an app token.** With client credentials it answers `ERROR_CODE_512`. It also needs the **Custom plan** (`ERROR_CODE_542`): apps are what that plan adds, and they are the door to this whole API.",
+        "description": "Creates the app and its credentials.\n\n**How many apps fit is decided by the plan**, not by a fixed limit of one: 1 on free, 2 on basic, 5 on pro and 10 on custom. Going over answers `ERROR_CODE_1308`, which carries `limit` and `used` in its `data`. Deleting an app frees its slot immediately, because only live apps count. If you just need to rotate credentials, update the existing app rather than creating another.\n\n**The user's email must be verified** (`ERROR_CODE_546`). This is the only route in `/apps` that asks for it: an app is a key to the whole public API, and this is what stops a throwaway address from minting them in bulk. Reading, updating and deleting an app you already own do not check it.\n\nEvery URL is validated: a bad entry in `allowed_domains` answers 531, in `redirect_urls` 532, and a bad `webhook_url` answers 535.\n\n**The secret is not in the response.** Read it with `GET /clients/{id_client}/apps/{id_app}/secret`.\n\n**Needs a USER token, not an app token.** With client credentials it answers `ERROR_CODE_512`. **No plan is required**: apps are on all four plans, the free one included — what the plan decides is how many you can hold at once and how fast you can call.",
         "operationId": "createClientApp",
         "x-planvortex-identity": [
           "current_user"
@@ -1667,7 +1667,7 @@
           "apps"
         ],
         "summary": "Get one app",
-        "description": "The app's record, without its secret. Note the envelope: `{client_app}` here, `{client_apps, total}` in the list.\n\n**An app token works here.** This is the one part of `/apps` that does: an app can read and update its own record, but it cannot list, create, delete, or read the secret. The **Custom plan** is still required (`ERROR_CODE_542`).",
+        "description": "The app's record, without its secret. Note the envelope: `{client_app}` here, `{client_apps, total}` in the list.\n\n**An app token works here.** This is the one part of `/apps` that does: an app can read and update its own record, but it cannot list, create, delete, or read the secret. **No plan is required**: apps are on all four plans, the free one included.",
         "operationId": "getClientApp",
         "x-planvortex-identity": [
           "current_user",
@@ -1710,7 +1710,7 @@
           "apps"
         ],
         "summary": "Update an app",
-        "description": "Replaces the app's configuration. **Every field is overwritten with what you send**, so a `redirect_urls` you leave out becomes an empty list — send the whole object, not a patch.\n\nChanging `webhook_url` takes effect on the next event; there is no verification handshake.\n\n**It replaces every field with what the body carries.** `name`, `keycloak_client_idenfifier`, `allowed_domains`, `redirect_urls` and `webhook_url` are all written as sent, so omitting one erases it — sending an update without `webhook_url` turns the webhook off. Read the app first and send it back whole.\n\n**An app token works here.** This is the one part of `/apps` that does: an app can read and update its own record, but it cannot list, create, delete, or read the secret. The **Custom plan** is still required (`ERROR_CODE_542`).",
+        "description": "Replaces the app's configuration. **Every field is overwritten with what you send**, so a `redirect_urls` you leave out becomes an empty list — send the whole object, not a patch.\n\nChanging `webhook_url` takes effect on the next event; there is no verification handshake.\n\n**It replaces every field with what the body carries.** `name`, `keycloak_client_idenfifier`, `allowed_domains`, `redirect_urls` and `webhook_url` are all written as sent, so omitting one erases it — sending an update without `webhook_url` turns the webhook off. Read the app first and send it back whole.\n\n**An app token works here.** This is the one part of `/apps` that does: an app can read and update its own record, but it cannot list, create, delete, or read the secret. **No plan is required**: apps are on all four plans, the free one included.",
         "operationId": "updateClientApp",
         "x-planvortex-identity": [
           "current_user",
@@ -1763,7 +1763,7 @@
           "apps"
         ],
         "summary": "Delete an app",
-        "description": "Revokes the credentials and marks the app as deleted. **Tokens already issued stop working**: the token endpoint checks that the app still exists before answering, and requests carrying an old token no longer resolve to an app.\n\n**Needs a USER token, not an app token.** With client credentials it answers `ERROR_CODE_512`. It also needs the **Custom plan** (`ERROR_CODE_542`): apps are what that plan adds, and they are the door to this whole API.",
+        "description": "Revokes the credentials and marks the app as deleted. **Tokens already issued stop working**: the token endpoint checks that the app still exists before answering, and requests carrying an old token no longer resolve to an app.\n\n**Needs a USER token, not an app token.** With client credentials it answers `ERROR_CODE_512`. **No plan is required**: apps are on all four plans, the free one included — what the plan decides is how many you can hold at once and how fast you can call.",
         "operationId": "deleteClientApp",
         "x-planvortex-identity": [
           "current_user"
@@ -1799,7 +1799,7 @@
           "apps"
         ],
         "summary": "Read the app's secret",
-        "description": "Returns the `client_secret` in clear. It is a separate endpoint precisely so that the secret never travels inside a listing that gets logged, cached or drawn on a screen by accident.\n\nThe same secret is what signs the outgoing webhooks (`x-hub-signature`, `x-hub-signature-256`).\n\n**Needs a USER token, not an app token.** With client credentials it answers `ERROR_CODE_512`. It also needs the **Custom plan** (`ERROR_CODE_542`): apps are what that plan adds, and they are the door to this whole API.\n\nIt comes straight from Keycloak, so it is the live secret and not a copy: treat the response as a credential and never log it.",
+        "description": "Returns the `client_secret` in clear. It is a separate endpoint precisely so that the secret never travels inside a listing that gets logged, cached or drawn on a screen by accident.\n\nThe same secret is what signs the outgoing webhooks (`x-hub-signature`, `x-hub-signature-256`).\n\n**Needs a USER token, not an app token.** With client credentials it answers `ERROR_CODE_512`. **No plan is required**: apps are on all four plans, the free one included — what the plan decides is how many you can hold at once and how fast you can call.\n\nIt comes straight from Keycloak, so it is the live secret and not a copy: treat the response as a credential and never log it.",
         "operationId": "getClientAppSecret",
         "x-planvortex-identity": [
           "current_user"
@@ -2449,7 +2449,6 @@
                     "name": "Client X",
                     "actual_plan": {
                       "accounts": 4,
-                      "users": 1,
                       "space": 0.25,
                       "integrations": 1,
                       "twitter_credits": 2500,
@@ -2624,7 +2623,6 @@
                   "value": {
                     "actual_plan": {
                       "accounts": 8,
-                      "users": 3,
                       "space": 1,
                       "integrations": 3,
                       "twitter_credits": 5000,
@@ -2709,7 +2707,7 @@
           "clients"
         ],
         "summary": "Configure the client's own AI models (BYOK)",
-        "description": "Set the client's Bring-Your-Own-Key AI provider configuration per scope. The request body is an object keyed by scope (orchestrator, text, image); a scope set to null clears it. Providers and capabilities are validated against a fixed catalogue. When a scope uses BYOK, its calls are billed to the client's own provider and do NOT consume PlanVortex AI credits, but the artificial_inteligence plan flag is still required to use the feature. API keys are stored encrypted and never returned; the response client only exposes provider, model and has_api_key per scope. Requires the client:update permission.",
+        "description": "Set the client's Bring-Your-Own-Key AI provider configuration per scope. The request body is an object keyed by scope (orchestrator, text, image); a scope set to null clears it. Providers and capabilities are validated against a fixed catalogue. When a scope uses BYOK, its calls are billed to the client's own provider and do NOT consume PlanVortex AI credits, but the plan still has to include AI credits to use the feature. API keys are stored encrypted and never returned; the response client only exposes provider, model and has_api_key per scope. Requires the client:update permission.",
         "operationId": "updateAiSettings",
         "x-planvortex-identity": [
           "current_user",
@@ -6022,7 +6020,6 @@
                   "value": {
                     "actual_plan": {
                       "accounts": 8,
-                      "users": 3,
                       "space": 1,
                       "integrations": 3,
                       "twitter_credits": 5000,
@@ -6340,7 +6337,6 @@
                     "name": "Client X - Spain",
                     "actual_plan": {
                       "accounts": 3,
-                      "users": 1,
                       "space": 0.25,
                       "integrations": 0,
                       "twitter_credits": 0,
@@ -13378,10 +13374,9 @@
       },
       "PlanData": {
         "type": "object",
-        "description": "The resources a plan grants. On a client it is what was contracted; on an organization, the slice of it that was assigned. The sum across all the organizations of a client can never exceed what the client has contracted.",
+        "description": "The resources a plan grants. On a client it is what was contracted; on an organization, the slice of it that was assigned. The sum across all the organizations of a client can never exceed what the client has contracted.\n\nUsers are NOT here: every plan has unlimited users, so they are neither charged nor split between organizations. They are still counted, in `PlanUseData.users`. There are no `artificial_inteligence`, `whatsapp` or `stats` flags either: statistics and WhatsApp are on every plan, and what gates AI is `ai_credits` — a plan with credits has AI, and Free has zero.",
         "required": [
           "accounts",
-          "users",
           "space",
           "integrations"
         ],
@@ -13389,10 +13384,6 @@
           "accounts": {
             "type": "integer",
             "description": "Social accounts that may be connected."
-          },
-          "users": {
-            "type": "integer",
-            "description": "Users with access."
           },
           "space": {
             "type": "number",
@@ -13404,7 +13395,7 @@
           },
           "apps": {
             "type": "integer",
-            "description": "Apps this plan allows: 1 on Free, 2 on Basic, 5 on Pro, 10 on Custom. Each one is a `client_id` with a secret, so each one is a key to the whole public API — which every plan has, Free included. Unlike accounts, users or storage this is NOT split between organizations: an app belongs to the client. On a use payload it is how many exist right now."
+            "description": "Apps this plan allows: 1 on Free, 2 on Basic, 5 on Pro, 10 on Custom. Each one is a `client_id` with a secret, so each one is a key to the whole public API — which every plan has, Free included. Unlike accounts or storage this is NOT split between organizations: an app belongs to the client. On a use payload it is how many exist right now."
           },
           "twitter_credits": {
             "type": "integer",
@@ -13413,24 +13404,12 @@
           "ai_credits": {
             "type": "integer",
             "description": "Monthly AI credits (1 credit = $0.001 of provider cost): 15 per plan orchestration pass, 2 per generated text, 70 per generated image. Resets monthly and does not roll over. A client using its own provider key (BYOK) does not consume them in that scope."
-          },
-          "artificial_inteligence": {
-            "type": "boolean",
-            "description": "Whether AI generation is enabled."
-          },
-          "whatsapp": {
-            "type": "boolean",
-            "description": "Whether WhatsApp may be connected."
-          },
-          "stats": {
-            "type": "boolean",
-            "description": "Whether statistics collection is enabled."
           }
         }
       },
       "PlanUseData": {
         "type": "object",
-        "description": "What is being consumed right now. Same shape as PlanData plus `publications`, which is counted but neither charged nor split between organizations.",
+        "description": "What is being consumed right now. Same shape as PlanData plus `publications` and `users`, which are counted but neither charged nor split between organizations.",
         "allOf": [
           {
             "$ref": "#/components/schemas/PlanData"
@@ -13440,6 +13419,10 @@
           "publications": {
             "type": "integer",
             "description": "Publications created in the current calendar month. A METRIC, not a quota: publications are unlimited on every plan, so there is no limit to compare it against. What throttles publishing is rate, not plan — see the per-hour and per-network daily caps."
+          },
+          "users": {
+            "type": "integer",
+            "description": "Users with access right now. A METRIC, not a quota: users are unlimited on every plan, so there is no limit to compare it against."
           }
         }
       },

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import platform
 
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 
 # Sin barra final, y con el `/v1.0.0` dentro: la version de la API es parte de la ruta, no una
 # cabecera, asi que una `base_url` sin ella da 404 en todo.

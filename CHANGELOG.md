@@ -4,6 +4,31 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2026-09-04
+
+**Users are unlimited on every plan**, so the quota that said otherwise is gone from the types —
+the same correction 0.6.0 made for publications, one axis later.
+
+It is the second half of a change the server made on 03-09-2026: users stopped being something a
+plan grants and became something you simply count. `PlanData["users"]` was a **required** key, so
+mypy accepted `limits["users"]` and the call raised `KeyError` at runtime, which is the same
+failure mode 0.6.0 describes for publications.
+
+### Changed
+
+- **BREAKING (types only): `PlanData["users"]` no longer exists.** The count moved to
+  `PlanUseData` as an optional key — how many users have access right now, with no limit to
+  compare it against, because there is none. Nothing changes on the wire.
+- **The `/apps` operations no longer claim the Custom plan.** Their docstrings still said the API
+  needed it. That stopped being true on 02-09-2026, and the docstrings come straight from the
+  OpenAPI document, so they were repeating a copy of the spec that had not been rebuilt since.
+
+### Removed
+
+- **`PlanData["artificial_inteligence"]`, `PlanData["stats"]` and `PlanData["whatsapp"]`.**
+  Three optional keys describing a plan model that no longer exists: statistics and WhatsApp are on
+  every plan, and what gates AI is `ai_credits` — a plan with credits has AI, and Free has zero.
+
 ## [0.6.0] - 2026-09-03
 
 **Publications are unlimited on every plan**, so the quota that said otherwise is gone from the

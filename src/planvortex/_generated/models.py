@@ -1547,15 +1547,13 @@ class OrganizationsUserList(TypedDict):
 class PlanData(TypedDict):
     """
     The resources a plan grants. On a client it is what was contracted; on an organization, the slice of it that was assigned. The sum across all the organizations of a client can never exceed what the client has contracted.
+
+    Users are NOT here: every plan has unlimited users, so they are neither charged nor split between organizations. They are still counted, in `PlanUseData.users`. There are no `artificial_inteligence`, `whatsapp` or `stats` flags either: statistics and WhatsApp are on every plan, and what gates AI is `ai_credits` — a plan with credits has AI, and Free has zero.
     """
 
     accounts: int
     """
     Social accounts that may be connected.
-    """
-    users: int
-    """
-    Users with access.
     """
     space: float
     """
@@ -1567,7 +1565,7 @@ class PlanData(TypedDict):
     """
     apps: NotRequired[int]
     """
-    Apps this plan allows: 1 on Free, 2 on Basic, 5 on Pro, 10 on Custom. Each one is a `client_id` with a secret, so each one is a key to the whole public API — which every plan has, Free included. Unlike accounts, users or storage this is NOT split between organizations: an app belongs to the client. On a use payload it is how many exist right now.
+    Apps this plan allows: 1 on Free, 2 on Basic, 5 on Pro, 10 on Custom. Each one is a `client_id` with a secret, so each one is a key to the whole public API — which every plan has, Free included. Unlike accounts or storage this is NOT split between organizations: an app belongs to the client. On a use payload it is how many exist right now.
     """
     twitter_credits: NotRequired[int]
     """
@@ -1577,28 +1575,20 @@ class PlanData(TypedDict):
     """
     Monthly AI credits (1 credit = $0.001 of provider cost): 15 per plan orchestration pass, 2 per generated text, 70 per generated image. Resets monthly and does not roll over. A client using its own provider key (BYOK) does not consume them in that scope.
     """
-    artificial_inteligence: NotRequired[bool]
-    """
-    Whether AI generation is enabled.
-    """
-    whatsapp: NotRequired[bool]
-    """
-    Whether WhatsApp may be connected.
-    """
-    stats: NotRequired[bool]
-    """
-    Whether statistics collection is enabled.
-    """
 
 
 class PlanUseData(PlanData):
     """
-    What is being consumed right now. Same shape as PlanData plus `publications`, which is counted but neither charged nor split between organizations.
+    What is being consumed right now. Same shape as PlanData plus `publications` and `users`, which are counted but neither charged nor split between organizations.
     """
 
     publications: NotRequired[int]
     """
     Publications created in the current calendar month. A METRIC, not a quota: publications are unlimited on every plan, so there is no limit to compare it against. What throttles publishing is rate, not plan — see the per-hour and per-network daily caps.
+    """
+    users: NotRequired[int]
+    """
+    Users with access right now. A METRIC, not a quota: users are unlimited on every plan, so there is no limit to compare it against.
     """
 
 
