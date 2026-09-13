@@ -47,7 +47,7 @@ SocialNetwork: TypeAlias = _models.SocialNetwork
 """A supported social network. The runtime list is :data:`SOCIAL_NETWORKS`."""
 
 PublishableNetwork: TypeAlias = _shapes.PublishableNetwork
-"""A network that accepts publications: ten of the eleven. The runtime list is
+"""A network that accepts publications: twelve of the thirteen. The runtime list is
 :data:`PUBLISHABLE_NETWORKS`, and :func:`is_publishable_network` is what narrows a
 :data:`SocialNetwork` down to it."""
 
@@ -57,8 +57,9 @@ CommentNetwork: TypeAlias = _models.CommentsCommentNetworkName
 ContactChannel: TypeAlias = _models.ContactChannel
 """Where a contact can be reached: a network with messaging, or ``email``.
 
-It is a SUBSET of :data:`SocialNetwork` and not all of it — ``telegram`` is a network and not a
-channel, because a bot cannot start a conversation with anybody. The runtime list is
+It is a SUBSET of :data:`SocialNetwork` and not all of it — ``telegram`` and ``slack`` are
+networks and not channels, because a bot cannot start a conversation with anybody. The runtime
+list is
 :data:`CONTACT_CHANNELS`."""
 
 MessageType: TypeAlias = _models.MessageType
@@ -138,7 +139,7 @@ its own; the rest are ordinary controls.
 SOCIAL_NETWORKS: tuple[SocialNetwork, ...] = cast("tuple[SocialNetwork, ...]", get_args(SocialNetwork))
 """Every social network this release knows about, as a tuple you can iterate at runtime.
 
-**The list grows** — it has gone from six to ten in two years — so treat a value you do not
+**The list grows** — it has gone from six to thirteen in two years — so treat a value you do not
 recognise as a network you have not heard of yet, never as an error. What is authoritative at any
 moment is ``GET /social_networks``; this tuple is what shipped with this version of the package.
 
@@ -928,7 +929,7 @@ def is_telegram_bot_authorization(
 def is_publishable_network(social_network: str) -> TypeGuard[PublishableNetwork]:
     """The network accepts publications, so it can go in a :data:`PublicationInput`.
 
-    An account's ``social_network`` is one of **eleven** and a publication's is one of **ten** —
+    An account's ``social_network`` is one of **thirteen** and a publication's is one of **twelve** —
     ``google_business`` is a business listing, it receives reviews and not posts — so handing one
     straight to the other is a type error even when you have already filtered the accounts with
     ``capability="publications"`` and it cannot happen at runtime. This is the bridge::
@@ -939,7 +940,8 @@ def is_publishable_network(social_network: str) -> TypeGuard[PublishableNetwork]
         pv.publications.create(org_id, cuenta["_id"], {"social_network": red, "text": texto})
 
     **Do not narrow it with ``if red != "google_business"``**: that reads as a negative comparison
-    against a ten-value union and leaves the other nine plus itself, which is where it started.
+    against a thirteen-value union and leaves the other twelve plus itself, which is where it
+    started.
 
     It takes a ``str`` on purpose, so a network released after this version can be checked without
     the checker objecting first — the same rule every argument in this library follows.

@@ -54,7 +54,7 @@ survive untranslated — it is ``publication["_id"]``, not ``publication.id``.
 
 The value lists live at the root because they are what you check things against; the types live in
 ``planvortex.types`` because that is where you look for a name. **The lists grow** — the networks
-have gone from six to ten in two years — so a value you do not recognise is a value this release
+have gone from six to thirteen in two years — so a value you do not recognise is a value this release
 had not heard of, never an error.
 
 **The webhooks live apart**, in :mod:`planvortex.webhooks`, because whoever receives a delivery is

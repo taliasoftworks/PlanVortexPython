@@ -138,6 +138,13 @@ class AccountsResource(Resource):
         **This is the step that takes a plan slot**: with the quota full it answers 706, so call it
         one at a time and check the room first (``organizations.limits``). It is also the step that
         turns the network's webhooks on, on any plan that is not the free one.
+
+        **On Slack it is also what puts the app inside the channel**, and there is a case here that
+        does not fail in this call and does fail on the first publication: on a **public** channel
+        the app joins by itself, and on a **private** one it cannot — Slack has no API for that —
+        and somebody has to type ``/invite @PlanVortex`` inside the channel. This call still
+        succeeds and the account stays connected; what fails is publishing, with error 980. Say it
+        **before** they pick the channel, not afterwards.
         """
         cuerpo: Any = self._post(f"{self._path(id_organization, id_account)}/enable", timeout=timeout)
         # `success: true` no se devuelve: un fallo llega como excepcion, asi que aqui solo interesa

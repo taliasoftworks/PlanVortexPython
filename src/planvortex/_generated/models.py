@@ -137,7 +137,7 @@ class AccountsSocialAuthorizationMethod(TypedDict):
     """
     **How** an account of this network is authorized, which is not always "send the user to this URL".
 
-    Ten of the twelve networks are `redirect`: open `link` and the network sends the person back to PlanVortex with a code. Two are not:
+    Eleven of the thirteen networks are `redirect`: open `link` and the network sends the person back to PlanVortex with a code. Two are not:
 
     • **WhatsApp.** Its sign-up is Meta's *Embedded Signup*: a popup raised by the Facebook JavaScript SDK from your own page, which returns — over `postMessage` — session data (`waba_id`, `phone_number_id`) that no query string carries. Its `link` is therefore an empty string.
     • **Telegram.** There is no OAuth here: no consent screen, no `code`, no account token. `link` opens a private chat with the PlanVortex bot, the person then adds that bot to their channel, and **the account is created from that event**, not from any request of yours. Which means the connection cannot be finished by calling `GET /organizations/{id_organization}/account-connect/telegram` — see that endpoint.
@@ -1072,7 +1072,7 @@ class Error1(TypedDict):
     """
     code: int
     """
-    PlanVortex error code. Ranges: 500-546 auth, tokens and client apps · 601-612 user · 700-715 social accounts · 800-810 files · 900-979 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations.
+    PlanVortex error code. Ranges: 500-546 auth, tokens and client apps · 601-612 user · 700-715 social accounts · 800-810 files · 900-986 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations.
     """
     data: NotRequired[dict[str, Any]]
     """
@@ -1673,6 +1673,8 @@ class PublicationStats(TypedDict):
     On `threads` there are six, and the one that matters is `views`: it is the only one of the four newest networks with something like impressions, so its engagement rate is computed over a real base and not over followers. Sharing arrives split in three — `reposts`, `quotes` and `shares` (outside Threads) — and the three are added into one figure, the same criterion as on X; the breakdown stays in `raw`. A reply is what every other network calls a comment.
 
     On `telegram` there are two as well, and **neither of them is asked for**: the Bot API has no method that returns a message's metrics, so `reactions` arrives on its own through the bot and `comments` is counted in PlanVortex's own inbox. There are no impressions, no reach, no views and no forwards to be had anywhere in it, so engagement is computed over followers.
+
+    On `slack` there is exactly **one**, `reactions`, and the other absences are the informative part: the Web API publishes no impressions, no reach, no views and no clicks for a message, so those keys are missing rather than zero. There is no `comments` either — Slack threads are not read at all (`comments` is `false` in `GET /social_capabilities`). Engagement is computed over the channel's members.
     """
 
     likes: NotRequired[int]
@@ -1737,7 +1739,7 @@ class PublicationStats(TypedDict):
     views: NotRequired[int]
     reactions: NotRequired[int]
     """
-    Telegram. Every reaction on the post, all emoji together. It is the **complete state and not an increment**: it goes down when somebody takes theirs back. Normalised as `likes`.
+    Telegram and Slack. Every reaction on the post, all emoji together. It is the **complete state and not an increment**: it goes down when somebody takes theirs back. Normalised as `likes`. On `slack` it is the only metric the network gives.
     """
     reactions_by_emoji: NotRequired[dict[str, int]]
     """
@@ -1763,6 +1765,7 @@ class PublicationsPublicationInput(TypedDict):
             "discord",
             "telegram",
             "threads",
+            "slack",
         ]
     ]
     """
@@ -1775,6 +1778,8 @@ class PublicationsPublicationInput(TypedDict):
     Body text of the publication. Either `text` or at least one entry in `files` is required: if both are empty the publication is still created, but in state `withErrors` with `publication_errors[].code = 915`. Maximum length depends on the network. On YouTube this is the video **description** (5,000 characters), and the publication must carry exactly one video file and no images — otherwise it is created in state `withErrors` with `publication_errors[].code = 943`. For X (Twitter), a text containing a link costs 200 credits instead of 15.
 
     **On Telegram the limit depends on what else the publication carries**: 4.096 characters while it is text only, and **1.024** the moment it has an image or a video, because then the text is the caption of a photo, a video or an album and no longer a message. Over the limit it is created in state `withErrors` with `publication_errors[].code = 967`, whose `data` carries `characters`, `max_characters` and `has_media`. Both numbers are published, as `characters.telegram` and `characters.telegram_media` in `GET /social_limits`.
+
+    **On Slack the limit is 4.000 characters** and it is counted over the text you send, not over what travels: `&`, `<` and `>` are escaped before publishing, so a text made of ampersands grows on the wire and is still measured here. Over the limit the publication is created in state `withErrors` with `publication_errors[].code = 981`. And because the escaped text is what is measured on the wire, a text that passed at 4.000 characters and is full of `&` is **trimmed** before going out — Slack does not reject a long `text`, it truncates it or splits it into several messages, and one publication showing up as two posts is worse. The text goes out **plain**: Slack speaks *mrkdwn* and not Markdown, and PlanVortex sends no `blocks`, so `**bold**` is published literally.
     """
     title: NotRequired[str]
     """
@@ -1783,6 +1788,8 @@ class PublicationsPublicationInput(TypedDict):
     files: NotRequired[list[str]]
     """
     Identifiers of uploads previously created through the uploads endpoints, attached to this publication.
+
+    **On Slack the files travel inside the message**, not as publications of their own: up to 10 attachments counting images and videos together (`publication_errors[].code = 982` over it), each one under the `max_file_size_mb.slack` ceiling (code 983), and anything the upload itself refuses comes back as code 986.
     """
     publish_date: NotRequired[str]
     """
@@ -1913,6 +1920,7 @@ SocialNetwork: TypeAlias = Literal[
     "discord",
     "telegram",
     "threads",
+    "slack",
 ]
 """
 A social network supported by PlanVortex.
@@ -1998,9 +2006,9 @@ class Account(TypedDict):
     """
     A social account connected to an organization.
 
-    On `discord` and on `telegram` an account is a **channel**, not a profile: publishing to two Discord channels of the same server — or to two Telegram channels of the same brand — costs two accounts of the plan.
+    On `discord`, on `telegram` and on `slack` an account is a **channel**, not a profile: publishing to two Discord channels of the same server — or to two Telegram channels of the same brand, or to `#anuncios` and `#general` of the same Slack workspace — costs two accounts of the plan.
 
-    `error_code` other than `0` means the connection is broken — an expired token, a permission taken away — and the account has to be connected again. On `telegram` nothing expires, because there is no account token: what breaks the connection is the bot being removed from the channel or losing its permission to post there (error 968).
+    `error_code` other than `0` means the connection is broken — an expired token, a permission taken away — and the account has to be connected again. On `telegram` nothing expires, because there is no account token: what breaks the connection is the bot being removed from the channel or losing its permission to post there (error 968). On `slack` the bot token does not expire either: what breaks it is the app being removed from the channel (error 980) or the channel being archived or deleted (error 985).
     """
 
     _id: str
@@ -2032,7 +2040,7 @@ class Account(TypedDict):
     """
     followers_count: NotRequired[int]
     """
-    Followers the network reports. Absent on an account that has never been measured. On `telegram` it is the channel's member count, and it is the **only** audience figure that network publishes: there are no views, no impressions and no reach anywhere in the Bot API.
+    Followers the network reports. Absent on an account that has never been measured. On `telegram` and on `slack` it is the channel's member count, and it is the **only** audience figure either network publishes: there are no views, no impressions and no reach anywhere in the Bot API nor in the Slack Web API.
     """
     next_stats_update: NotRequired[str]
     """
@@ -2200,6 +2208,8 @@ class CatalogSocialLimits(TypedDict):
     total_images: CatalogSocialLimitsMap
     """
     How many images one publication accepts. `0` means images are not a publication on that network.
+
+    **On `discord`, `threads` and `slack` it counts images and videos together**, because there the carousel is one message carrying several attachments and not several publications: what is validated is the total number of files. Over it, the publication is created in state `withErrors` — on `slack` with `publication_errors[].code = 982`.
     """
     video_duration_in_seconds: CatalogSocialLimitsMap
     """
@@ -2208,6 +2218,8 @@ class CatalogSocialLimits(TypedDict):
     max_file_size_mb: CatalogSocialLimitsMap
     """
     Maximum size of one file, in megabytes.
+
+    **On `slack` this one is a ceiling, not a promise.** 1.024 MB is what the network allows; the real limit is the lesser of that and the storage the client's own workspace plan still has, which no API exposes. A file inside this number can still come back as error 986. It is the only key in this map with that property.
     """
 
 

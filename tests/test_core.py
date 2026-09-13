@@ -305,13 +305,17 @@ def test_cada_rango_del_catalogo_cae_en_su_clase() -> None:
     """
     assert error_class_for_code(500) is error_class_for_code(544)
     assert error_class_for_code(900).__name__ == "PublicationError"
-    # El rango llega hasta 979, no hasta 960: por encima del 960 estan las cuatro ultimas redes
-    # (Bluesky, Discord, Telegram y Threads) y los DOS FRENOS DE RITMO que sustituyeron al cupo
-    # mensual de publicaciones. Fuera de familia, el 978 llegaba como un error generico y quien lo
-    # recibia no tenia forma de saber que la respuesta es esperar.
+    # El rango llega hasta 986, no hasta 960: por encima del 960 estan las cinco ultimas redes
+    # (Bluesky, Discord, Telegram, Threads y Slack) y los DOS FRENOS DE RITMO que sustituyeron al
+    # cupo mensual de publicaciones. Fuera de familia, el 978 llegaba como un error generico y
+    # quien lo recibia no tenia forma de saber que la respuesta es esperar.
     assert error_class_for_code(975).__name__ == "PublicationError"
     assert error_class_for_code(978).__name__ == "PublicationError"
     assert error_class_for_code(979).__name__ == "PublicationError"
+    # Slack estreno el 980-986, y el 980 —la app no esta en el canal— es el mas comun de toda la
+    # red: es lo que contesta un canal privado al que nadie ha invitado al bot.
+    assert error_class_for_code(980).__name__ == "PublicationError"
+    assert error_class_for_code(986).__name__ == "PublicationError"
     assert error_class_for_code(1300).__name__ == "PlanLimitError"
     # 1308 es el tope de APPS del plan, y 545/546 los dos codigos que trajo abrir la API publica
     # a todos los planes. Los tres nacieron por encima del techo que tenian sus rangos.

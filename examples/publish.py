@@ -70,7 +70,7 @@ def main(ruta_del_fichero: str) -> int:
             )
         red = cuenta["social_network"]
         # El `capability` de arriba ya lo ha filtrado en el servidor, asi que esto no puede fallar
-        # en ejecucion: lo que arregla es el TIPO. Una cuenta es una de las doce redes y una
+        # en ejecucion: lo que arregla es el TIPO. Una cuenta es una de las trece redes y una
         # publicacion es una de las once —`google_business` recibe resenas, no posts—, y sin este
         # puente pasar la una a la otra es un error de tipos. `red != "google_business"` no sirve:
         # comparar en negativo contra una union de once la deja en las once.

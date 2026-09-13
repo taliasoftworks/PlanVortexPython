@@ -36,8 +36,8 @@ PLANVORTEX_ERROR_RANGES: tuple[ErrorRange, ...] = (
     # El techo sube con el catalogo del servidor, y subir tarde no da un error: da un consejo
     # equivocado. Los codigos de Bluesky, Discord, Telegram y Threads (961-977) y los dos frenos
     # de ritmo de la fase de publicaciones ilimitadas (978, 979) nacieron por encima de 960 y
-    # caian fuera de toda familia.
-    ErrorRange(900, 979, "publication"),
+    # caian fuera de toda familia. Slack estreno el 980-986, que es el mismo caso otra vez.
+    ErrorRange(900, 986, "publication"),
     ErrorRange(1000, 1003, "general"),
     ErrorRange(1100, 1111, "organization"),
     ErrorRange(1200, 1207, "role"),
@@ -124,8 +124,10 @@ class FileError(PlanVortexError):
 
 
 class PublicationError(PlanVortexError):
-    """900-979 — publications, including per-network limits (characters, images, duration) and the
-    two rate brakes: 978 (publishing too fast on this account) and 979 (that network's daily cap).
+    """900-986 — publications, including per-network limits (characters, images, duration), the
+    two rate brakes —978 (publishing too fast on this account) and 979 (that network's daily
+    cap)— and Slack's own (980-986), which start with the commonest one: 980, the app is not in
+    the channel.
     """
 
 

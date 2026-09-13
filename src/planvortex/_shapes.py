@@ -265,13 +265,14 @@ PublishableNetwork: TypeAlias = Literal[
     "bluesky",
     "discord",
     "telegram",
+    "slack",
 ]
-"""A network that accepts publications: the eleven of the twelve that have a feed.
+"""A network that accepts publications: the twelve of the thirteen that have a feed.
 
 ``google_business`` is the one missing, and it is not an oversight: a local listing receives
 reviews, not posts. Sending it raises error 702. It is a **narrower** type than
 ``types.SocialNetwork`` and that is the whole point — an account's ``social_network`` is one of
-twelve and this is one of eleven, so handing one straight to the other is a type error even when a
+thirteen and this is one of twelve, so handing one straight to the other is a type error even when a
 ``capability="publications"`` filter has already made it impossible at runtime.
 ``types.is_publishable_network`` is what bridges it.
 
@@ -296,7 +297,7 @@ class PublicationInput(TypedDict):
 
     social_network: NotRequired[PublishableNetwork]
     """Network the publication targets. **Required when creating**: error 702 if it is missing or
-    is not one of the ten. It has to match the network of the account in the path."""
+    is not one of the twelve. It has to match the network of the account in the path."""
     text: NotRequired[str]
     """Body text. Either this or one entry in ``files``; with neither, the publication is still
     created but lands in ``withErrors`` with code 915. On YouTube this is the video

@@ -216,7 +216,7 @@ memorising numbers:
 | 601-612 | `user` | `UserError` |
 | 700-715 | `account` | `AccountError` |
 | 800-810 | `file` | `FileError` |
-| 900-979 | `publication` | `PublicationError` |
+| 900-986 | `publication` | `PublicationError` |
 | 1000-1003 | `general` | `PlanVortexError` |
 | 1100-1111 | `organization` | `OrganizationError` |
 | 1200-1207 | `role` | `PlanVortexError` |
