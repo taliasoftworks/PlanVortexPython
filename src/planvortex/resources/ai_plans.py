@@ -69,12 +69,13 @@ THIS FILE IS THE SOURCE OF ``resources_sync/ai_plans.py``.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
+from datetime import datetime
 
 from planvortex._core.pagination import Page, PageParams
 from planvortex._shapes import AiPlanRegenerateResult
 from planvortex.resources.base import AsyncResource, Query, require_id
-from planvortex.types import AiPlan, AiPlanCreateRequest, AiPlanCreateResult
+from planvortex.types import AiPlan, AiPlanCreateRequest, AiPlanCreateResult, AiPlanResults
 
 
 class AsyncAiPlansResource(AsyncResource):
@@ -220,6 +221,64 @@ class AsyncAiPlansResource(AsyncResource):
             )
 
         return self._iterate_pages(buscar, limit=limit, offset=offset)
+
+    async def results(
+        self,
+        id_client: str,
+        id_organization: str,
+        *,
+        from_date: datetime | str | None = None,
+        to_date: datetime | str | None = None,
+        sort: str | None = None,
+        template: str | None = None,
+        social_network: Sequence[str] | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        timeout: float | None = None,
+    ) -> AiPlanResults:
+        """What every plan achieved with what it published, the aggregate per template and the
+        total: the answer to «which plan worked best?». It needs ``ai_plans:read`` **and**
+        ``publication_stats:read``.
+
+        What surprises people:
+
+        - **The range filters on the plan's WEEK** (``week_start``), not on when it was created: a
+          plan created today for next week has published nothing yet.
+        - **Only the plans that published something come back.** Archived ones do — archiving is
+          visibility only —; cancelled ones do not.
+        - **The default order is interactions per measured publication**, not the total: the total
+          rewards the plan with seven accounts even when each post does half as well. And only plans
+          with ``ranked: True`` compete in it; the rest come after.
+        - **``social_network`` recomputes every plan with only its publications on those networks**,
+          which is what makes plans on different networks comparable. With that filter
+          ``credits_per_engagement`` does not come: the cost belongs to the whole plan.
+        - **It covers THIS organization, not its children**, unlike the ``ai_plan_results`` block of
+          :meth:`~planvortex.resources.dashboard.AsyncDashboardResource.summary`.
+
+        It is not a :class:`~planvortex.Page`: besides the page it carries ``totals`` and
+        ``by_template``, which do not depend on it, so it comes back whole. ``sort`` is one of
+        :data:`~planvortex.types.AiPlanResultsSort`.
+
+        .. code-block:: python
+
+            results = await pv.ai_plans.results(client_id, org_id, social_network=["instagram"])
+            best = next((plan for plan in results["ai_plans"] if plan["ranked"]), None)
+            results["by_template"][0]["template"]
+        """
+        resultados: AiPlanResults = await self._get(
+            f"{self._path(id_client, id_organization)}/results",
+            {
+                "from_date": from_date,
+                "to_date": to_date,
+                "sort": sort,
+                "template": template,
+                "social_network": social_network,
+                "limit": limit,
+                "offset": offset,
+            },
+            timeout=timeout,
+        )
+        return resultados
 
     async def validate(
         self,

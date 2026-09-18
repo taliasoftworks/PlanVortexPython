@@ -227,6 +227,34 @@ class AiContext(TypedDict):
     """
 
 
+class Publications(TypedDict):
+    total: int
+    """
+    Publications of the plan that still exist. Deleted ones do not count.
+    """
+    published: int
+    """
+    Went out to the network.
+    """
+    measured: int
+    """
+    Published **and** with metrics collected: the only ones the averages use.
+    """
+    scheduled: int
+    """
+    Scheduled, or being published right now.
+    """
+    failed: int
+    """
+    Failed to publish.
+    """
+
+
+class Publications1(TypedDict):
+    published: int
+    measured: int
+
+
 class AiPlansAiPlanCostEstimate(TypedDict):
     """
     Deterministic cost estimate computed by the backend (never by the model). BYOK scopes cost 0 credits.
@@ -352,6 +380,17 @@ class AiPlansAiPlanOptionsInput(TypedDict):
     """
 
 
+class Range(TypedDict):
+    """
+    The range that was actually used. The plans in it are those whose **week** starts inside it.
+    """
+
+    from_date: str
+    to_date: str
+    previous_from_date: NotRequired[str]
+    previous_to_date: NotRequired[str]
+
+
 class Image(TypedDict):
     id_upload: NotRequired[str]
     description: NotRequired[str]
@@ -467,7 +506,7 @@ class AppsClientApp(TypedDict):
     name: str
     keycloak_client_idenfifier: str
     """
-    The app's `client_id`.
+    The app's `client_id`. Fixed for the life of the app: it cannot be changed once created (error 547).
     """
     allowed_domains: list[str]
     redirect_urls: list[str]
@@ -494,7 +533,11 @@ class AppsClientAppInput(TypedDict):
     """
     keycloak_client_idenfifier: str
     """
-    The app's `client_id`, which is what you send to `POST /oauth/token`. It has to be unique across PlanVortex (error 534). The spelling of the field is historical and kept for compatibility.
+    The app's `client_id`, which is what you send to `POST /oauth/token`.
+
+    **Format is enforced** (error 533): lowercase letters, numbers, `.`, `-` and `_`, starting with a letter or a number, between 3 and 64 characters — `shop-integration`, not `Shop Integration`. Keycloak itself accepts anything, so an identifier with a space in it used to create an app that could never get a token.
+
+    It also has to be unique across PlanVortex (error 534), and **it cannot be changed once the app exists** (error 547): it is what your integration authenticates with, so renaming it would lock out everything already using the old one. Send it unchanged on an update, or leave it out. The spelling of the field is historical and kept for compatibility.
     """
     allowed_domains: NotRequired[list[str]]
     """
@@ -971,6 +1014,10 @@ class AvailableBlocks(TypedDict):
     plan_use: bool
     ai_plans: bool
     messages: bool
+    ai_plan_results: bool
+    """
+    Needs both `ai_plans:read` and `publication_stats:read`: the block shows plans and their publications' metrics.
+    """
 
 
 class ByStateItem(TypedDict):
@@ -1839,7 +1886,7 @@ class PublicationsPublicationStatsPoint(TypedDict):
     """
 
 
-class Range(TypedDict):
+class Range1(TypedDict):
     """
     The resolved range and the immediately preceding period of the same length, which is what `summary.previous_total` covers.
     """
@@ -2083,6 +2130,117 @@ class AccountsSocialLinksList(TypedDict):
     """
 
 
+class AiPlanResult(TypedDict):
+    """
+    What ONE AI plan achieved with what it published.
+
+    **Where the numbers come from.** A plan keeps its publications, and each publication keeps the last known value of its metrics (the same ones `GET /organizations/{id}/publications/stats` returns). This adds those up — nothing here is measured twice or asked to the network again.
+
+    **Only the publications that went out and were measured count** (`publications.measured`). A post scheduled for tomorrow, one that failed or one published an hour ago that nobody has measured yet does not lower the average: it is simply not in it.
+
+    **A missing metric is not a zero**, as everywhere else: if no publication of the plan reports `reach`, the plan has no `reach` key.
+    """
+
+    id_ai_plan: str
+    id_organization: str
+    """
+    The organization the plan belongs to. In the dashboard block it can be a **child** of the organization you asked about, and a plan is only reachable by id through its own organization.
+    """
+    prompt: str
+    template: Literal["standard", "from_images", "from_text", "from_catalog", "campaign"]
+    """
+    What the plan was generated from. A plan created before templates existed reads `standard`.
+    """
+    state: Literal["generated", "validated"]
+    """
+    Only these two can have results. A `generated` plan was never validated, but someone may have published some of its drafts by hand.
+    """
+    week_start: str
+    """
+    The week the plan publishes in. **This is what the range filters on**, not the creation date.
+    """
+    creation_date: str
+    archived_date: NotRequired[str]
+    """
+    Archived plans are included: archiving is visibility only, and what they published is still published.
+    """
+    accounts: int
+    """
+    Accounts the plan was generated for.
+    """
+    social_networks: list[SocialNetwork]
+    """
+    Networks the plan published on. With the `social_network` filter, only the filtered ones.
+    """
+    credits_spent: int
+    """
+    AI credits the plan cost, for the whole plan.
+    """
+    publications: Publications
+    metrics: NormalizedMetrics
+    engagement_per_publication: NotRequired[float]
+    """
+    Interactions per measured publication — **the number plans are ranked by**. The total rewards size (seven accounts for seven days beat one account even if each post does half as well), and the engagement rate divides by reach on some networks and by followers on others, which makes two plans on different networks incomparable. Absent when nothing is measured yet.
+    """
+    expected_engagement_per_publication: NotRequired[float]
+    """
+    What **your usual posts** would get with the same mix of networks: the organization's average interactions per measured post on each network, weighted by how many measured posts the plan has there. Two measured posts on Instagram (average 5) and two on LinkedIn (average 1) expect (2·5 + 2·1) / 4 = 3.
+
+    The average covers **every** measured post of the organization in the range, AI ones included, on the same networks. Weighting by network is what keeps a LinkedIn-only plan from always reading as below average just because LinkedIn moves less than Instagram.
+    """
+    engagement_vs_average: NotRequired[float]
+    """
+    `engagement_per_publication` divided by `expected_engagement_per_publication`: **1 means like your average, 2 twice as much, 0.5 half**. This is the number that says whether a plan is *good*, not just first — the ranking still orders by `engagement_per_publication`, so the first plan can be below 1. Absent with nothing measured or no average to compare with.
+    """
+    credits_per_engagement: NotRequired[float]
+    """
+    AI credits per interaction: what each interaction cost. Lower is better. Absent with no interactions, with no credits spent (your own AI key) and **whenever `social_network` is filtered** — the cost belongs to the whole plan, and dividing it by one network's interactions would overprice every one of them.
+    """
+    last_publish_date: NotRequired[str]
+    ranked: bool
+    """
+    Whether the plan competes in the ranking: it needs at least **3 measured publications**, or all of them if it published fewer. With a single measurement, one lucky post would put its plan first.
+    """
+    maturing: bool
+    """
+    Its numbers are still moving: something is still scheduled, or its last publication is less than 7 days old. Comparing it with a plan from last month is unfair to the new one — say so rather than hiding it.
+    """
+
+
+class AiPlanResultsGroup(TypedDict):
+    """
+    The aggregate of a set of plans: all of them, or those of one template.
+    """
+
+    plans: int
+    ranked_plans: int
+    """
+    How many of them compete in the ranking (see `AiPlanResult.ranked`).
+    """
+    publications: Publications1
+    metrics: NormalizedMetrics
+    engagement_per_publication: NotRequired[float]
+    """
+    A **weighted** average: every interaction of the group divided by every measured publication of the group — not the average of each plan's average, which would let a one-post plan weigh as much as a forty-post one.
+    """
+    expected_engagement_per_publication: NotRequired[float]
+    """
+    What your usual posts would get with the group's mix of networks, weighted like its average. Only plans that have a reference count.
+    """
+    engagement_vs_average: NotRequired[float]
+    """
+    The group's interactions per post over what was expected, computed over the **same** plans on both sides — a plan with no reference cannot add its interactions to one side only.
+    """
+    credits_spent: int
+    """
+    Credits of every plan in the group.
+    """
+    credits_per_engagement: NotRequired[float]
+    """
+    Credits per interaction, counting **only the plans that already have something measured**: a plan validated yesterday brings its whole cost and no interactions, and would make the group look expensive for arriving late. Absent with the `social_network` filter.
+    """
+
+
 class AiPlansAiPlanCreateRequest(TypedDict):
     prompt: str
     """
@@ -2105,6 +2263,10 @@ class AiPlansAiPlanCreateRequest(TypedDict):
     Account ids (belonging to the organization) to generate the plan for.
     """
     options: NotRequired[AiPlansAiPlanOptionsInput]
+
+
+class AiPlansAiPlanResultsTemplateGroup(AiPlanResultsGroup):
+    template: Literal["standard", "from_images", "from_text", "from_catalog", "campaign"]
 
 
 class AiPlansAiPlanSource(TypedDict):
@@ -2391,6 +2553,35 @@ class AiPlans(TypedDict):
     pending_validation: int
     """
     Plans already generated and **waiting for someone to validate them**: work paid for that is not publishing anything yet.
+    """
+
+
+class AiPlanResults(TypedDict):
+    """
+    The best AI plans of the range, by interactions per measured publication — the short version of `GET /clients/{id}/organizations/{id}/ai_plans/results`, with the same rules: the range filters on the plan's **week**, and only plans with at least 3 measured publications compete.
+
+    Unlike that endpoint it covers the organization **and its children**, like the rest of this screen, so each plan carries its `id_organization`.
+    """
+
+    top: list[AiPlanResult]
+    """
+    Up to three plans, best first. Only ranked ones.
+    """
+    plans: int
+    """
+    Plans with results in the range.
+    """
+    ranked_plans: int
+    """
+    How many of those compete in the ranking. `plans > 0` with `ranked_plans: 0` means there are results, just not enough measured yet.
+    """
+    engagement_per_publication: NotRequired[float]
+    """
+    Interactions per measured publication across every plan of the range.
+    """
+    engagement_vs_average: NotRequired[float]
+    """
+    Interactions per post of every plan of the range over what your usual posts would get on the same networks. 1 means like your average.
     """
 
 
@@ -2842,7 +3033,7 @@ class PublicationsPublicationStatsHistory(TypedDict):
 
 
 class PublicationsPublicationsStatsList(TypedDict):
-    range: NotRequired[Range]
+    range: NotRequired[Range1]
     """
     The resolved range and the immediately preceding period of the same length, which is what `summary.previous_total` covers.
     """
@@ -2950,6 +3141,30 @@ class AiPlansAiPlanList(TypedDict):
 
 class AiPlansAiPlanOne(TypedDict):
     ai_plan: AiPlansAiPlan
+
+
+class AiPlansAiPlanResults(TypedDict):
+    range: Range
+    """
+    The range that was actually used. The plans in it are those whose **week** starts inside it.
+    """
+    sort: str
+    """
+    The order that was applied.
+    """
+    totals: AiPlanResultsGroup
+    by_template: list[AiPlansAiPlanResultsTemplateGroup]
+    """
+    One entry per template that has plans in the range, best `engagement_per_publication` first. This is the answer to «which kind of plan works for me?».
+    """
+    ai_plans: list[AiPlanResult]
+    """
+    The page of plans, in `sort` order.
+    """
+    total: int
+    """
+    Plans with results in the range (and filters), across every page.
+    """
 
 
 class ClientsClient(TypedDict):
@@ -3121,7 +3336,7 @@ class Health(TypedDict):
     total_drafts: NotRequired[int]
 
 
-class Publications(DashboardPublicationsSummary):
+class Publications2(DashboardPublicationsSummary):
     previous_total: NotRequired[int]
     """
     The same count for the previous period, for the delta.
@@ -3151,11 +3366,17 @@ class DashboardDashboard(TypedDict):
     """
     What needs fixing today. Each half has its own permission: somebody who cannot read accounts still sees the failed publications.
     """
-    publications: NotRequired[Publications]
+    publications: NotRequired[Publications2]
     publication_metrics: NotRequired[PublicationMetrics]
     account_metrics: NotRequired[AccountMetrics]
     plan_use: NotRequired[DashboardPlanUse]
     ai_plans: NotRequired[AiPlans]
+    ai_plan_results: NotRequired[AiPlanResults]
+    """
+    The best AI plans of the range, by interactions per measured publication — the short version of `GET /clients/{id}/organizations/{id}/ai_plans/results`, with the same rules: the range filters on the plan's **week**, and only plans with at least 3 measured publications compete.
+
+    Unlike that endpoint it covers the organization **and its children**, like the rest of this screen, so each plan carries its `id_organization`.
+    """
     messages: NotRequired[Messages]
 
 

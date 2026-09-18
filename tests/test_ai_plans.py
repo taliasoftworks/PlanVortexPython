@@ -266,3 +266,96 @@ def test_el_listado_pide_el_otro_armario_solo_cuando_se_le_pide(
     # ruido, y ademas invitaria a creer que hay un tercer modo con los dos armarios a la vez
     assert "archived" not in query(negado)
     assert "archived" not in query(sin_decir)
+
+
+# ------------------------------------------------------------------------------------------ resultados
+
+GRUPO = {
+    "plans": 2,
+    "ranked_plans": 1,
+    "publications": {"published": 9, "measured": 8},
+    "metrics": {"engagement": 400},
+    "engagement_per_publication": 50,
+    "credits_spent": 600,
+    "credits_per_engagement": 1.5,
+}
+RESULTADO = {
+    "id_ai_plan": "plan1",
+    "id_organization": "org1",
+    "prompt": "Pan de masa madre",
+    "template": "from_images",
+    "state": "validated",
+    "week_start": "2026-08-24T00:00:00.000Z",
+    "creation_date": "2026-08-23T09:00:00.000Z",
+    "accounts": 1,
+    "social_networks": ["instagram"],
+    "credits_spent": 48,
+    "publications": {"total": 7, "published": 7, "measured": 7, "scheduled": 0, "failed": 0},
+    "metrics": {"engagement": 350},
+    "engagement_per_publication": 50,
+    "ranked": True,
+    "maturing": False,
+}
+
+
+def test_los_resultados_van_a_su_ruta_y_vuelven_enteros(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    """`/results` cuelga de `ai_plans` al lado de `/{id_ai_plan}`: construida mal no da 404, da 2100.
+    Y NO es una `Page`: `totals` y `by_template` no dependen de la pagina y desenvolverla se los comeria."""
+    httpx_mock.add_response(
+        url=f"{PLANES}/results",
+        json={
+            "range": {"from_date": "2026-07-25T00:00:00.000Z", "to_date": "2026-08-24T00:00:00.000Z"},
+            "sort": "engagement_per_publication",
+            "totals": GRUPO,
+            "by_template": [{**GRUPO, "template": "from_images"}],
+            "ai_plans": [RESULTADO],
+            "total": 1,
+        },
+    )
+
+    resultados = cliente.esperar(cliente.pv.ai_plans.results("cli1", "org1"))
+
+    assert ruta(unica(httpx_mock)) == "/clients/cli1/organizations/org1/ai_plans/results"
+    assert resultados["totals"]["engagement_per_publication"] == 50
+    assert resultados["by_template"][0]["template"] == "from_images"
+    assert resultados["ai_plans"][0]["ranked"] is True
+    # Sin `reach` en la fila: ausente, no cero
+    assert "reach" not in resultados["ai_plans"][0]["metrics"]
+
+
+def test_los_resultados_mandan_los_filtros_y_repiten_la_red(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    vacio = {
+        "range": {"from_date": "a", "to_date": "b"},
+        "sort": "x",
+        "totals": GRUPO,
+        "by_template": [],
+        "ai_plans": [],
+        "total": 0,
+    }
+    httpx_mock.add_response(json=vacio, is_reusable=True)
+
+    cliente.esperar(
+        cliente.pv.ai_plans.results(
+            "cli1",
+            "org1",
+            sort="credits_per_engagement",
+            template="campaign",
+            social_network=["instagram", "linkedin"],
+            limit=10,
+        )
+    )
+    cliente.esperar(cliente.pv.ai_plans.results("cli1", "org1"))
+
+    filtrada, sin_filtros = [p for p in peticiones(httpx_mock) if ruta(p).endswith("/results")]
+    assert query(filtrada) == {
+        "sort": ["credits_per_engagement"],
+        "template": ["campaign"],
+        "social_network": ["instagram", "linkedin"],
+        "limit": ["10"],
+    }
+    # Lo que no se pide no viaja
+    assert query(sin_filtros) == {}

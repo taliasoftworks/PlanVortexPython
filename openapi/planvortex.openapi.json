@@ -1327,6 +1327,145 @@
         ]
       }
     },
+    "/clients/{id_client}/organizations/{id_organization}/ai_plans/results": {
+      "get": {
+        "tags": [
+          "ai_plans"
+        ],
+        "summary": "Compare the results of AI plans",
+        "description": "What each AI plan achieved with what it published, the aggregate per template and the total — the data behind «which plan worked best?». Requires **both** `ai_plans:read` and `publication_stats:read`: it shows plans and it shows publication metrics.\n\n**The range filters on the plan's week** (`week_start`), not on when it was created: a plan created today for next week has published nothing and has no results yet.\n\n**Only plans that published something are listed** — with `social_network`, something on those networks. A plan whose posts are all still scheduled would be a row of blanks. Archived plans are included; cancelled ones are not.\n\n**The default order is interactions per measured publication**, and only plans with at least 3 measured publications (or all of them, if they published fewer) compete in it; the rest come after. See `AiPlanResult` for why it is that number and not the total or the engagement rate.\n\nCovers **this organization only**, not its children — it is the sibling of `GET .../ai_plans` and talks about the same plans. The dashboard's `ai_plan_results` block does include children.",
+        "operationId": "getAiPlanResultsService",
+        "x-planvortex-identity": [
+          "current_user",
+          "current_app"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AiPlansidClient"
+          },
+          {
+            "$ref": "#/components/parameters/AiPlansidOrganization"
+          },
+          {
+            "$ref": "#/components/parameters/AiPlansfromDate"
+          },
+          {
+            "$ref": "#/components/parameters/AiPlanstoDate"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "description": "Order of the plans. Each one has its natural direction — `credits_per_engagement` cheapest first, `week_start` newest first, everything else highest first — and plans without that value go last.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "engagement_per_publication",
+                "engagement",
+                "impressions",
+                "reach",
+                "credits_per_engagement",
+                "credits_spent",
+                "week_start"
+              ],
+              "default": "engagement_per_publication"
+            }
+          },
+          {
+            "name": "template",
+            "in": "query",
+            "description": "Only plans generated from this template. An unknown one answers error 2111.",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "standard",
+                "from_images",
+                "from_text",
+                "from_catalog",
+                "campaign"
+              ]
+            }
+          },
+          {
+            "name": "social_network",
+            "in": "query",
+            "description": "Recompute every plan with **only** its publications on these networks, which is what makes plans on different networks comparable. Repeat the parameter for several. `credits_per_engagement` disappears with this filter.",
+            "required": false,
+            "explode": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/SocialNetwork"
+              }
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "description": "Number of plans to skip (pagination)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Plans per page. At most 100.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 25,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiPlansAiPlanResults"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `1000` | Invalid `from_date`, or an unknown `sort` or `social_network` (`data.allowed` lists the valid values) |\n| `1001` | Invalid `to_date` |\n| `1003` | Range longer than 366 days |\n| `2111` | Unknown `template` |\n| `1101` | Invalid organization |\n| `521` | Invalid client. The identifier is invalid or doesn't exist |",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled error by the server"
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "curl",
+            "label": "curl",
+            "source": "curl \"https://api.planvortex.com/v1.0.0/clients/$ID_CLIENT/organizations/$ID_ORGANIZATION/ai_plans/results\" \\\n  -H \"Authorization: Bearer $PLANVORTEX_TOKEN\""
+          },
+          {
+            "lang": "JavaScript",
+            "label": "Node",
+            "source": "import { PlanVortex } from \"planvortex\";\n\nconst pv = new PlanVortex({\n    clientId: process.env.PLANVORTEX_CLIENT_ID,\n    clientSecret: process.env.PLANVORTEX_CLIENT_SECRET,\n});\n\nconst result = await pv.aiPlans.results(idClient, idOrganization);"
+          },
+          {
+            "lang": "Python",
+            "label": "Python",
+            "source": "from planvortex import PlanVortex\n\npv = PlanVortex()\n\nresult = pv.ai_plans.results(id_client, id_organization)"
+          }
+        ]
+      }
+    },
     "/clients/{id_client}/organizations/{id_organization}/ai_plans/{id_ai_plan}": {
       "get": {
         "tags": [
@@ -2028,7 +2167,7 @@
           "apps"
         ],
         "summary": "Create an app",
-        "description": "Creates the app and its credentials.\n\n**How many apps fit is decided by the plan**, not by a fixed limit of one: 1 on free, 2 on basic, 5 on pro and 10 on custom. Going over answers `ERROR_CODE_1308`, which carries `limit` and `used` in its `data`. Deleting an app frees its slot immediately, because only live apps count. If you just need to rotate credentials, update the existing app rather than creating another.\n\n**The user's email must be verified** (`ERROR_CODE_546`). This is the only route in `/apps` that asks for it: an app is a key to the whole public API, and this is what stops a throwaway address from minting them in bulk. Reading, updating and deleting an app you already own do not check it.\n\nEvery URL is validated: a bad entry in `allowed_domains` answers 531, in `redirect_urls` 532, and a bad `webhook_url` answers 535.\n\n**The secret is not in the response.** Read it with `GET /clients/{id_client}/apps/{id_app}/secret`.\n\n**Needs a USER token, not an app token.** With client credentials it answers `ERROR_CODE_512`. **No plan is required**: apps are on all four plans, the free one included — what the plan decides is how many you can hold at once and how fast you can call.",
+        "description": "Creates the app and its credentials.\n\n**How many apps fit is decided by the plan**, not by a fixed limit of one: 1 on free, 2 on basic, 5 on pro and 10 on custom. Going over answers `ERROR_CODE_1308`, which carries `limit` and `used` in its `data`. Deleting an app frees its slot immediately, because only live apps count. If you just need to rotate credentials, update the existing app rather than creating another.\n\n**The user's email must be verified** (`ERROR_CODE_546`). This is the only route in `/apps` that asks for it: an app is a key to the whole public API, and this is what stops a throwaway address from minting them in bulk. Reading, updating and deleting an app you already own do not check it.\n\n**The identifier has a format** (error 533): lowercase letters, numbers, `.`, `-` and `_`, starting with a letter or a number, 3 to 64 characters. Pick it carefully — it cannot be changed later (error 547).\n\nEvery URL is validated: a bad entry in `allowed_domains` answers 531, in `redirect_urls` 532, and a bad `webhook_url` answers 535.\n\n**The secret is not in the response.** Read it with `GET /clients/{id_client}/apps/{id_app}/secret`.\n\n**Needs a USER token, not an app token.** With client credentials it answers `ERROR_CODE_512`. **No plan is required**: apps are on all four plans, the free one included — what the plan decides is how many you can hold at once and how fast you can call.",
         "operationId": "createClientApp",
         "x-planvortex-identity": [
           "current_user"
@@ -2159,7 +2298,7 @@
           "apps"
         ],
         "summary": "Update an app",
-        "description": "Replaces the app's configuration. **Every field is overwritten with what you send**, so a `redirect_urls` you leave out becomes an empty list — send the whole object, not a patch.\n\nChanging `webhook_url` takes effect on the next event; there is no verification handshake.\n\n**It replaces every field with what the body carries.** `name`, `keycloak_client_idenfifier`, `allowed_domains`, `redirect_urls` and `webhook_url` are all written as sent, so omitting one erases it — sending an update without `webhook_url` turns the webhook off. Read the app first and send it back whole.\n\n**An app token works here.** This is the one part of `/apps` that does: an app can read and update its own record, but it cannot list, create, delete, or read the secret. **No plan is required**: apps are on all four plans, the free one included.",
+        "description": "Replaces the app's configuration. **Every field is overwritten with what you send**, so a `redirect_urls` you leave out becomes an empty list — send the whole object, not a patch.\n\nChanging `webhook_url` takes effect on the next event; there is no verification handshake.\n\n**It replaces every field with what the body carries.** `name`, `keycloak_client_idenfifier`, `allowed_domains`, `redirect_urls` and `webhook_url` are all written as sent, so omitting one erases it — sending an update without `webhook_url` turns the webhook off. Read the app first and send it back whole.\n\n**`keycloak_client_idenfifier` is the one field that is NOT overwritten.** Sending a different one answers `ERROR_CODE_547` and nothing is written: it is the `client_id` your integration authenticates with, and renaming it would lock out everything already asking for tokens with the old one. Send it unchanged, or leave it out. If you need a different identifier, create another app.\n\n**An app token works here.** This is the one part of `/apps` that does: an app can read and update its own record, but it cannot list, create, delete, or read the secret. **No plan is required**: apps are on all four plans, the free one included.",
         "operationId": "updateClientApp",
         "x-planvortex-identity": [
           "current_user",
@@ -2327,6 +2466,56 @@
             "lang": "curl",
             "label": "curl",
             "source": "curl \"https://api.planvortex.com/v1.0.0/clients/$ID_CLIENT/apps/$ID_APP/secret\" \\\n  -H \"Authorization: Bearer $PLANVORTEX_TOKEN\""
+          }
+        ],
+        "x-planvortex-sdk-note": "This endpoint is not available to an app token, so the official libraries cannot call it: it needs a signed-in user. See `x-planvortex-identity`."
+      },
+      "post": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Regenerate the app's secret",
+        "description": "Rotates the `client_secret` and returns the new one.\n\n**The previous secret stops working the moment this answers** — there is no grace period and no overlap. Anything still holding it gets `invalid_client` from `POST /oauth/token` on its very next call, so roll it out before you rotate, not after.\n\n**It also changes how your webhooks are signed.** `x-hub-signature` and `x-hub-signature-256` are HMACs of the body computed with this same secret, so a receiver that verifies the signature will start rejecting legitimate deliveries until it is updated too.\n\nThe new value comes back only here. If you lose it, read it again with `GET /clients/{id_client}/apps/{id_app}/secret` — it is not stored anywhere on our side except Keycloak.\n\n**Needs a USER token, not an app token** (`ERROR_CODE_512`), and the `client_app:update` permission — reading the secret changes nothing, this invalidates what was there.",
+        "operationId": "regenerateClientAppSecret",
+        "x-planvortex-identity": [
+          "current_user"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/AppsidClient"
+          },
+          {
+            "$ref": "#/components/parameters/AppsidApp"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The new secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "secret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "secret"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/AppsError"
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "curl",
+            "label": "curl",
+            "source": "curl -X POST \"https://api.planvortex.com/v1.0.0/clients/$ID_CLIENT/apps/$ID_APP/secret\" \\\n  -H \"Authorization: Bearer $PLANVORTEX_TOKEN\""
           }
         ],
         "x-planvortex-sdk-note": "This endpoint is not available to an app token, so the official libraries cannot call it: it needs a signed-in user. See `x-planvortex-identity`."
@@ -5770,7 +5959,7 @@
           "dashboard"
         ],
         "summary": "The whole home screen in one call",
-        "description": "Composes every block of the home screen in a single round trip: operational health, publications, publication metrics, account metrics, plan use, AI plans and unread messages.\n\n**A block the caller cannot read is omitted, not refused.** The endpoint only demands the minimum permission — reading the organization — and then checks each block on its own: somebody who can only see publications still gets their home instead of a 403. `available_blocks` says which blocks were allowed, so an absent block for lack of permission and an absent block for lack of data can be drawn differently.\n\nThe messages block is also omitted when the client's plan has no messaging.",
+        "description": "Composes every block of the home screen in a single round trip: operational health, publications, publication metrics, account metrics, plan use, AI plans, the best AI plans and unread messages.\n\n**A block the caller cannot read is omitted, not refused.** The endpoint only demands the minimum permission — reading the organization — and then checks each block on its own: somebody who can only see publications still gets their home instead of a 403. `available_blocks` says which blocks were allowed, so an absent block for lack of permission and an absent block for lack of data can be drawn differently.\n\nThe messages block is also omitted when the client's plan has no messaging.",
         "operationId": "getDashboard",
         "x-planvortex-identity": [
           "current_user",
@@ -12151,6 +12340,207 @@
           }
         }
       },
+      "AiPlanResult": {
+        "type": "object",
+        "description": "What ONE AI plan achieved with what it published.\n\n**Where the numbers come from.** A plan keeps its publications, and each publication keeps the last known value of its metrics (the same ones `GET /organizations/{id}/publications/stats` returns). This adds those up — nothing here is measured twice or asked to the network again.\n\n**Only the publications that went out and were measured count** (`publications.measured`). A post scheduled for tomorrow, one that failed or one published an hour ago that nobody has measured yet does not lower the average: it is simply not in it.\n\n**A missing metric is not a zero**, as everywhere else: if no publication of the plan reports `reach`, the plan has no `reach` key.",
+        "required": [
+          "id_ai_plan",
+          "id_organization",
+          "prompt",
+          "template",
+          "state",
+          "week_start",
+          "creation_date",
+          "accounts",
+          "social_networks",
+          "credits_spent",
+          "publications",
+          "metrics",
+          "ranked",
+          "maturing"
+        ],
+        "properties": {
+          "id_ai_plan": {
+            "type": "string"
+          },
+          "id_organization": {
+            "type": "string",
+            "description": "The organization the plan belongs to. In the dashboard block it can be a **child** of the organization you asked about, and a plan is only reachable by id through its own organization."
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "template": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "from_images",
+              "from_text",
+              "from_catalog",
+              "campaign"
+            ],
+            "description": "What the plan was generated from. A plan created before templates existed reads `standard`."
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "generated",
+              "validated"
+            ],
+            "description": "Only these two can have results. A `generated` plan was never validated, but someone may have published some of its drafts by hand."
+          },
+          "week_start": {
+            "type": "string",
+            "format": "date-time",
+            "description": "The week the plan publishes in. **This is what the range filters on**, not the creation date."
+          },
+          "creation_date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "archived_date": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Archived plans are included: archiving is visibility only, and what they published is still published."
+          },
+          "accounts": {
+            "type": "integer",
+            "description": "Accounts the plan was generated for."
+          },
+          "social_networks": {
+            "type": "array",
+            "description": "Networks the plan published on. With the `social_network` filter, only the filtered ones.",
+            "items": {
+              "$ref": "#/components/schemas/SocialNetwork"
+            }
+          },
+          "credits_spent": {
+            "type": "integer",
+            "description": "AI credits the plan cost, for the whole plan."
+          },
+          "publications": {
+            "type": "object",
+            "required": [
+              "total",
+              "published",
+              "measured",
+              "scheduled",
+              "failed"
+            ],
+            "properties": {
+              "total": {
+                "type": "integer",
+                "description": "Publications of the plan that still exist. Deleted ones do not count."
+              },
+              "published": {
+                "type": "integer",
+                "description": "Went out to the network."
+              },
+              "measured": {
+                "type": "integer",
+                "description": "Published **and** with metrics collected: the only ones the averages use."
+              },
+              "scheduled": {
+                "type": "integer",
+                "description": "Scheduled, or being published right now."
+              },
+              "failed": {
+                "type": "integer",
+                "description": "Failed to publish."
+              }
+            }
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/NormalizedMetrics"
+          },
+          "engagement_per_publication": {
+            "type": "number",
+            "description": "Interactions per measured publication — **the number plans are ranked by**. The total rewards size (seven accounts for seven days beat one account even if each post does half as well), and the engagement rate divides by reach on some networks and by followers on others, which makes two plans on different networks incomparable. Absent when nothing is measured yet."
+          },
+          "expected_engagement_per_publication": {
+            "type": "number",
+            "description": "What **your usual posts** would get with the same mix of networks: the organization's average interactions per measured post on each network, weighted by how many measured posts the plan has there. Two measured posts on Instagram (average 5) and two on LinkedIn (average 1) expect (2·5 + 2·1) / 4 = 3.\n\nThe average covers **every** measured post of the organization in the range, AI ones included, on the same networks. Weighting by network is what keeps a LinkedIn-only plan from always reading as below average just because LinkedIn moves less than Instagram."
+          },
+          "engagement_vs_average": {
+            "type": "number",
+            "description": "`engagement_per_publication` divided by `expected_engagement_per_publication`: **1 means like your average, 2 twice as much, 0.5 half**. This is the number that says whether a plan is *good*, not just first — the ranking still orders by `engagement_per_publication`, so the first plan can be below 1. Absent with nothing measured or no average to compare with."
+          },
+          "credits_per_engagement": {
+            "type": "number",
+            "description": "AI credits per interaction: what each interaction cost. Lower is better. Absent with no interactions, with no credits spent (your own AI key) and **whenever `social_network` is filtered** — the cost belongs to the whole plan, and dividing it by one network's interactions would overprice every one of them."
+          },
+          "last_publish_date": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ranked": {
+            "type": "boolean",
+            "description": "Whether the plan competes in the ranking: it needs at least **3 measured publications**, or all of them if it published fewer. With a single measurement, one lucky post would put its plan first."
+          },
+          "maturing": {
+            "type": "boolean",
+            "description": "Its numbers are still moving: something is still scheduled, or its last publication is less than 7 days old. Comparing it with a plan from last month is unfair to the new one — say so rather than hiding it."
+          }
+        }
+      },
+      "AiPlanResultsGroup": {
+        "type": "object",
+        "description": "The aggregate of a set of plans: all of them, or those of one template.",
+        "required": [
+          "plans",
+          "ranked_plans",
+          "publications",
+          "metrics",
+          "credits_spent"
+        ],
+        "properties": {
+          "plans": {
+            "type": "integer"
+          },
+          "ranked_plans": {
+            "type": "integer",
+            "description": "How many of them compete in the ranking (see `AiPlanResult.ranked`)."
+          },
+          "publications": {
+            "type": "object",
+            "required": [
+              "published",
+              "measured"
+            ],
+            "properties": {
+              "published": {
+                "type": "integer"
+              },
+              "measured": {
+                "type": "integer"
+              }
+            }
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/NormalizedMetrics"
+          },
+          "engagement_per_publication": {
+            "type": "number",
+            "description": "A **weighted** average: every interaction of the group divided by every measured publication of the group — not the average of each plan's average, which would let a one-post plan weigh as much as a forty-post one."
+          },
+          "expected_engagement_per_publication": {
+            "type": "number",
+            "description": "What your usual posts would get with the group's mix of networks, weighted like its average. Only plans that have a reference count."
+          },
+          "engagement_vs_average": {
+            "type": "number",
+            "description": "The group's interactions per post over what was expected, computed over the **same** plans on both sides — a plan with no reference cannot add its interactions to one side only."
+          },
+          "credits_spent": {
+            "type": "integer",
+            "description": "Credits of every plan in the group."
+          },
+          "credits_per_engagement": {
+            "type": "number",
+            "description": "Credits per interaction, counting **only the plans that already have something measured**: a plan validated yesterday brings its whole cost and no interactions, and would make the group look expensive for arriving late. Absent with the `social_network` filter."
+          }
+        }
+      },
       "AiPlansAiPlan": {
         "type": "object",
         "properties": {
@@ -12565,6 +12955,95 @@
           }
         }
       },
+      "AiPlansAiPlanResults": {
+        "type": "object",
+        "required": [
+          "range",
+          "sort",
+          "totals",
+          "by_template",
+          "ai_plans",
+          "total"
+        ],
+        "properties": {
+          "range": {
+            "type": "object",
+            "description": "The range that was actually used. The plans in it are those whose **week** starts inside it.",
+            "required": [
+              "from_date",
+              "to_date"
+            ],
+            "properties": {
+              "from_date": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "to_date": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "previous_from_date": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "previous_to_date": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          },
+          "sort": {
+            "type": "string",
+            "description": "The order that was applied."
+          },
+          "totals": {
+            "$ref": "#/components/schemas/AiPlanResultsGroup"
+          },
+          "by_template": {
+            "type": "array",
+            "description": "One entry per template that has plans in the range, best `engagement_per_publication` first. This is the answer to «which kind of plan works for me?».",
+            "items": {
+              "$ref": "#/components/schemas/AiPlansAiPlanResultsTemplateGroup"
+            }
+          },
+          "ai_plans": {
+            "type": "array",
+            "description": "The page of plans, in `sort` order.",
+            "items": {
+              "$ref": "#/components/schemas/AiPlanResult"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "description": "Plans with results in the range (and filters), across every page."
+          }
+        }
+      },
+      "AiPlansAiPlanResultsTemplateGroup": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/AiPlanResultsGroup"
+          },
+          {
+            "type": "object",
+            "required": [
+              "template"
+            ],
+            "properties": {
+              "template": {
+                "type": "string",
+                "enum": [
+                  "standard",
+                  "from_images",
+                  "from_text",
+                  "from_catalog",
+                  "campaign"
+                ]
+              }
+            }
+          }
+        ]
+      },
       "AiPlansAiPlanSource": {
         "type": "object",
         "description": "The plan source as it was STORED: a snapshot taken when the plan was created, not a live reference. It is what makes a retry reproduce the same plan even if the article went offline or the product left the catalogue — same reason as `organization_context`.",
@@ -12729,7 +13208,7 @@
           },
           "keycloak_client_idenfifier": {
             "type": "string",
-            "description": "The app's `client_id`."
+            "description": "The app's `client_id`. Fixed for the life of the app: it cannot be changed once created (error 547)."
           },
           "allowed_domains": {
             "type": "array",
@@ -12785,7 +13264,11 @@
           },
           "keycloak_client_idenfifier": {
             "type": "string",
-            "description": "The app's `client_id`, which is what you send to `POST /oauth/token`. It has to be unique across PlanVortex (error 534). The spelling of the field is historical and kept for compatibility."
+            "pattern": "^[a-z0-9][a-z0-9._-]{2,63}$",
+            "minLength": 3,
+            "maxLength": 64,
+            "example": "shop-integration",
+            "description": "The app's `client_id`, which is what you send to `POST /oauth/token`.\n\n**Format is enforced** (error 533): lowercase letters, numbers, `.`, `-` and `_`, starting with a letter or a number, between 3 and 64 characters — `shop-integration`, not `Shop Integration`. Keycloak itself accepts anything, so an identifier with a space in it used to create an app that could never get a token.\n\nIt also has to be unique across PlanVortex (error 534), and **it cannot be changed once the app exists** (error 547): it is what your integration authenticates with, so renaming it would lock out everything already using the old one. Send it unchanged on an update, or leave it out. The spelling of the field is historical and kept for compatibility."
           },
           "allowed_domains": {
             "type": "array",
@@ -14196,6 +14679,10 @@
               },
               "messages": {
                 "type": "boolean"
+              },
+              "ai_plan_results": {
+                "type": "boolean",
+                "description": "Needs both `ai_plans:read` and `publication_stats:read`: the block shows plans and their publications' metrics."
               }
             },
             "required": [
@@ -14205,7 +14692,8 @@
               "account_metrics",
               "plan_use",
               "ai_plans",
-              "messages"
+              "messages",
+              "ai_plan_results"
             ]
           },
           "health": {
@@ -14372,6 +14860,40 @@
               "generated_publications",
               "pending_validation"
             ]
+          },
+          "ai_plan_results": {
+            "type": "object",
+            "description": "The best AI plans of the range, by interactions per measured publication — the short version of `GET /clients/{id}/organizations/{id}/ai_plans/results`, with the same rules: the range filters on the plan's **week**, and only plans with at least 3 measured publications compete.\n\nUnlike that endpoint it covers the organization **and its children**, like the rest of this screen, so each plan carries its `id_organization`.",
+            "required": [
+              "top",
+              "plans",
+              "ranked_plans"
+            ],
+            "properties": {
+              "top": {
+                "type": "array",
+                "description": "Up to three plans, best first. Only ranked ones.",
+                "items": {
+                  "$ref": "#/components/schemas/AiPlanResult"
+                }
+              },
+              "plans": {
+                "type": "integer",
+                "description": "Plans with results in the range."
+              },
+              "ranked_plans": {
+                "type": "integer",
+                "description": "How many of those compete in the ranking. `plans > 0` with `ranked_plans: 0` means there are results, just not enough measured yet."
+              },
+              "engagement_per_publication": {
+                "type": "number",
+                "description": "Interactions per measured publication across every plan of the range."
+              },
+              "engagement_vs_average": {
+                "type": "number",
+                "description": "Interactions per post of every plan of the range over what your usual posts would get on the same networks. 1 means like your average."
+              }
+            }
           },
           "messages": {
             "type": "object",
@@ -16892,6 +17414,16 @@
       }
     },
     "parameters": {
+      "AiPlansfromDate": {
+        "name": "from_date",
+        "in": "query",
+        "description": "Start of the range, ISO 8601. Defaults to 30 days before `to_date`. A range longer than 366 days answers error 1003.",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
       "AiPlansidAiPlan": {
         "name": "id_ai_plan",
         "in": "path",
@@ -16917,6 +17449,16 @@
         "description": "Organization identifier",
         "schema": {
           "type": "string"
+        }
+      },
+      "AiPlanstoDate": {
+        "name": "to_date",
+        "in": "query",
+        "description": "End of the range, ISO 8601. Defaults to now.",
+        "required": false,
+        "schema": {
+          "type": "string",
+          "format": "date-time"
         }
       },
       "AppsidApp": {

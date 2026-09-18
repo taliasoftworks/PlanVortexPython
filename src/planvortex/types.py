@@ -112,6 +112,22 @@ not comparable**: if you put them in the same table, say which one it is.
 AiPlanState: TypeAlias = Literal["pending", "generating", "generated", "validated", "failed", "cancelled"]
 """The state of an AI plan. ``pending`` and ``generating`` are the two you poll on."""
 
+AiPlanResultsSort: TypeAlias = Literal[
+    "engagement_per_publication",
+    "engagement",
+    "impressions",
+    "reach",
+    "credits_per_engagement",
+    "credits_spent",
+    "week_start",
+]
+"""What the results of the AI plans can be ordered by.
+
+Each one carries its natural direction and there is no ``order``: ``credits_per_engagement`` is
+better the LOWER it is, ``week_start`` goes newest first and everything else highest first. Plans
+without the value go last, whatever the direction.
+"""
+
 PlannerTemplateName: TypeAlias = Literal["standard", "from_images", "from_text", "from_catalog", "campaign"]
 """What an AI plan is generated FROM: the source of the content, not a different flow.
 
@@ -811,6 +827,36 @@ AiPlanCreateResult: TypeAlias = _models.AiPlansAiPlanCreateResponse
 AiPlanRegenerateResult: TypeAlias = _shapes.AiPlanRegenerateResult
 """What regenerating one publication leaves. ``credits_spent`` is the PLAN's total, not this call's."""
 
+AiPlanResult: TypeAlias = _models.AiPlanResult
+"""What ONE plan achieved with what it published.
+
+**The averages only count measured publications** (``publications.measured``): one still scheduled,
+one that failed or one published an hour ago that nobody has measured yet does not lower anything —
+it simply is not there.
+
+``engagement_per_publication`` is the number plans are ranked by, and **only a plan with
+``ranked: True`` competes** — at least 3 measured publications, or all of them if it published fewer.
+``maturing: True`` says its numbers are still moving: comparing it with last month's plan is unfair
+to the new one. And a key missing from ``metrics`` means no publication of the plan reports it, not
+a zero.
+
+**Being first is not being good**, and that is what ``engagement_vs_average`` is for: the plan's
+average over what your usual posts would get on the same networks (1 = your average, 2 = twice it).
+The ranking still orders by ``engagement_per_publication``, so the first plan can be below 1 — a
+LinkedIn plan gets less per post than an Instagram one and can still double its own network's average.
+"""
+
+AiPlanResultsGroup: TypeAlias = _models.AiPlanResultsGroup
+"""The aggregate of a set of plans. ``engagement_per_publication`` is a WEIGHTED average — every
+interaction over every measured publication — not the average of each plan's average."""
+
+AiPlanResultsTemplateGroup: TypeAlias = _models.AiPlansAiPlanResultsTemplateGroup
+"""The aggregate of the plans of ONE template: the answer to «which kind of plan works for me?»."""
+
+AiPlanResults: TypeAlias = _models.AiPlansAiPlanResults
+"""What :meth:`~planvortex.resources.ai_plans.AsyncAiPlansResource.results` returns: the totals,
+the breakdown per template and the page of plans."""
+
 ClientApp: TypeAlias = _models.AppsClientApp
 """A client app: the credentials an integration authenticates with."""
 
@@ -1063,6 +1109,11 @@ __all__ = [
     "AiPlanOptions",
     "AiPlanOptionsInput",
     "AiPlanRegenerateResult",
+    "AiPlanResult",
+    "AiPlanResults",
+    "AiPlanResultsGroup",
+    "AiPlanResultsSort",
+    "AiPlanResultsTemplateGroup",
     "AiPlanSource",
     "AiPlanSourceImageInput",
     "AiPlanSourceInput",

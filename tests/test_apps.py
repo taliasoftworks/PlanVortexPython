@@ -66,6 +66,14 @@ def test_el_secreto_es_otra_llamada(cliente: ClienteDePrueba, httpx_mock: HTTPXM
     assert ruta(unica(httpx_mock)) == "/clients/cli1/apps/app1/secret"
 
 
+def test_rotar_el_secreto_es_un_post_a_la_misma_ruta(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:
+    """Leer y rotar son la MISMA ruta con dos verbos: un GET de mas no rota nada y un POST de mas si."""
+    httpx_mock.add_response(url=f"{APPS}/app1/secret", method="POST", json={"secret": "s3cr3t-nuevo"})
+
+    assert cliente.esperar(cliente.pv.apps.rotate_secret("cli1", "app1")) == "s3cr3t-nuevo"
+    assert unica(httpx_mock).method == "POST"
+
+
 def test_borrar(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:
     httpx_mock.add_response(url=f"{APPS}/app1", method="DELETE", json={"success": True})
 

@@ -4,6 +4,46 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-09-17
+
+**Which AI plan worked?** The server can now answer it, and so can this package:
+`ai_plans.results()` returns what every plan achieved with what it published, the aggregate per
+template and the total.
+
+Nothing was removed and no signature moved: upgrading from `0.8.0` needs no changes, and
+`MIGRATION.md` gains no entry.
+
+### Added
+
+- **`pv.ai_plans.results(id_client, id_organization, ...)`**, over
+  `GET /clients/{id}/organizations/{id}/ai_plans/results`, in both clients. Four things about it
+  are not obvious, and all four are in its docstring:
+  - **The range filters on the plan's week** (`week_start`), not on when it was created. A plan
+    created today for next week has published nothing yet.
+  - **The ranking is interactions per _measured_ publication**, not the total — the total rewards
+    the plan with seven accounts even when each post does half as well — and only plans with
+    `ranked: True` (at least three measured publications, or all of them) compete in it.
+  - **`social_network` recomputes every plan with only its publications on those networks**,
+    which is what makes plans on different networks comparable. With that filter
+    `credits_per_engagement` is absent: the cost belongs to the whole plan.
+  - **It is not a `Page`.** Besides the page it carries `totals` and `by_template`, which do not
+    depend on the page, so it comes back whole.
+  - **Being first is not being good.** Every plan, group and the dashboard block carry
+    `engagement_vs_average`: the plan's interactions per post over what your usual posts get on the
+    same networks (`expected_engagement_per_publication`), where **1 is your average**. The ranking
+    still orders by interactions per post, so the first plan can be below 1.
+- Types `AiPlanResult`, `AiPlanResults`, `AiPlanResultsGroup`, `AiPlanResultsTemplateGroup` and
+  the closed `AiPlanResultsSort`.
+- **`Dashboard["ai_plan_results"]`** and its `available_blocks["ai_plan_results"]`: the three best
+  plans of the range, for the home screen. It needs both `ai_plans:read` and
+  `publication_stats:read`, and unlike `ai_plans.results()` it covers the organization **and its
+  children**, so each row carries its `id_organization`.
+- **`pv.apps.rotate_secret(id_client, id_app)`**, over `POST /clients/{id}/apps/{id}/secret`. The
+  route reached the specification before this package, and regenerating the models is what turned
+  `tests/test_route_coverage.py` red — which is the test doing its job. **The previous secret stops
+  working the moment it answers, and the webhook signature changes with it.** Like `secret()`, it
+  needs a user token.
+
 ## [0.8.0] - 2026-09-13
 
 Slack, the thirteenth network, reaches the package — and here it arrives the way it should: **three

@@ -318,7 +318,7 @@ you missed.
 · `pv.comments` · `pv.messages` · `pv.contacts` · `pv.products` · `pv.integrations` · `pv.ai_plans`
 · `pv.dashboard` · `pv.apps`
 
-That is **113 of the 113 operations** the specification documents — everything except the 19 routes
+That is **117 of the 117 operations** the specification documents — everything except the 19 routes
 of roles and invitations, which are out of scope. A script walks the OpenAPI bundle on every test
 run and fails if a route is left without a method, so the sentence above stays true.
 

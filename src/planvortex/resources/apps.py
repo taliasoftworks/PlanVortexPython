@@ -108,6 +108,21 @@ class AsyncAppsResource(AsyncResource):
         )
         return cuerpo["secret"]
 
+    async def rotate_secret(self, id_client: str, id_app: str, *, timeout: float | None = None) -> str:
+        """Rotate the ``client_secret`` and return the new one. **Needs a user token** (512) and
+        ``client_app:update``.
+
+        **The previous secret stops working the moment this answers**, with no grace period: anything
+        still holding it gets ``invalid_client`` on its next token request. And **it also changes how
+        webhooks are signed** — the signature is an HMAC with this same secret — so a receiver that
+        verifies it rejects legitimate deliveries until it is updated. Roll it out before rotating,
+        not after.
+        """
+        cuerpo: dict[str, str] = await self._post(
+            f"{self._one_path(id_client, id_app)}/secret", timeout=timeout
+        )
+        return cuerpo["secret"]
+
     def _path(self, id_client: str) -> str:
         return f"/clients/{require_id(id_client, 'id_client')}/apps"
 
