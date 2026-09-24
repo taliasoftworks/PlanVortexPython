@@ -45,16 +45,17 @@ RECURSOS = (
 
 
 def test_no_queda_ninguna_ruta_del_alcance_sin_metodo() -> None:
-    """117 de 117. Si esto falla, el mensaje dice exactamente cual falta.
+    """119 de 119. Si esto falla, el mensaje dice exactamente cual falta.
 
     La 114 y la 115 son `archive` y `unarchive` de un plan de IA: son DOS rutas y no un cuerpo con
     un booleano, asi que el alcance crece de dos en dos cuando aparece una pareja de estas. La 116 es
     rotar el secreto de una app (`POST .../apps/{id}/secret`), que llego al spec antes que aqui, y la
-    117 los resultados de los planes de IA (`GET .../ai_plans/results`).
+    117 los resultados de los planes de IA (`GET .../ai_plans/results`). La 118 y la 119 son los
+    tableros de Pinterest: la lista de destinos de una cuenta y el detalle de uno.
     """
     sin_cubrir, _, total = route_coverage.informe()
 
-    assert total == 117, "el alcance ha cambiado de tamano: mira si el spec ha crecido"
+    assert total == 119, "el alcance ha cambiado de tamano: mira si el spec ha crecido"
     assert not sin_cubrir, "rutas del spec que ningun recurso construye:\n" + "\n".join(
         str(operacion) for operacion in sin_cubrir
     )

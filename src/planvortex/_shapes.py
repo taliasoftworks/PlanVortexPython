@@ -33,6 +33,7 @@ from planvortex._generated.models import (
     PlanData,
     PlanUseData,
     Publication,
+    PublicationDestination,
     Upload,
 )
 from planvortex._generated.models import (
@@ -138,7 +139,7 @@ class AccountUpdate(TypedDict):
 
 
 class RedirectAuthorization(TypedDict):
-    """Send the person to the entry's ``link``. Ten of the twelve networks.
+    """Send the person to the entry's ``link``. Twelve of the fourteen networks.
 
     One of the THREE halves of the ``authorization`` block of a connection link. The generated type
     is a single flat ``TypedDict`` with every field ``NotRequired``, because that is the only way
@@ -266,13 +267,14 @@ PublishableNetwork: TypeAlias = Literal[
     "discord",
     "telegram",
     "slack",
+    "pinterest",
 ]
-"""A network that accepts publications: the twelve of the thirteen that have a feed.
+"""A network that accepts publications: the thirteen of the fourteen that have a feed.
 
 ``google_business`` is the one missing, and it is not an oversight: a local listing receives
 reviews, not posts. Sending it raises error 702. It is a **narrower** type than
 ``types.SocialNetwork`` and that is the whole point — an account's ``social_network`` is one of
-thirteen and this is one of twelve, so handing one straight to the other is a type error even when a
+fourteen and this is one of thirteen, so handing one straight to the other is a type error even when a
 ``capability="publications"`` filter has already made it impossible at runtime.
 ``types.is_publishable_network`` is what bridges it.
 
@@ -297,14 +299,16 @@ class PublicationInput(TypedDict):
 
     social_network: NotRequired[PublishableNetwork]
     """Network the publication targets. **Required when creating**: error 702 if it is missing or
-    is not one of the twelve. It has to match the network of the account in the path."""
+    is not one of the thirteen. It has to match the network of the account in the path."""
     text: NotRequired[str]
     """Body text. Either this or one entry in ``files``; with neither, the publication is still
     created but lands in ``withErrors`` with code 915. On YouTube this is the video
     **description**."""
     title: NotRequired[str]
     """Only some networks use it: optional on LinkedIn, **required on YouTube** and 100 characters
-    at most there (code 944)."""
+    at most there (code 944). On Pinterest it is the pin's title, a field separate from ``text``
+    with a limit of its own: 100 counted in code points, while the description's 800 are counted in
+    UTF-16 units (code 995)."""
     files: NotRequired[list[str]]
     """Identifiers of uploads already created. Here they ARE identifiers; what comes back is whole
     :data:`Upload` objects."""
@@ -316,6 +320,18 @@ class PublicationInput(TypedDict):
     process's zone does it for whoever is in Docker. A string travels untouched, so it is on you to
     make it ISO-8601 — an invalid date is error 938.
     """
+    destination: NotRequired[PublicationDestination]
+    """**Where inside the account** it goes: on Pinterest, the board. **Required there**, and
+    leaving it out does not raise — the publication is created in ``withErrors`` with code 987 and
+    is never attempted. Read the boards with ``accounts.destinations()``. ``destination["id"]`` is
+    **always a string**: Pinterest's ids are long integers, and sending the board's *name* instead
+    fails the same way. On every other network the field is deleted on save. Ask ``destinations``
+    in ``catalog.social_capabilities()`` rather than keeping your own list."""
+    link: NotRequired[str]
+    """**The destination link**: where the publication takes whoever clicks it — today, the pin's
+    link on Pinterest. It goes here, not inside ``text``, where it would be visible and
+    unclickable. Anything that is not an ``http(s)`` URL is error 994 at creation. On every other
+    network the field is deleted on save; ask ``link`` in ``catalog.social_capabilities()``."""
     name: NotRequired[str]
     """Internal name, for grouping. Never shown on the network."""
     publication_type: NotRequired[Literal["profile", "page", "group", "reels", "stories"]]

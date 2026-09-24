@@ -1,4 +1,4 @@
-"""Cuentas conectadas (capa 2), con los doce metodos del recurso.
+"""Cuentas conectadas (capa 2), con los catorce metodos del recurso.
 
 Aqui vive el fallo mas caro de toda la fase, y tiene su propio test: **el callback de conexion
 contesta 200 con el error dentro**. Es un apaño deliberado del servidor —el navegador aterriza ahi
@@ -215,6 +215,29 @@ def test_el_menu_persistente_se_lee_y_se_reemplaza(cliente: ClienteDePrueba, htt
     assert cliente.esperar(cliente.pv.accounts.get_persistent_menu("org1", "acc1")) == menu
     assert cliente.esperar(cliente.pv.accounts.set_persistent_menu("org1", "acc1", menu)) == menu
     assert cuerpo(peticiones(httpx_mock)[1]) == {"persistent_menu": menu}
+
+
+def test_los_tableros_se_leen_con_el_id_como_cadena(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:
+    """Los tableros de Pinterest: la lista y el detalle de uno, con sus secciones.
+
+    Dos cosas que un test tiene que fijar: que el id viaja y vuelve como CADENA —un entero largo de
+    Pinterest convertido a numero pierde digitos en cualquier cliente que no sea Python, y el pin
+    sale en otro tablero—, y que ``refresh`` solo sale cuando se pide, porque la cache es lo que
+    protege el techo de la aplicacion, que es de TODOS los clientes a la vez.
+    """
+    tablero = {"id": "1123581321345589144", "name": "Recetas", "privacy": "PUBLIC"}
+    httpx_mock.add_response(url=f"{ORG}/accounts/acc1/destinations", json={"destinations": [tablero]})
+    httpx_mock.add_response(
+        url=f"{ORG}/accounts/acc1/destinations/{tablero['id']}?refresh=true",
+        json={"destination": {**tablero, "sections": [{"id": "4815162342", "name": "Postres"}]}},
+    )
+
+    tableros = cliente.esperar(cliente.pv.accounts.destinations("org1", "acc1"))
+    detalle = cliente.esperar(cliente.pv.accounts.destination("org1", "acc1", tablero["id"], refresh=True))
+
+    assert tableros[0]["id"] == "1123581321345589144"
+    assert detalle["sections"][0]["id"] == "4815162342"
+    assert query(peticiones(httpx_mock)[0]) == {}
 
 
 def test_una_cuenta_rota_sigue_en_la_lista(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:

@@ -66,6 +66,28 @@ class AsyncPublicationsResource(AsyncResource):
                     "publish_date": datetime(2026, 9, 1, 10, 0, tzinfo=timezone.utc),
                 },
             )
+
+        **On Pinterest the board is REQUIRED**, and leaving it out does not raise here: without
+        ``destination`` the publication is created in ``withErrors`` with the 987 and nobody attempts
+        it. The boards are read with ``accounts.destinations()``, and the pin's link goes in
+        ``link``, not inside the text. Pinterest **has no comments** readable through its API, so its
+        pins never reach ``pv.comments``.
+
+        .. code-block:: python
+
+            board = (await pv.accounts.destinations(org_id, pinterest_id))[0]
+            await pv.publications.create(
+                org_id,
+                pinterest_id,
+                {
+                    "social_network": "pinterest",
+                    "title": "Hogaza de centeno",
+                    "text": "La receta, paso a paso",
+                    "files": [upload["_id"]],
+                    "destination": {"id": board["id"], "name": board["name"]},
+                    "link": "https://panaderia.example/centeno",
+                },
+            )
         """
         publicacion: Publication = await self._post_one(
             f"{self._account_path(id_organization, id_account)}/publish",

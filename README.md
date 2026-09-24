@@ -212,11 +212,11 @@ memorising numbers:
 
 | Codes | Family | Exception |
 |---|---|---|
-| 500-546 | `auth` | `AuthError` |
+| 500-548 | `auth` | `AuthError` |
 | 601-612 | `user` | `UserError` |
-| 700-715 | `account` | `AccountError` |
+| 700-716 | `account` | `AccountError` |
 | 800-810 | `file` | `FileError` |
-| 900-986 | `publication` | `PublicationError` |
+| 900-996 | `publication` | `PublicationError` |
 | 1000-1003 | `general` | `PlanVortexError` |
 | 1100-1111 | `organization` | `OrganizationError` |
 | 1200-1207 | `role` | `PlanVortexError` |

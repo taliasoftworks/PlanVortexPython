@@ -16,7 +16,9 @@ no llego a salir (§ P10), el `Retry-After` largo que se devuelve en vez de espe
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import httpx2
@@ -33,6 +35,7 @@ from planvortex._core.errors import (
     PublicationError,
     create_error_from_response,
     error_class_for_code,
+    error_family_for_code,
     is_token_error,
 )
 from planvortex._core.http import HttpHooks, HttpRequest, RetryConfig, RetryInfo, parse_retry_after
@@ -297,6 +300,21 @@ def test_las_listas_viajan_como_clave_repetida(nucleo: Any, httpx_mock: HTTPXMoc
 # ------------------------------------------------------- lo que no necesita las dos variantes
 
 
+def test_todos_los_codigos_que_documenta_el_spec_tienen_familia() -> None:
+    """LA RAIZ de las tres veces que un rango se quedo corto —978, 980, 987—.
+
+    Cada vez que el servidor estrenaba codigos por encima del techo de un rango, esta libreria los
+    clasificaba mal durante semanas y nada avisaba. Las tablas de error del spec commiteado nombran
+    cada codigo que un endpoint puede devolver, asi que todos tienen que caer en alguna familia. Si
+    esto falla tras regenerar, sube el techo en ``PLANVORTEX_ERROR_RANGES`` (y en los otros cuatro
+    sitios que dice su comentario).
+    """
+    spec = (Path(__file__).resolve().parent.parent / "openapi" / "planvortex.openapi.json").read_text("utf-8")
+    codigos = {int(codigo) for codigo in re.findall(r"\| `(\d{3,4})` \|", spec)}
+    assert len(codigos) > 100
+    assert sorted(codigo for codigo in codigos if error_family_for_code(codigo) is None) == []
+
+
 def test_cada_rango_del_catalogo_cae_en_su_clase() -> None:
     """El apendice A del roadmap, comprobado codigo a codigo en las fronteras.
 
@@ -316,6 +334,16 @@ def test_cada_rango_del_catalogo_cae_en_su_clase() -> None:
     # red: es lo que contesta un canal privado al que nadie ha invitado al bot.
     assert error_class_for_code(980).__name__ == "PublicationError"
     assert error_class_for_code(986).__name__ == "PublicationError"
+    # Pinterest estreno el 987-996, por encima del techo: la TERCERA vez, despues del 978 y del
+    # 980. El 991 es el que mas importa: Pinterest frenando a la aplicacion, llega 429.
+    assert error_class_for_code(987).__name__ == "PublicationError"
+    assert error_class_for_code(991).__name__ == "PublicationError"
+    assert error_class_for_code(996).__name__ == "PublicationError"
+    # Y tres que el servidor ya emitia y caian en la base: 547 y 548 (apps; el 548 lo trae
+    # rotate_secret) y 716 (la sesion de Bluesky la renueva otro proceso: reintentar).
+    assert error_class_for_code(547).__name__ == "AuthError"
+    assert error_class_for_code(548).__name__ == "AuthError"
+    assert error_class_for_code(716).__name__ == "AccountError"
     assert error_class_for_code(1300).__name__ == "PlanLimitError"
     # 1308 es el tope de APPS del plan, y 545/546 los dos codigos que trajo abrir la API publica
     # a todos los planes. Los tres nacieron por encima del techo que tenian sus rangos.

@@ -47,12 +47,17 @@ SocialNetwork: TypeAlias = _models.SocialNetwork
 """A supported social network. The runtime list is :data:`SOCIAL_NETWORKS`."""
 
 PublishableNetwork: TypeAlias = _shapes.PublishableNetwork
-"""A network that accepts publications: twelve of the thirteen. The runtime list is
+"""A network that accepts publications: thirteen of the fourteen. The runtime list is
 :data:`PUBLISHABLE_NETWORKS`, and :func:`is_publishable_network` is what narrows a
 :data:`SocialNetwork` down to it."""
 
 CommentNetwork: TypeAlias = _models.CommentsCommentNetworkName
-"""A network whose comments PlanVortex reads. The runtime list is :data:`COMMENT_NETWORKS`."""
+"""A network whose comments PlanVortex reads. The runtime list is :data:`COMMENT_NETWORKS`.
+
+It is **not** :data:`PublishableNetwork` minus something: the two lists are independent.
+``pinterest`` publishes and is NOT here — Pinterest's API does not let anyone read a pin's comments,
+although the number does arrive in its metrics — just as ``google_business`` is here and does not
+publish."""
 
 ContactChannel: TypeAlias = _models.ContactChannel
 """Where a contact can be reached: a network with messaging, or ``email``.
@@ -155,7 +160,7 @@ its own; the rest are ordinary controls.
 SOCIAL_NETWORKS: tuple[SocialNetwork, ...] = cast("tuple[SocialNetwork, ...]", get_args(SocialNetwork))
 """Every social network this release knows about, as a tuple you can iterate at runtime.
 
-**The list grows** — it has gone from six to thirteen in two years — so treat a value you do not
+**The list grows** — it has gone from six to fourteen in two years — so treat a value you do not
 recognise as a network you have not heard of yet, never as an error. What is authoritative at any
 moment is ``GET /social_networks``; this tuple is what shipped with this version of the package.
 
@@ -416,7 +421,7 @@ EnableResult: TypeAlias = _shapes.EnableResult
 """What enabling an account leaves, which is only the place to send the user afterwards, if any."""
 
 SocialAuthorizationMethod: TypeAlias = _models.AccountsSocialAuthorizationMethod
-"""How a network is authorized: ``redirect`` (nine of the eleven), ``meta_embedded_signup``
+"""How a network is authorized: ``redirect`` (twelve of the fourteen), ``meta_embedded_signup``
 (WhatsApp) or ``telegram_bot`` (Telegram).
 
 **It is a union pretending to be one type.** OpenAPI cannot say "these five fields only when ``type``
@@ -477,6 +482,25 @@ AccountUpdate: TypeAlias = _shapes.AccountUpdate
 PersistentMenu: TypeAlias = _models.AccountsPersistentMenu
 """The chat's fixed menu, in Meta's format. Only the networks with messaging have one."""
 
+Destination: TypeAlias = _models.PublicationsDestination
+"""A place INSIDE the account a publication can be sent to: on Pinterest, a board.
+
+What ``accounts.destinations()`` and ``accounts.destination()`` return — what you SHOW in a picker.
+What you SEND when creating the publication is :data:`PublicationDestination`, with ``id`` as the
+identifier (always a string) and ``name`` only as a label.
+
+``privacy`` is worth showing: a pin on a ``SECRET`` board is seen by nobody else, and afterwards
+nothing in the statistics explains why it has no impressions. And ``sections`` only comes in the
+detail of one destination, never in the list.
+"""
+
+PublicationDestination: TypeAlias = _models.PublicationDestination
+"""A publication's ``destination``: the board it goes to. See :data:`PublicationInput`.
+
+Only ``id`` decides (and ``section_id``, to send it to a section of the board). ``name`` and
+``section_name`` are labels for display — "Recipes > Desserts" — and the server never checks them.
+"""
+
 Upload: TypeAlias = _models.Upload
 """A file in the organization's library.
 
@@ -531,7 +555,7 @@ for whoever is in Docker.
 
 That ``datetime`` is why this is the one shape written by hand on top of the generated type: OpenAPI
 has a ``string`` with ``format: date-time`` and no way to say "or the language's own date". Its
-``social_network`` is :data:`PublishableNetwork`, which is **eleven** networks and not twelve.
+``social_network`` is :data:`PublishableNetwork`, which is **thirteen** networks and not fourteen.
 """
 
 PublicationErrorDetail: TypeAlias = _models.PublicationError
@@ -756,6 +780,29 @@ AiPlanCreateRequest: TypeAlias = _models.AiPlansAiPlanCreateRequest
 ``template`` and ``source`` are OPTIONAL: without them the plan is ``standard``, which is
 exactly what every plan did before templates existed. Sending an option the chosen template does not
 accept — a ``shared`` on ``from_images`` — is a 2106, not a silent ignore.
+
+**With a Pinterest account in the plan, two more checks run, both at creation:**
+
+- **``destinations`` is required for every Pinterest account**: the board where ALL of that
+  account's pins of the plan go, one entry per account (:data:`AiPlanDestination`). Without it — or
+  with an id that is not a string of digits — the plan is refused with **2118**, whose
+  ``data["accounts"]`` lists EVERY account that fails. Without that check the plan would be
+  created, charged, and leave a week of drafts with the 987.
+- **A plan that would leave pins without an image is refused with 2119**: a pin is never text
+  alone. Only with a template that GENERATES images, and ``data["reason"]`` says why:
+  ``images_disabled``, ``max_images`` or ``credits``. The images needed are one per day and per
+  account of a network that requires one, Instagram included, because both draw on the same budget.
+
+And ``options["link"]`` is the destination link of every pin of the plan: validated at creation
+(994) and dropped when the plan has no network with ``link``.
+"""
+
+AiPlanDestination: TypeAlias = _models.AiPlansAiPlanDestination
+"""The board of ONE Pinterest account of the plan: where all its pins go.
+
+One per account and not one per plan, because each profile has its own boards — and in a ``shared``
+plan the same content lands on each profile's board with nothing else to touch. There is no default
+board stored on the account.
 """
 
 AiPlanSourceInput: TypeAlias = _models.AiPlansAiPlanSourceInput
@@ -806,11 +853,16 @@ AiPlanNotice: TypeAlias = _models.AiPlansAiPlanNotice
 """Something a plan has to say about itself, in the shape of an API error.
 
 It is shared by ``error`` (only in state ``failed``) and by ``warnings``, which travels
-on a plan that generated **fine**. Today there is one warning: **2117 — part of the source did not
-fit in the plan week.** A plan is WEEKLY and the source does not extend it, so 12 photos with 6 slots
-left publish 6 and the rest are dropped; ``data`` carries
-``{"source_items": ..., "capacity": ...}``. The slots are your publish days times your accounts,
-so it is better said before creating the plan than after charging for it.
+on a plan that generated **fine**. Today there are two warnings:
+
+- **2117 — part of the source did not fit in the plan week.** A plan is WEEKLY and the source does
+  not extend it, so 12 photos with 6 slots left publish 6 and the rest are dropped; ``data`` carries
+  ``{"source_items": ..., "capacity": ...}``. The slots are your publish days times your accounts,
+  so it is better said before creating the plan than after charging for it.
+- **922 — a publication of a network that cannot publish without an image was left without one**:
+  a pin whose image failed halfway through the generation. The 2119 prevents the configuration
+  that causes it, not a provider failure. ``data["id_publication"]`` says which one: it will not
+  publish until it has an image.
 """
 
 AiPlanCostEstimate: TypeAlias = _models.AiPlansAiPlanCostEstimate
@@ -975,7 +1027,7 @@ def is_telegram_bot_authorization(
 def is_publishable_network(social_network: str) -> TypeGuard[PublishableNetwork]:
     """The network accepts publications, so it can go in a :data:`PublicationInput`.
 
-    An account's ``social_network`` is one of **thirteen** and a publication's is one of **twelve** —
+    An account's ``social_network`` is one of **fourteen** and a publication's is one of **thirteen** —
     ``google_business`` is a business listing, it receives reviews and not posts — so handing one
     straight to the other is a type error even when you have already filtered the accounts with
     ``capability="publications"`` and it cannot happen at runtime. This is the bridge::
@@ -986,7 +1038,7 @@ def is_publishable_network(social_network: str) -> TypeGuard[PublishableNetwork]
         pv.publications.create(org_id, cuenta["_id"], {"social_network": red, "text": texto})
 
     **Do not narrow it with ``if red != "google_business"``**: that reads as a negative comparison
-    against a thirteen-value union and leaves the other twelve plus itself, which is where it
+    against a fourteen-value union and leaves the other thirteen plus itself, which is where it
     started.
 
     It takes a ``str`` on purpose, so a network released after this version can be checked without
@@ -1105,6 +1157,7 @@ __all__ = [
     "AiPlanCostEstimate",
     "AiPlanCreateRequest",
     "AiPlanCreateResult",
+    "AiPlanDestination",
     "AiPlanNotice",
     "AiPlanOptions",
     "AiPlanOptionsInput",
@@ -1148,6 +1201,7 @@ __all__ = [
     "DashboardAiPlanRef",
     "DashboardPublicationRef",
     "DashboardRange",
+    "Destination",
     "EnableResult",
     "EngagementBase",
     "FileFormat",
@@ -1190,6 +1244,7 @@ __all__ = [
     "ProductCatalogInput",
     "ProductInput",
     "Publication",
+    "PublicationDestination",
     "PublicationErrorDetail",
     "PublicationInput",
     "PublicationLimits",

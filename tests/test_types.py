@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any, TypeGuard, cast, get_type_hints
 
 from planvortex.types import (
+    COMMENT_NETWORKS,
     PUBLISHABLE_NETWORKS,
     SOCIAL_NETWORKS,
     Account,
@@ -277,3 +278,16 @@ def test_las_que_publican_son_las_de_siempre_menos_una() -> None:
     assert all(is_publishable_network(red) for red in PUBLISHABLE_NETWORKS)
     # Telegram publica, aunque no tenga OAuth ni bandeja de chat: son cosas distintas.
     assert is_publishable_network("telegram")
+
+
+def test_pinterest_publica_y_no_comenta() -> None:
+    """La primera red que entra en una lista y NO en la otra: el caso simetrico de Google Business.
+
+    La API de Pinterest no deja leer los comentarios de un pin, asi que meterla en
+    ``COMMENT_NETWORKS`` prometeria una bandeja que no existe. Es la prueba de verdad de que las dos
+    listas son independientes y no una la otra menos algo.
+    """
+    assert "pinterest" in PUBLISHABLE_NETWORKS
+    assert "pinterest" not in COMMENT_NETWORKS
+    assert "google_business" in COMMENT_NETWORKS
+    assert "google_business" not in PUBLISHABLE_NETWORKS

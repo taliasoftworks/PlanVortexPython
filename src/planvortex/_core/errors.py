@@ -27,17 +27,22 @@ class ErrorRange(NamedTuple):
 # Los mismos 16 rangos que publica `swagger/common.json`, `PLANVORTEX_ERROR_RANGES` del paquete de
 # Node y el apendice A del roadmap. SI SE TOCA UN RANGO, SE TOCAN LOS CINCO SITIOS.
 PLANVORTEX_ERROR_RANGES: tuple[ErrorRange, ...] = (
-    # Hasta 546, no 544: la API publica se abrio a todos los planes y trajo dos codigos nuevos
-    # —545 (ritmo por plan, que sale 429) y 546 (correo sin verificar al crear una app)—.
-    ErrorRange(500, 546, "auth"),
+    # Hasta 548, no 544: la API publica se abrio a todos los planes y trajo dos codigos nuevos
+    # —545 (ritmo por plan, que sale 429) y 546 (correo sin verificar al crear una app)—, y las
+    # apps dos mas —547 (el identificador de una app no se cambia) y 548 (fallo al rotar el
+    # secreto, que es justo lo que estreno rotate_secret)—.
+    ErrorRange(500, 548, "auth"),
     ErrorRange(601, 612, "user"),
-    ErrorRange(700, 715, "account"),
+    # 716: la sesion de Bluesky la esta renovando otro proceso. Es temporal, y fuera de familia no
+    # habia forma de saber que la respuesta es reintentar.
+    ErrorRange(700, 716, "account"),
     ErrorRange(800, 810, "file"),
     # El techo sube con el catalogo del servidor, y subir tarde no da un error: da un consejo
     # equivocado. Los codigos de Bluesky, Discord, Telegram y Threads (961-977) y los dos frenos
     # de ritmo de la fase de publicaciones ilimitadas (978, 979) nacieron por encima de 960 y
-    # caian fuera de toda familia. Slack estreno el 980-986, que es el mismo caso otra vez.
-    ErrorRange(900, 986, "publication"),
+    # caian fuera de toda familia. Slack estreno el 980-986, que es el mismo caso otra vez, y
+    # Pinterest el 987-996 — la tercera vez.
+    ErrorRange(900, 996, "publication"),
     ErrorRange(1000, 1003, "general"),
     ErrorRange(1100, 1111, "organization"),
     ErrorRange(1200, 1207, "role"),
@@ -108,7 +113,7 @@ class PlanVortexError(Exception):
 
 
 class AuthError(PlanVortexError):
-    """500-546 — tokens, client apps, permissions. Includes 501 and 522, the expired-token ones."""
+    """500-548 — tokens, client apps, permissions. Includes 501 and 522, the expired-token ones."""
 
 
 class UserError(PlanVortexError):
@@ -116,7 +121,7 @@ class UserError(PlanVortexError):
 
 
 class AccountError(PlanVortexError):
-    """700-715 — social accounts: disconnected, missing permissions on the network, not refreshed."""
+    """700-716 — social accounts: disconnected, missing permissions on the network, not refreshed."""
 
 
 class FileError(PlanVortexError):
@@ -124,10 +129,12 @@ class FileError(PlanVortexError):
 
 
 class PublicationError(PlanVortexError):
-    """900-986 — publications, including per-network limits (characters, images, duration), the
+    """900-996 — publications, including per-network limits (characters, images, duration), the
     two rate brakes —978 (publishing too fast on this account) and 979 (that network's daily
-    cap)— and Slack's own (980-986), which start with the commonest one: 980, the app is not in
-    the channel.
+    cap)—, Slack's own (980-986), which start with the commonest one: 980, the app is not in
+    the channel, and Pinterest's (987-996), which start the same way: 987, the publication does not
+    say which board it goes to. One of them is not a failure: 991 is Pinterest throttling the
+    application, it arrives as a 429 with ``Retry-After`` and the answer is to wait.
     """
 
 

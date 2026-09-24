@@ -15,6 +15,7 @@ THIS FILE IS THE SOURCE OF ``resources_sync/accounts.py``.
 
 from __future__ import annotations
 
+import builtins
 from collections.abc import AsyncIterator, Mapping, Sequence
 from datetime import datetime
 from typing import Any
@@ -28,6 +29,7 @@ from planvortex.types import (
     AccountMetricNames,
     AccountMetrics,
     ConnectLink,
+    Destination,
     PersistentMenu,
 )
 
@@ -56,7 +58,7 @@ class AsyncAccountsResource(AsyncResource):
         rather than a failure: it is what happens to Discord in an organization that has not saved
         its own bot credentials yet.
 
-        **LOOK AT ``authorization``, NOT AT WHETHER ``link`` IS EMPTY.** Ten of the twelve networks
+        **LOOK AT ``authorization``, NOT AT WHETHER ``link`` IS EMPTY.** Twelve of the fourteen networks
         are ``redirect`` and the person is sent to ``link``. The other two are not, and neither of them
         fails visibly if you walk the list redirecting to ``link``:
 
@@ -285,6 +287,63 @@ class AsyncAccountsResource(AsyncResource):
             f"{self._path(id_organization, id_account)}/metric_list", timeout=timeout
         )
         return nombres
+
+    async def destinations(
+        self,
+        id_organization: str,
+        id_account: str,
+        *,
+        refresh: bool | None = None,
+        timeout: float | None = None,
+    ) -> builtins.list[Destination]:
+        """The places INSIDE the account a publication can be sent to: on Pinterest, the boards.
+
+        **Most networks have none, and that is not your fault**: connecting the account already says
+        where a publication comes out — the wall, the channel, the profile — and there the call
+        answers 992. Only the networks with ``destinations`` in ``catalog.social_capabilities()``
+        have a list.
+
+        **Where they exist, the destination is REQUIRED**: what comes back here is what goes in
+        ``destination["id"]`` when creating the publication, and without it the publication is
+        created in ``withErrors`` with the 987.
+
+        The **sections** of a board are not in this list: they are in :meth:`destination`.
+        ``refresh=True`` skips the server's short cache, for a board created a moment ago — not on
+        every call: all of PlanVortex's Pinterest traffic leaves through one application.
+        """
+        # `builtins.list` y no `list`: dentro de la clase, `list` es el metodo de listar cuentas.
+        destinos: builtins.list[Destination] = await self._one(
+            f"{self._path(id_organization, id_account)}/destinations",
+            "destinations",
+            {"refresh": refresh},
+            timeout=timeout,
+        )
+        return destinos
+
+    async def destination(
+        self,
+        id_organization: str,
+        id_account: str,
+        id_destination: str,
+        *,
+        refresh: bool | None = None,
+        timeout: float | None = None,
+    ) -> Destination:
+        """One destination with its detail: on Pinterest, the board's **sections**, which is what
+        goes in ``destination["section_id"]``. They are not in :meth:`destinations` because reading
+        them for every board would cost one call to the network per board.
+
+        It is checked against THIS account's destinations: one that is not in it answers 993,
+        whether or not it exists on the network.
+        """
+        destino: Destination = await self._one(
+            f"{self._path(id_organization, id_account)}/destinations/"
+            f"{require_id(id_destination, 'id_destination')}",
+            "destination",
+            {"refresh": refresh},
+            timeout=timeout,
+        )
+        return destino
 
     async def get_persistent_menu(
         self, id_organization: str, id_account: str, *, timeout: float | None = None

@@ -75,6 +75,29 @@ class AiPlansResource(Resource):
 
         **The order of ``images`` and of ``products`` is the story**: the orchestrator keeps
         each one's position, so photo 3 can be the "before" and photo 7 the "after".
+
+        **With Pinterest in the plan, each account's board goes in ``destinations``** and it is
+        required (2118, listing every account that fails). And a plan that would leave pins without
+        an image is refused here with the 2119, before a credit is spent. See
+        :data:`~planvortex.types.AiPlanCreateRequest`.
+
+        .. code-block:: python
+
+            pv.ai_plans.create(
+                client_id,
+                org_id,
+                {
+                    "prompt": "Recetas de otoño",
+                    "accounts": [pinterest_id, instagram_id],
+                    "destinations": [
+                        {
+                            "id_account": pinterest_id,
+                            "destination": {"id": board["id"], "name": board["name"]},
+                        }
+                    ],
+                    "options": {"link": "https://panaderia.example/otono"},
+                },
+            )
         """
         encolado: AiPlanCreateResult = self._post(
             self._path(id_client, id_organization), body, timeout=timeout
@@ -96,9 +119,10 @@ class AiPlansResource(Resource):
 
         Read ``warnings`` on a plan that came out ``generated``, which is the place nobody
         looks: it is not an error of the response, it is a notice about a plan that generated fine.
-        Today there is one, **2117**, part of the source did not fit in the plan week — twelve photos
-        with six slots publish six, and ``data`` carries ``{"source_items": ..., "capacity":
-        ...}``.
+        Today there are two: **2117**, part of the source did not fit in the plan week — twelve
+        photos with six slots publish six, and ``data`` carries ``{"source_items": ...,
+        "capacity": ...}`` — and **922**, a pin whose image failed during the generation, with the
+        draft that was left without it in ``data["id_publication"]``.
         """
         plan: AiPlan = self._one(
             self._one_path(id_client, id_organization, id_ai_plan), "ai_plan", timeout=timeout

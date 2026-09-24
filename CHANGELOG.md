@@ -4,6 +4,57 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-09-24
+
+Pinterest, the fourteenth network, reaches the package — and it is the first one where choosing
+the account does not choose where the publication comes out. **A pin goes to a board**, and that is
+a field no other network has. Nothing was removed and no signature moved: upgrading from `0.9.0`
+needs no changes, and `MIGRATION.md` gains no entry. The new fields are optional for the other
+thirteen networks.
+
+**`PublishableNetwork` is a closed `Literal` written by hand, and it went red on regeneration** —
+which is how it is meant to find out. Pinterest is also the first network that enters
+`PUBLISHABLE_NETWORKS` and **not** `COMMENT_NETWORKS`, so it is the first real proof that the two
+lists are independent.
+
+### Added
+
+- **`pv.accounts.destinations(id_organization, id_account)`** and
+  **`pv.accounts.destination(id_organization, id_account, id_destination)`**, over
+  `GET /organizations/{id}/accounts/{id}/destinations[/{id}]`: an account's Pinterest boards, and
+  one board with its sections. Every other network answers 992 — the account itself is where its
+  publications go. Both take `refresh=True` to skip the server's short cache, for a board created
+  a moment ago; not on every call, because all of PlanVortex's Pinterest traffic leaves through one
+  application. Also on the synchronous client.
+- **`"pinterest"` in `PublishableNetwork` and `PUBLISHABLE_NETWORKS`**, and **`destination` and
+  `link` on `PublicationInput`.** On Pinterest the board is **required**, and leaving it out does
+  not raise: the publication is created in `withErrors` with code 987 and is never attempted.
+  `destination["id"]` is **always a string** — Pinterest's ids are long integers. `link` is where
+  the pin takes whoever clicks it: it goes in its own field, not inside `text`. On every other
+  network both fields are deleted on save. Ask `destinations` and `link` in
+  `catalog.social_capabilities()` rather than keeping a list of which network has which.
+- **`destinations` on `AiPlanCreateRequest` and `AiPlan`, and `options["link"]`.** A plan with a
+  Pinterest account needs that account's board, one entry per account; without it
+  `ai_plans.create` raises **2118**, listing every account that fails. A plan that would leave pins
+  without an image is refused with **2119** before a single credit is spent, and an image that
+  fails halfway through the generation shows up as a **922** in `warnings`, with the publication
+  that was left without it.
+- Types `Destination`, `PublicationDestination` and `AiPlanDestination`.
+
+### Fixed
+
+- **Pinterest's error codes (987-996) arrived outside every family**, the third time a network's
+  codes were born above the ceiling of the publications range (after 978 and 980). They are now
+  `PublicationError`. The one that matters most is **991**: Pinterest throttling the application,
+  sent as HTTP 429 with `Retry-After` — the answer is to wait, and `error.retry_after` says how long.
+- **547, 548 and 716 were unclassified too.** 547 (a client app's identifier cannot change) and
+  548 (rotating the secret failed, the method that came with `0.9.0`) are now `AuthError`, and 716
+  (another process is renewing the Bluesky session; retry) is `AccountError`.
+- A test now checks that **every** error code named in the specification's error tables falls into
+  some family, so the next network cannot repeat this without the build going red.
+- The prose that counts networks said "nine of the eleven" and "eleven and not twelve" in places;
+  it now says fourteen, thirteen of which publish.
+
 ## [0.9.0] - 2026-09-17
 
 **Which AI plan worked?** The server can now answer it, and so can this package:
