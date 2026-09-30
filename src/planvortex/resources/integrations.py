@@ -1,23 +1,28 @@
 """Integrations: the tools an organization PULLS material from.
 
 MIND THE WORD. An **integration** is a connection to a third party you bring content from — the
-client's Drive, their blog's feed. Access to the PlanVortex API is another thing entirely: an **app**
-(``pv.apps``), and only on the Custom plan. Half the marketing copy has used the same word for both
-and it is a confusion not worth inheriting.
+client's Drive, their blog's feed, their shop. Access to the PlanVortex API is another thing
+entirely: an **app** (``pv.apps``). Half the marketing copy has used the same word for both and it
+is a confusion not worth inheriting.
 
 WHAT TO KNOW BEFORE CALLING ANYTHING HERE:
 
-- **There are two ways to connect and the provider decides**: with OAuth (``requires_oauth: true``,
-  Google Drive) you ask for a :meth:`AsyncIntegrationsResource.connect_link` and send the ``code``;
-  without it (RSS) you send the form described by ``config_fields`` straight away. Never guess: read
-  it from :meth:`AsyncIntegrationsResource.providers`.
+- **There are three ways to connect and the provider decides**, by its gates and never by its name
+  (:meth:`AsyncIntegrationsResource.providers`): with OAuth (``requires_oauth``, Google Drive) you
+  ask for a :meth:`AsyncIntegrationsResource.connect_link` and send the ``code``; with a link that
+  is NOT OAuth (``connect_link`` without ``requires_oauth``, WooCommerce) the user approves in their
+  store and the key arrives on its own; and with no link (RSS) you send the ``config_fields`` form
+  straight away.
 - **It is a plan resource** (``integrations``, ``0`` on the free plan): going over answers error
-  1404. Only the enabled ones count.
+  1404. Only the enabled ones count, and each store counts as one.
 - **Credentials never come out.** What tells you whether the connection is alive is ``connected``,
   and the reason when it is not, ``error_code``.
 - **Reconnecting is not creating.** It renews the credentials of the SAME document, goes by the
   ``update`` permission and does not take up quota again.
-- **``config`` belongs to RSS.** On Google Drive it is an empty object: the Picker puts everything.
+- **``config`` depends on the provider**: empty on Google Drive, the feed on RSS and how to reach
+  the store on WooCommerce. A store's cannot be edited (2220): changing store is reconnecting.
+- **Disconnecting a store does not revoke its key**: WooCommerce does not let an app delete its own.
+  Tell the user to delete it in their WordPress; ``config["key_ending"]`` says which one.
 
 THIS FILE IS THE SOURCE OF ``resources_sync/integrations.py``.
 """
@@ -29,7 +34,12 @@ from collections.abc import AsyncIterator
 from planvortex._core.pagination import Page, PageParams
 from planvortex._shapes import IntegrationPickerConfig, IntegrationUpdate
 from planvortex.resources.base import AsyncResource, require_id
-from planvortex.types import Integration, IntegrationConnectRequest, IntegrationProvider
+from planvortex.types import (
+    Integration,
+    IntegrationCatalogPage,
+    IntegrationConnectRequest,
+    IntegrationProvider,
+)
 
 
 class AsyncIntegrationsResource(AsyncResource):
@@ -107,20 +117,36 @@ class AsyncIntegrationsResource(AsyncResource):
         provider: str,
         *,
         redirect_uri: str | None = None,
+        url: str | None = None,
+        id_integration: str | None = None,
         timeout: float | None = None,
     ) -> str:
-        """The authorization link of a provider with OAuth. **Only the ones that use it**: asking for
-        it for RSS answers error 2201.
+        """The link to send the user to, on the providers with ``connect_link``. **Only those**:
+        asking for it for RSS answers error 2201.
 
-        You send the user there, the provider returns them to ``redirect_uri`` with a ``code`` in the
-        query, and that ``code`` is what you pass to :meth:`connect`. It is single-use.
+        - **Google Drive**: its consent screen. The provider returns the user to ``redirect_uri`` with
+          a ``code`` in the query, and that ``code`` is what you pass to :meth:`connect`. It is
+          single-use.
+        - **WooCommerce**: the approval page of THEIR store, so it takes ``url``. The store is
+          checked NOW and without keys (https, a firewall in front, whether WooCommerce is there), so
+          what is going to fail fails with the user still in front of you. After approving, the store
+          sends us the key directly and the user comes back with ``id_integration`` in the query.
+          **Do not trust ``success``: read that integration** with :meth:`get`. A 2200 means the key
+          never arrived (they cancelled); ``error_code`` 2219, that it is being checked (a few
+          seconds: read it again); another code, what failed; none, connected. The link lasts 15
+          minutes and works once. With "plain" permalinks the store has no button (2216
+          ``plain_permalinks``): connect it with keys.
+
+        ``id_integration`` reconnects THAT store with the button instead of connecting a new one: the
+        key is renewed on the same document, no quota is taken, and it needs the ``update``
+        permission.
 
         ``redirect_uri`` has to be on the deployment's allow-list (``FRONT_URL_REDIRECT``) or the API
         answers error 532.
         """
         cuerpo: dict[str, str] = await self._get(
             f"{self._path(id_organization)}/{require_id(provider, 'provider')}/connect_link",
-            {"redirect_uri": redirect_uri},
+            {"redirect_uri": redirect_uri, "url": url, "id_integration": id_integration},
             timeout=timeout,
         )
         return cuerpo["url"]
@@ -138,11 +164,24 @@ class AsyncIntegrationsResource(AsyncResource):
         one, or the ``config_fields`` form **FLAT** — not inside a ``config`` — for the rest. The
         ``config`` is what the server builds and returns, not what you send.
 
+        A store with keys created by hand (with **read** permission) goes the same way; the keys are
+        tried against the store before anything is saved, and an organization can connect several.
+
         .. code-block:: python
 
             integration = await pv.integrations.connect(
                 org_id,
                 {"provider": "rss", "url": "https://blog.example/feed", "id_accounts": [account_id]},
+            )
+
+            store = await pv.integrations.connect(
+                org_id,
+                {
+                    "provider": "woocommerce",
+                    "url": "https://tienda.example.com",
+                    "consumer_key": "ck_...",
+                    "consumer_secret": "cs_...",
+                },
             )
         """
         integracion: Integration = await self._post_one(
@@ -195,6 +234,10 @@ class AsyncIntegrationsResource(AsyncResource):
     ) -> None:
         """Delete the integration and **revoke at the provider** when it knows how.
 
+        **WooCommerce does not**: an app cannot delete its own key. After disconnecting a store, tell
+        the user to delete it in WooCommerce > Settings > Advanced > REST API; it is the one ending in
+        ``config["key_ending"]`` (read it BEFORE deleting the integration).
+
         What was already imported stays: the files belong to the organization's library, not to the
         integration.
         """
@@ -213,6 +256,48 @@ class AsyncIntegrationsResource(AsyncResource):
             f"{self._one_path(id_organization, id_integration)}/picker_config", timeout=timeout
         )
         return configuracion
+
+    async def products(
+        self,
+        id_organization: str,
+        id_integration: str,
+        *,
+        cursor: str | None = None,
+        search: str | None = None,
+        limit: int | None = None,
+        timeout: float | None = None,
+    ) -> IntegrationCatalogPage:
+        """One page of the catalogue of a connected store (a provider with ``catalog``), to choose the
+        products of a ``from_catalog`` plan: their ``external_id`` is what goes in
+        ``source["products"]``. On any other provider, error 2207; with the integration disabled, 2209.
+
+        It is read LIVE from the store on every call, and that is why there is no ``iterate_products``:
+        every page is a request to the client's own hosting, and walking ten thousand products to find
+        three is what ``search`` is for.
+
+        - **It pages by an opaque cursor**: send ``next_cursor`` back as ``cursor`` exactly as it
+          came, and without it that was the last page. One this API did not issue is a 2208.
+        - **What the public cannot see does not come** (drafts, private, hidden). **What is out of
+          stock DOES come, with** ``available: False``: show it marked and do not let it be chosen,
+          or the plan answers 2112.
+        - ``price`` is text to copy verbatim. Absent means "no price", and so it is on the taxable
+          products of a store with ``config["tax_location_missing"]``.
+        - A store that rejects its key (2211) is marked with that ``error_code`` until it is
+          reconnected; a firewall (2212) or a store that does not answer (2213) is not.
+
+        ``limit`` is 50 when not given, and the server keeps it between 1 and 100.
+
+        .. code-block:: python
+
+            page = await pv.integrations.products(org_id, store_id, search="taza")
+            choosable = [product for product in page["items"] if product["available"]]
+        """
+        pagina: IntegrationCatalogPage = await self._get(
+            f"{self._one_path(id_organization, id_integration)}/products",
+            {"cursor": cursor, "search": search, "limit": limit},
+            timeout=timeout,
+        )
+        return pagina
 
     def _path(self, id_organization: str) -> str:
         return f"/organizations/{require_id(id_organization, 'id_organization')}/integrations"

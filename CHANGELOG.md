@@ -4,6 +4,62 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-09-29
+
+A connected **WooCommerce store** becomes a source for the AI planner: the `from_catalog` template
+can now write a week of posts from the store's real products (name, description, price, picture and
+the link to its page), not only from a Meta catalogue. Nothing was removed and no signature moved:
+upgrading from `0.10.0` needs no changes, and `MIGRATION.md` gains no entry.
+
+### Added
+
+- **`pv.integrations.products(id_organization, id_integration, cursor=, search=, limit=)`**, over
+  `GET /organizations/{id}/integrations/{id}/products`: one page of a connected store's catalogue,
+  to choose the products of a plan. Also on the synchronous client. Four things about it are not
+  obvious, and all four are in its docstring:
+  - **It pages by an opaque cursor**, not by number: send `next_cursor` back as `cursor` exactly as
+    it came. There is no `iterate_products` on purpose: every page is a live request to the
+    client's own hosting, and finding three products among ten thousand is what `search` is for.
+  - **Out-of-stock products come back with `available: False`**: show them, but do not let them be
+    chosen, or the plan is refused with 2112.
+  - **`price` is text to copy verbatim**, as the store displays it (tax, symbol, range). Absent
+    means no price.
+  - A store that rejects its key (2211) is marked until it is reconnected; a firewall (2212) or a
+    store that does not answer (2213) is not.
+- **`url=` and `id_integration=` on `integrations.connect_link`.** The store's approval button: the
+  link points at the store's own WordPress, so it needs its address, and `id_integration`
+  reconnects a store instead of adding one. After approving, the user comes back with an
+  `id_integration`: **read that integration instead of trusting `success`** (2219 means the key is
+  still being checked).
+- **`"provider": "woocommerce"` in `integrations.connect`**, with a read-only key created by hand
+  (`url`, `consumer_key`, `consumer_secret`). It is the way when the store uses plain permalinks and
+  the button cannot work (2216).
+- **`source["id_integration_catalog"]`** on `ai_plans.create`: the store a `from_catalog` plan
+  reads from, exclusive with `id_account_catalog` (both at once is a 2112). The stored products gain
+  `permalink`, the product's page, which the texts use where a link can be clicked and where a
+  Pinterest pin leads unless the plan has its own `options["link"]`.
+- **`unsupported_networks`** on `PlannerTemplate`: the networks whose accounts a plan of that
+  template cannot carry. A plan with one is refused with **2120** before anything is read or
+  charged; today that is YouTube on `from_images` and `from_catalog`.
+- On `IntegrationProvider`, the gates `connect_link`, `connect_link_fields` and `catalog`. **Having a
+  link is not being OAuth**: branch on these, never on the provider's name.
+- Types `IntegrationCatalogProduct`, `IntegrationCatalogPage`, `IntegrationConfig`,
+  `IntegrationFormField` and `WooCommerceConnectRequest`; `"woocommerce"` in
+  `INTEGRATION_PROVIDERS`.
+
+### Changed
+
+- **`Integration["config"]` is typed as `IntegrationConfig`**, which adds the store's keys to the
+  feed's: `api_base`, `auth_mode`, `key_ending`, `currency` and `tax_location_missing`. Two of them
+  have to be shown, not just stored. `key_ending` is how the user finds the key to delete in their
+  WordPress after disconnecting, because **WooCommerce does not let an app revoke its own key**; and
+  `tax_location_missing: True` means the store's API gives prices without tax labelled as tax
+  included, so its taxable products come without a price until the store's setting is fixed and it
+  is reconnected. `RssConfig` stays what an `update` takes, and a store's `config` cannot be edited
+  at all (2220).
+- A form field can now be of type `secret` (WooCommerce's consumer secret): mask it, never prefill
+  it, and mark it as a new password so the browser does not fill it with the user's own.
+
 ## [0.10.0] - 2026-09-24
 
 Pinterest, the fourteenth network, reaches the package — and it is the first one where choosing

@@ -69,7 +69,7 @@
     },
     {
       "name": "integrations",
-      "description": "Connections between an organization and a third-party tool (Google Drive, RSS feeds)"
+      "description": "Connections between an organization and a third-party tool (Google Drive, RSS feeds, WooCommerce stores)"
     },
     {
       "name": "message templates",
@@ -1204,7 +1204,7 @@
             }
           },
           "400": {
-            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `1101` | Invalid organization |\n| `806` | Invalid upload identifier. One of the gallery_uploads, or one of the `source.images`, does not belong to the organization. |\n| `924` | Max publications reached per month. There is no room in the organization's monthly publication limit for the generated posts. |\n| `941` | AI credits exhausted for this month. The base cost of the plan exceeds the remaining AI credits. The response data carries { used, limit, cost }. |\n| `2101` | This functionality requires a plan with artificial intelligence (available from the basic plan). |\n| `2103` | All accounts must belong to the organization. Also when `source.id_account_catalog` is not one of them. |\n| `2105` | AI plan requires at least one account. |\n| `2106` | Invalid AI plan options (missing prompt, invalid timezone, invalid week_start, invalid max_images or invalid publish_days). Also when an option is not accepted by the chosen template: `shared` on one whose `allows_shared` is false, or `gallery_uploads` on one whose `allows_gallery` is false. |\n| `2108` | The selected publish days leave no available slot in the plan week: every slot of the chosen days is already in the past. Pick more days or a later week_start. The response data carries { publish_days, week_start, timezone }. |\n| `2111` | Invalid planner template: `template` is not one of the ones published by `GET /planner_templates`. |\n| `2112` | Invalid or missing `source` for the chosen template: a field is missing, an id is not valid, there are more units than `max_source_items`, an image has no description, a product is no longer in the catalogue, or the event date falls before the plan week or more than 60 days after it. `data` says which one and why. |\n| `2113` | Could not read the source URL (`from_text`): the download failed, answered something that is not text or HTML, or the page carried no usable text. Paste the article in `source.text` instead. |\n| `2114` | The source URL points to a non-public address (`from_text`): loopback, private, link-local or CGNAT. Checked before every redirect and again when the socket opens. |\n| `2115` | The selected account has no usable product catalogue (`from_catalog`): its network has no products, or the catalogue could not be read — expired token, deleted catalogue, missing permission — or came back empty. |\n| `2116` | The source has no usable items: no images, no products, or no text at all (neither `url` nor `text`, or a pasted text under 200 characters). |\n| `994` | Invalid `options.link` with a network that uses it (`pinterest`) in the plan. `data.reason` is `invalid_url` or `too_long`. |\n| `2118` | A Pinterest account of the plan has no valid board in `destinations`. `data.accounts[]` lists every one that fails, as `{ _id, social_network, reason }`, with `reason` `missing`, `invalid_id` or `invalid_section_id`. |\n| `2119` | The plan would leave pins without an image: a pin is never text-only. Only checked with Pinterest in the plan and a template that GENERATES images (`from_images` and `from_catalog` bring their own photo). `data.reason` is `images_disabled` (`allow_images: false`), `max_images` (a cap below what is needed) or `credits` (not enough credits for that many images); `data` also carries `{ required, images_target, social_networks }`. The images needed are one per day and per account of a network that requires one — Instagram included, because both networks draw on the same image budget. |\n| `521` | Invalid client. The identifier is invalid or doesn't exist |",
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `1101` | Invalid organization |\n| `806` | Invalid upload identifier. One of the gallery_uploads, or one of the `source.images`, does not belong to the organization. |\n| `924` | Max publications reached per month. There is no room in the organization's monthly publication limit for the generated posts. |\n| `941` | AI credits exhausted for this month. The base cost of the plan exceeds the remaining AI credits. The response data carries { used, limit, cost }. |\n| `2101` | This functionality requires a plan with artificial intelligence (available from the basic plan). |\n| `2103` | All accounts must belong to the organization. Also when `source.id_account_catalog` is not one of them. |\n| `2105` | AI plan requires at least one account. |\n| `2106` | Invalid AI plan options (missing prompt, invalid timezone, invalid week_start, invalid max_images or invalid publish_days). Also when an option is not accepted by the chosen template: `shared` on one whose `allows_shared` is false, or `gallery_uploads` on one whose `allows_gallery` is false. |\n| `2108` | The selected publish days leave no available slot in the plan week: every slot of the chosen days is already in the past. Pick more days or a later week_start. The response data carries { publish_days, week_start, timezone }. |\n| `2111` | Invalid planner template: `template` is not one of the ones published by `GET /planner_templates`. |\n| `2112` | Invalid or missing `source` for the chosen template: a field is missing, an id is not valid, there are more units than `max_source_items`, an image has no description, a product is no longer in the catalogue or is out of stock, both `id_account_catalog` and `id_integration_catalog` were sent (the catalogue comes from one of them), or the event date falls before the plan week or more than 60 days after it. `data` says which one and why. |\n| `2113` | Could not read the source URL (`from_text`): the download failed, answered something that is not text or HTML, or the page carried no usable text. Paste the article in `source.text` instead. |\n| `2114` | The source URL points to a non-public address (`from_text`): loopback, private, link-local or CGNAT. Checked before every redirect and again when the socket opens. |\n| `2115` | The selected account has no usable product catalogue (`from_catalog` with `id_account_catalog`): its network has no products, or the catalogue could not be read — expired token, deleted catalogue, missing permission — or came back empty. |\n| `2116` | The source has no usable items: no images, no products, or no text at all (neither `url` nor `text`, or a pasted text under 200 characters). |\n| `994` | Invalid `options.link` with a network that uses it (`pinterest`) in the plan. `data.reason` is `invalid_url` or `too_long`. |\n| `2118` | A Pinterest account of the plan has no valid board in `destinations`. `data.accounts[]` lists every one that fails, as `{ _id, social_network, reason }`, with `reason` `missing`, `invalid_id` or `invalid_section_id`. |\n| `2119` | The plan would leave pins without an image: a pin is never text-only. Only checked with Pinterest in the plan and a template that GENERATES images (`from_images` and `from_catalog` bring their own photo). `data.reason` is `images_disabled` (`allow_images: false`), `max_images` (a cap below what is needed) or `credits` (not enough credits for that many images); `data` also carries `{ required, images_target, social_networks }`. The images needed are one per day and per account of a network that requires one — Instagram included, because both networks draw on the same image budget. |\n| `2120` | An account of the plan is on a network this template cannot publish to: the networks in the template's `unsupported_networks` (`GET /planner_templates`). Today that is `youtube` on `from_images` and `from_catalog`, whose every publication is the photo of its source, while YouTube only uploads video. Checked before the store is read or a picture downloaded, and `data.accounts[]` lists every account that does not fit, as `{ _id, social_network }`. |\n| `2200` | `source.id_integration_catalog` is not an integration of this organization. |\n| `2207` | `source.id_integration_catalog` has no product catalogue (a Google Drive or a feed). |\n| `2209` | `source.id_integration_catalog` is disabled. |\n| `2208`, `2210`-`2214` | The store could not be read. They are the same errors as `GET .../integrations/{id_integration}/products`, and a `2211` (the store rejected its key) also marks the integration until it is reconnected. |\n| `521` | Invalid client. The identifier is invalid or doesn't exist |",
             "content": {
               "application/json": {
                 "schema": {
@@ -2915,7 +2915,7 @@
           "catalog"
         ],
         "summary": "AI planner templates",
-        "description": "What an AI plan can be generated FROM, and what each source allows.\n\nA template is the **source** of the content, not the wizard's flow: sharing, publish days, language, tone and images stay cross-cutting options, and every template declares which of them it accepts. Send the chosen one as `template` when creating a plan (`POST /ai_plans`), together with its `source`.\n\n• **`generates_images: false` means the pictures come from the source** — your own photos, your catalogue — so the plan spends **no image credits at all**. A week of 7 publications with a picture on each goes from 519 credits to 48, and it is worth saying out loud before the plan is created.\n• **`regenerate` is per template.** A template that did not generate the image cannot regenerate it: offer that button anyway and the user pays 70 credits to replace their own photo with an invented one.\n• **`orchestration_cost` is an ESTIMATE, not the bill.** The real charge is per use (what the provider reports). `orchestration_cost_per_source_item` is what each unit of the source adds on top — one vision pass per image.\n• **A plan is WEEKLY, and the source does not extend it.** With `max_source_items` photos but fewer slots left in the week, the extra ones are dropped and the plan carries warning 2117 in `ai_plan.warnings`. Say it in your UI *before* creating the plan, not after charging for it.\n• **`source_fields` is what the source step is made of.** The simple types are ordinary controls; `uploads_with_description` and `catalog_products` are the signal that the step needs a component of its own.\n• **The fields carry their own limits.** `max` and `min` are in the field's own units — characters of a text, items of a list, **days** for a date — and `source_requires_any` names the fields of which at least one is needed (`from_text`: the URL or the pasted text). Read them from here; hardcoding them is how a wizard ends up rejecting at a number the server does not use.",
+        "description": "What an AI plan can be generated FROM, and what each source allows.\n\nA template is the **source** of the content, not the wizard's flow: sharing, publish days, language, tone and images stay cross-cutting options, and every template declares which of them it accepts. Send the chosen one as `template` when creating a plan (`POST /ai_plans`), together with its `source`.\n\n• **`generates_images: false` means the pictures come from the source** — your own photos, your catalogue — so the plan spends **no image credits at all**. A week of 7 publications with a picture on each goes from 519 credits to 48, and it is worth saying out loud before the plan is created.\n• **`regenerate` is per template.** A template that did not generate the image cannot regenerate it: offer that button anyway and the user pays 70 credits to replace their own photo with an invented one.\n• **`orchestration_cost` is an ESTIMATE, not the bill.** The real charge is per use (what the provider reports). `orchestration_cost_per_source_item` is what each unit of the source adds on top — one vision pass per image.\n• **A plan is WEEKLY, and the source does not extend it.** With `max_source_items` photos but fewer slots left in the week, the extra ones are dropped and the plan carries warning 2117 in `ai_plan.warnings`. Say it in your UI *before* creating the plan, not after charging for it.\n• **`source_fields` is what the source step is made of.** The simple types are ordinary controls; `uploads_with_description` and `catalog_products` are the signal that the step needs a component of its own.\n• **Not every network fits every template.** `unsupported_networks` lists the ones whose accounts a plan of that template cannot carry (2120): offer only the rest, instead of letting the user pick a YouTube account for a week of product photos.\n• **The fields carry their own limits.** `max` and `min` are in the field's own units — characters of a text, items of a list, **days** for a date — and `source_requires_any` names the fields of which at least one is needed (`from_text`: the URL or the pasted text; `from_catalog`: a Meta catalogue account or a connected store). Read them from here; hardcoding them is how a wizard ends up rejecting at a number the server does not use.",
         "operationId": "getPlannerTemplates",
         "x-planvortex-identity": [
           "current_user",
@@ -6368,7 +6368,7 @@
           "integrations"
         ],
         "summary": "Catalogue of available integration providers",
-        "description": "What every provider is and what it can do: whether it connects through OAuth or a form, whether it contributes files to the library, whether it is polled for content, which file formats it accepts and which fields its configuration form takes.\n\nConsume this instead of hardcoding a provider list: a new provider shows up here without any client change.",
+        "description": "What every provider is and what it can do: whether it has an OAuth token behind it, whether it connects with a link (and what that link needs first), whether it contributes files to the library, whether it is polled for content, whether it has a product catalogue, which file formats it accepts and which fields its configuration form takes.\n\nConsume this instead of hardcoding a provider list: a new provider shows up here without any client change.",
         "operationId": "getIntegrationProviders",
         "x-planvortex-identity": [
           "current_user",
@@ -6531,7 +6531,7 @@
           "integrations"
         ],
         "summary": "Connect an integration",
-        "description": "Creates the connection. The body depends on the provider:\n\n- `google_drive`: `{ provider, code }`, where `code` is the OAuth code returned to the redirect of `connect_link`. It is single-use, so the plan allowance is checked **before** the exchange.\n- `rss`: `{ provider, url, id_accounts, template?, publication_type?, auto_publish?, import_image? }`. The feed is read once to validate it and to take its title, and every item it already has is recorded as seen — connecting a blog never publishes its back catalogue.\n\nRequires the `integrations:create` permission.",
+        "description": "Creates the connection. The body depends on the provider:\n\n- `google_drive`: `{ provider, code }`, where `code` is the OAuth code returned to the redirect of `connect_link`. It is single-use, so the plan allowance is checked **before** the exchange.\n- `rss`: `{ provider, url, id_accounts, template?, publication_type?, auto_publish?, import_image? }`. The feed is read once to validate it and to take its title, and every item it already has is recorded as seen — connecting a blog never publishes its back catalogue.\n- `woocommerce`: `{ provider, url, consumer_key, consumer_secret }`, a **read** key created by hand in the store. The keys are tried against the store before anything is saved, and an organization can connect several stores: each one takes one integration of the allowance. The approval button (`connect_link`) does the same without anyone copying a key, and is the better way whenever the store allows it.\n\nRequires the `integrations:create` permission.",
         "operationId": "addIntegration",
         "x-planvortex-identity": [
           "current_user",
@@ -6553,6 +6553,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/IntegrationsRssConnectRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/IntegrationsWooCommerceConnectRequest"
                   }
                 ]
               },
@@ -6572,6 +6575,15 @@
                   "value": {
                     "provider": "google_drive",
                     "code": "4/0AeanS0b7..."
+                  }
+                },
+                "woocommerce": {
+                  "summary": "Connect a store with API keys created by hand",
+                  "value": {
+                    "provider": "woocommerce",
+                    "url": "https://tienda.example.com",
+                    "consumer_key": "ck_4b1f0c2e9d8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c",
+                    "consumer_secret": "cs_9e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b3a2f1e0d"
                   }
                 }
               }
@@ -6598,7 +6610,7 @@
             }
           },
           "400": {
-            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `1404` | Integrations limit reached for the organization plan. On the free plan the allowance is 0, so this always fires. |\n| `2201` | Integration provider not supported (or the payload is missing what that provider needs). |\n| `2202` | Integration already connected for this organization and provider. Applies to OAuth providers; the body carries its `id_integration` in `data`, and the `code` you sent is still unused — post it to that integration's `/reconnect` to renew it. |\n| `2203` | Integration token expired or revoked, reconnect required. |\n| `2205` | Feed URL unreachable or not a valid feed. |\n| `2206` | Feed has no target accounts configured. |",
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `1404` | Integrations limit reached for the organization plan. On the free plan the allowance is 0, so this always fires. |\n| `2201` | Integration provider not supported (or the payload is missing what that provider needs). |\n| `2202` | Integration already connected for this organization and provider. Applies to OAuth providers; the body carries its `id_integration` in `data`, and the `code` you sent is still unused — post it to that integration's `/reconnect` to renew it. |\n| `2203` | Integration token expired or revoked, reconnect required. |\n| `2205` | Feed URL unreachable or not a valid feed. |\n| `2206` | Feed has no target accounts configured. |\n| `2210` | The store URL cannot be used. `data.reason`: `invalid_url`, `not_https` (the store only answers on http, and a key never travels in the clear), `non_public_address`, `redirect` (the store redirected a request carrying credentials, which is never followed) or `too_many_redirects`. |\n| `2211` | The store rejected the API key: it does not exist, it was deleted in WordPress, the secret does not match, or it has no read permission. `data` carries what the store said. |\n| `2212` | A firewall or a security plugin in front of the store answered instead of WooCommerce (an HTML challenge from Cloudflare, Wordfence…). **It is not the keys**: the store's hosting has to let PlanVortex's server through. |\n| `2213` | The store could not be reached, timed out or failed on its side (a 5xx). |\n| `2214` | There is no WooCommerce REST API at this URL: not a WordPress, WooCommerce not active, or the REST API disabled. |\n| `2215` | The keys are missing or do not have WooCommerce's shape: the consumer key starts with `ck_` and the secret with `cs_`. Pasting them the other way round is the usual mistake. |",
             "content": {
               "application/json": {
                 "schema": {
@@ -6700,7 +6712,7 @@
           "integrations"
         ],
         "summary": "Update an integration",
-        "description": "Only what the user owns: its name, whether it is enabled and its `config` (merged, not replaced — `seen_guids` and `last_checked` belong to the job). Credentials are never updated here; for that, `POST .../reconnect`. Changing a feed's `url` here keeps the items it had already seen, so the new feed's back catalogue would be published on the next sweep — change a feed's URL through `/reconnect`, which revalidates it and marks its current items as seen.\n\nA disabled integration stops consuming plan allowance. Enabling one or changing its config clears `error_code`, so the job retries it.\n\nRequires the `integrations:update` permission.",
+        "description": "Only what the user owns: its name, whether it is enabled and its `config` (merged, not replaced — `seen_guids` and `last_checked` belong to the job). Credentials are never updated here; for that, `POST .../reconnect`. Changing a feed's `url` here keeps the items it had already seen, so the new feed's back catalogue would be published on the next sweep — change a feed's URL through `/reconnect`, which revalidates it and marks its current items as seen.\n\n**A store's `config` cannot be edited at all** (`2220`, and nothing of the request is applied): its `url` decides which server receives the stored key, so whoever could change it could send the key, which also reads the store's orders and customers, anywhere. Changing store is reconnecting, which tries the key against the new URL.\n\nA disabled integration stops consuming plan allowance. Enabling one or changing its config clears `error_code`, so the job retries it.\n\nRequires the `integrations:update` permission.",
         "operationId": "updateIntegration",
         "x-planvortex-identity": [
           "current_user",
@@ -6764,7 +6776,7 @@
             }
           },
           "400": {
-            "description": "Error. Classify by `code` in the body, never by the HTTP status: every domain error travels with HTTP 400.",
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `2200` | Integration not found. |\n| `2220` | This `config` key cannot be edited on this provider (on WooCommerce, none can): reconnect the integration to change it. `data.keys` lists the ones that were refused. |",
             "content": {
               "application/json": {
                 "schema": {
@@ -6797,7 +6809,7 @@
           "integrations"
         ],
         "summary": "Disconnect an integration",
-        "description": "Revokes the credentials at the provider and deletes the connection.\n\nFiles already imported are **not** touched: they are your files, in your library, counting against your storage. Disconnecting Drive never empties anyone's library.\n\nRequires the `integrations:delete` permission.",
+        "description": "Revokes the credentials at the provider, when the provider allows it, and deletes the connection.\n\n**A WooCommerce key cannot be revoked from outside**: WooCommerce does not let an app delete its own key. Tell the user to delete it in WooCommerce → Settings → Advanced → REST API; it is the one whose description starts with \"PlanVortex - API\" (when it was created with the button) and whose key ends in `config.key_ending`. Until then the key stays alive in their WordPress, unused.\n\nFiles already imported are **not** touched: they are your files, in your library, counting against your storage. Disconnecting Drive never empties anyone's library.\n\nRequires the `integrations:delete` permission.",
         "operationId": "deleteIntegration",
         "x-planvortex-identity": [
           "current_user",
@@ -6865,8 +6877,8 @@
         "tags": [
           "integrations"
         ],
-        "summary": "Authorization URL of an OAuth provider",
-        "description": "Only for providers whose `requires_oauth` is true; anything else returns `2201`. Send the user to the returned URL; the provider will come back to `{FRONT_APP}/connect/integration/{provider}` with a `code` to post to `POST /organizations/{id_organization}/integrations`.\n\nRequires the `integrations:create` **or** `integrations:update` permission: the consent link is needed both to connect a new integration and to reconnect one that already exists (`POST /organizations/{id_organization}/integrations/{id_integration}/reconnect`).",
+        "summary": "Connection link of a provider (OAuth or a store's approval page)",
+        "description": "The link to send the user to, for providers whose `connect_link` is true; anything else returns `2201`.\n\n- `google_drive`: Google's consent screen. The user comes back to `{FRONT_APP}/connect/integration/google_drive` with a `code` to post to `POST /organizations/{id_organization}/integrations`.\n- `woocommerce`: the store's own approval page (`/wc-auth/v1/authorize`), so the store `url` is required (`connect_link_fields`). The store is checked **now, without credentials** (https, a firewall in front, whether WooCommerce is there), so what is going to fail fails while the user is still in your app. The person approving must be able to manage WooCommerce in that WordPress (an administrator or a shop manager). After approving, the store sends a read-only key straight to PlanVortex, and the user comes back to `{FRONT_APP}/connect/integration/woocommerce?id_integration=…&success=…&user_id=…`.\n\n**After a store's link, do not trust `success`: read `GET .../integrations/{id_integration}`.** A `2200` means the key never arrived (the user cancelled, or the store's call failed); `error_code` `2219` means it is still being checked (a few seconds; poll, and if it stays there, reconnect); any other `error_code` is what failed; none means connected. The link lasts 15 minutes and works once. The allowance is checked here (`1404`) so nobody approves a key that would be refused, and again when the key arrives.\n\nRequires the `integrations:create` **or** `integrations:update` permission: the consent link is needed both to connect a new integration and to reconnect one that already exists (`POST /organizations/{id_organization}/integrations/{id_integration}/reconnect`). Reconnecting a store with `id_integration` requires `integrations:update`.",
         "operationId": "getIntegrationConnectLink",
         "x-planvortex-identity": [
           "current_user",
@@ -6889,6 +6901,24 @@
             "in": "query",
             "required": false,
             "description": "Alternative return URL. It must be one of the redirects allowed for the installation, otherwise the request fails with `532`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "url",
+            "in": "query",
+            "required": false,
+            "description": "`woocommerce`: the store address. Required for that provider, ignored by the rest.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id_integration",
+            "in": "query",
+            "required": false,
+            "description": "`woocommerce`: reconnect THIS store with the button instead of connecting a new one. The key is renewed on the same document and no allowance is taken. Requires `integrations:update`.",
             "schema": {
               "type": "string"
             }
@@ -6915,7 +6945,7 @@
             }
           },
           "400": {
-            "description": "Error. Classify by `code` in the body, never by the HTTP status: every domain error travels with HTTP 400.",
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `1404` | Integrations limit reached for the organization plan. On the free plan the allowance is 0, so this always fires. |\n| `2201` | The provider does not connect with a link (`rss`), or `id_integration` is of another provider. |\n| `2200` | `id_integration` does not exist (`1102` if it belongs to another organization). |\n| `2210` | The store URL cannot be used. `data.reason`: `invalid_url`, `not_https` (the store only answers on http, and a key never travels in the clear), `non_public_address`, `redirect` (the store redirected a request carrying credentials, which is never followed) or `too_many_redirects`. |\n| `2212` | A firewall or a security plugin in front of the store answered instead of WooCommerce (an HTML challenge from Cloudflare, Wordfence…). **It is not the keys**: the store's hosting has to let PlanVortex's server through. |\n| `2213` | The store could not be reached, timed out or failed on its side (a 5xx). |\n| `2214` | There is no WooCommerce REST API at this URL: not a WordPress, WooCommerce not active, or the REST API disabled. |\n| `2216` | This store cannot use the approval button: connect it with API keys instead. `data.reason`: `plain_permalinks` (the store uses plain permalinks, and without rewrite rules WooCommerce's approval page does not exist) or `callback_not_https` (this PlanVortex deployment has no public https address for the store to send the key to). |\n| `532` | `redirect_uri` is not one of the allowed redirects. |",
             "content": {
               "application/json": {
                 "schema": {
@@ -6950,7 +6980,7 @@
           "integrations"
         ],
         "summary": "Reconnect an integration",
-        "description": "Renews the credentials of an integration that already exists — the OAuth token expired or the provider revoked it (`2203`) — or revalidates a feed's configuration, **on the same document**.\n\nThe body is the same one you would send to connect: `{ provider, code }` for an OAuth provider, or the form fields for a feed. It is handled by the same provider logic, so a feed that still cannot be read is still a `2205`.\n\nUse this instead of deleting and connecting again. Reconnecting keeps the `_id` (publications created by a feed reference it), the connection date and the feed's seen items — deleting and reconnecting a feed would republish the blog's whole back catalogue on the next sweep.\n\nWhat it does not touch: `enabled` (reconnecting never switches on a disabled integration, because that consumes plan allowance) and the creation date. `error_code` is cleared, so the background jobs pick it up again. `name` is kept unless the connection now points somewhere else (another Google account, another feed URL), in which case the new one is taken.\n\nNo allowance check: nothing new is created, so it works even with the plan full.\n\nRequires the `integrations:update` permission.",
+        "description": "Renews the credentials of an integration that already exists — the OAuth token expired or the provider revoked it (`2203`) — or revalidates a feed's configuration, **on the same document**.\n\nThe body is the same one you would send to connect: `{ provider, code }` for an OAuth provider, or the form fields for a feed or a store. A store can also be reconnected with its approval button: `connect_link` with `id_integration`, and no call here. It is handled by the same provider logic, so a feed that still cannot be read is still a `2205`.\n\nUse this instead of deleting and connecting again. Reconnecting keeps the `_id` (publications created by a feed reference it), the connection date and the feed's seen items — deleting and reconnecting a feed would republish the blog's whole back catalogue on the next sweep.\n\nWhat it does not touch: `enabled` (reconnecting never switches on a disabled integration, because that consumes plan allowance) and the creation date. `error_code` is cleared, so the background jobs pick it up again. `name` is kept unless the connection now points somewhere else (another Google account, another feed URL, another store), in which case the new one is taken.\n\nNo allowance check: nothing new is created, so it works even with the plan full.\n\nRequires the `integrations:update` permission.",
         "operationId": "reconnectIntegration",
         "x-planvortex-identity": [
           "current_user",
@@ -6975,6 +7005,9 @@
                   },
                   {
                     "$ref": "#/components/schemas/IntegrationsRssConnectRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/IntegrationsWooCommerceConnectRequest"
                   }
                 ]
               },
@@ -7010,7 +7043,7 @@
             }
           },
           "400": {
-            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `2200` | Integration not found. |\n| `2201` | The `provider` in the body is not the one of this integration, or the payload is missing what that provider needs. |\n| `2203` | The provider refused the new credentials. |\n| `2205` | Feed URL unreachable or not a valid feed. |\n| `2206` | Feed has no target accounts configured. |",
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `2200` | Integration not found. |\n| `2201` | The `provider` in the body is not the one of this integration, or the payload is missing what that provider needs. |\n| `2203` | The provider refused the new credentials. |\n| `2205` | Feed URL unreachable or not a valid feed. |\n| `2206` | Feed has no target accounts configured. |\n| `2210` | The store URL cannot be used. `data.reason`: `invalid_url`, `not_https` (the store only answers on http, and a key never travels in the clear), `non_public_address`, `redirect` (the store redirected a request carrying credentials, which is never followed) or `too_many_redirects`. |\n| `2211` | The store rejected the API key: it does not exist, it was deleted in WordPress, the secret does not match, or it has no read permission. `data` carries what the store said. |\n| `2212` | A firewall or a security plugin in front of the store answered instead of WooCommerce (an HTML challenge from Cloudflare, Wordfence…). **It is not the keys**: the store's hosting has to let PlanVortex's server through. |\n| `2213` | The store could not be reached, timed out or failed on its side (a 5xx). |\n| `2214` | There is no WooCommerce REST API at this URL: not a WordPress, WooCommerce not active, or the REST API disabled. |\n| `2215` | The keys are missing or do not have WooCommerce's shape: the consumer key starts with `ck_` and the secret with `cs_`. Pasting them the other way round is the usual mistake. |",
             "content": {
               "application/json": {
                 "schema": {
@@ -7119,6 +7152,97 @@
             "lang": "Python",
             "label": "Python",
             "source": "from planvortex import PlanVortex\n\npv = PlanVortex()\n\nresult = pv.integrations.picker_config(id_organization, id_integration)"
+          }
+        ]
+      }
+    },
+    "/organizations/{id_organization}/integrations/{id_integration}/products": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Products of a connected store",
+        "description": "One page of the catalogue of an integration whose provider has `catalog: true` (a WooCommerce store), to choose the products of a `from_catalog` AI plan. Read **live** from the store on every call.\n\n- **Paginated by an opaque `cursor`**, not by page number: send back `next_cursor` as it came, and stop when it is absent.\n- **What the public cannot see does not come**: drafts, private products and products hidden from the catalogue. **What is out of stock DOES come, with `available: false`**: show it marked and do not let it be chosen.\n- `price` is text to copy verbatim, as the store displays it. Absent means no price, and it is also absent on taxable products while the store's `config.tax_location_missing` is true.\n\nA store that rejects its key (`2211`) is marked with that `error_code` until it is reconnected, and shows up as `connected: false`. A firewall (`2212`) or a store that does not answer (`2213`) does not mark it: that fixes itself, or on the store's side.\n\nRequires the `integrations:read` permission.",
+        "operationId": "getIntegrationProducts",
+        "x-planvortex-identity": [
+          "current_user",
+          "current_app"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/IntegrationsidOrganization"
+          },
+          {
+            "$ref": "#/components/parameters/IntegrationsidIntegration"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "description": "The `next_cursor` of the previous page, as it came. Absent = the first page.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "description": "Text to look for, with the store's own product search. A store's catalogue is not something to walk through 50 at a time.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Products per page. A value outside 1-100 is clamped, not refused.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IntegrationsIntegrationCatalogPage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `2200` | Integration not found (`1102` if it belongs to another organization). |\n| `2207` | This integration has no product catalogue (a Google Drive or a feed). |\n| `2208` | The catalogue could not be read and the store gave nothing more specific, or `cursor` is not one this API issued. `data.error` carries the cause. |\n| `2209` | The integration is disabled. Enable it first: a disabled one does not take allowance, so it cannot be read either. |\n| `2210` | The store URL cannot be used. `data.reason`: `invalid_url`, `not_https` (the store only answers on http, and a key never travels in the clear), `non_public_address`, `redirect` (the store redirected a request carrying credentials, which is never followed) or `too_many_redirects`. |\n| `2211` | The store rejected the API key: it does not exist, it was deleted in WordPress, the secret does not match, or it has no read permission. `data` carries what the store said. |\n| `2212` | A firewall or a security plugin in front of the store answered instead of WooCommerce (an HTML challenge from Cloudflare, Wordfence…). **It is not the keys**: the store's hosting has to let PlanVortex's server through. |\n| `2213` | The store could not be reached, timed out or failed on its side (a 5xx). |\n| `2214` | There is no WooCommerce REST API at this URL: not a WordPress, WooCommerce not active, or the REST API disabled. |",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "curl",
+            "label": "curl",
+            "source": "curl \"https://api.planvortex.com/v1.0.0/organizations/$ID_ORGANIZATION/integrations/$ID_INTEGRATION/products\" \\\n  -H \"Authorization: Bearer $PLANVORTEX_TOKEN\""
+          },
+          {
+            "lang": "JavaScript",
+            "label": "Node",
+            "source": "import { PlanVortex } from \"planvortex\";\n\nconst pv = new PlanVortex({\n    clientId: process.env.PLANVORTEX_CLIENT_ID,\n    clientSecret: process.env.PLANVORTEX_CLIENT_SECRET,\n});\n\nconst result = await pv.integrations.products(idOrganization, idIntegration);"
+          },
+          {
+            "lang": "Python",
+            "label": "Python",
+            "source": "from planvortex import PlanVortex\n\npv = PlanVortex()\n\nresult = pv.integrations.products(id_organization, id_integration)"
           }
         ]
       }
@@ -11306,15 +11430,14 @@
           {
             "lang": "JavaScript",
             "label": "Node",
-            "source": "import { PlanVortex } from \"planvortex\";\n\nconst pv = new PlanVortex({\n    clientId: process.env.PLANVORTEX_CLIENT_ID,\n    clientSecret: process.env.PLANVORTEX_CLIENT_SECRET,\n});\n\n// No typed method for this endpoint yet — this is the same authenticated transport.\nconst { data } = await pv.request({\n    method: \"GET\",\n    path: `/organizations/${idOrganization}/accounts/${idAccount}/destinations`,\n});"
+            "source": "import { PlanVortex } from \"planvortex\";\n\nconst pv = new PlanVortex({\n    clientId: process.env.PLANVORTEX_CLIENT_ID,\n    clientSecret: process.env.PLANVORTEX_CLIENT_SECRET,\n});\n\nconst result = await pv.accounts.destinations(idOrganization, idAccount);"
           },
           {
             "lang": "Python",
             "label": "Python",
-            "source": "from planvortex import HttpRequest, PlanVortex\n\npv = PlanVortex()\n\n# No typed method for this endpoint yet — this is the same authenticated transport.\nresponse = pv.request(\n    HttpRequest(\n        method=\"GET\",\n        path=f\"/organizations/{id_organization}/accounts/{id_account}/destinations\",\n    )\n)"
+            "source": "from planvortex import PlanVortex\n\npv = PlanVortex()\n\nresult = pv.accounts.destinations(id_organization, id_account)"
           }
-        ],
-        "x-planvortex-sdk-note": "The official libraries have no typed method for this endpoint yet. The sample uses their escape hatch, which is authenticated exactly like the rest."
+        ]
       }
     },
     "/organizations/{id_organization}/accounts/{id_account}/destinations/{id_destination}": {
@@ -11448,15 +11571,14 @@
           {
             "lang": "JavaScript",
             "label": "Node",
-            "source": "import { PlanVortex } from \"planvortex\";\n\nconst pv = new PlanVortex({\n    clientId: process.env.PLANVORTEX_CLIENT_ID,\n    clientSecret: process.env.PLANVORTEX_CLIENT_SECRET,\n});\n\n// No typed method for this endpoint yet — this is the same authenticated transport.\nconst { data } = await pv.request({\n    method: \"GET\",\n    path: `/organizations/${idOrganization}/accounts/${idAccount}/destinations/${idDestination}`,\n});"
+            "source": "import { PlanVortex } from \"planvortex\";\n\nconst pv = new PlanVortex({\n    clientId: process.env.PLANVORTEX_CLIENT_ID,\n    clientSecret: process.env.PLANVORTEX_CLIENT_SECRET,\n});\n\nconst result = await pv.accounts.destination(idOrganization, idAccount, idDestination);"
           },
           {
             "lang": "Python",
             "label": "Python",
-            "source": "from planvortex import HttpRequest, PlanVortex\n\npv = PlanVortex()\n\n# No typed method for this endpoint yet — this is the same authenticated transport.\nresponse = pv.request(\n    HttpRequest(\n        method=\"GET\",\n        path=f\"/organizations/{id_organization}/accounts/{id_account}/destinations/{id_destination}\",\n    )\n)"
+            "source": "from planvortex import PlanVortex\n\npv = PlanVortex()\n\nresult = pv.accounts.destination(id_organization, id_account, id_destination)"
           }
-        ],
-        "x-planvortex-sdk-note": "The official libraries have no typed method for this endpoint yet. The sample uses their escape hatch, which is authenticated exactly like the rest."
+        ]
       }
     },
     "/organizations/{id_organization}/accounts/{id_account}/publish/{id_publication}": {
@@ -13036,14 +13158,14 @@
                 "$ref": "#/components/schemas/AiPlansAiPlanSourceInput"
               }
             ],
-            "description": "The source itself. Which fields it carries depends on `template`. Required for every template except `standard`, and validated at creation — 2112, 2113, 2114, 2115 or 2116 come back while the user is still there."
+            "description": "The source itself. Which fields it carries depends on `template`. Required for every template except `standard`, and validated at creation — 2112, 2113, 2114, 2115, 2116 or a store's own errors (2200, 2207-2214) come back while the user is still there."
           },
           "accounts": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Account ids (belonging to the organization) to generate the plan for."
+            "description": "Account ids (belonging to the organization) to generate the plan for. **Not every network fits every template**: leave out the ones in the template's `unsupported_networks` (`GET /planner_templates`), or the plan is refused with 2120."
           },
           "destinations": {
             "type": "array",
@@ -13281,7 +13403,7 @@
           },
           "link": {
             "type": "string",
-            "description": "**The destination link** of the plan's publications — the pin's `link`, the same for every publication of the plan. Optional: a pin without a link is legitimate, it just takes nobody anywhere.\n\nIt only reaches the publications of the networks that answer `link: true` in `GET /social_capabilities` (today `pinterest`); with none of them in the plan it is dropped. With one, it is validated **at creation**: a URL Pinterest would reject is a **994** now (`data.reason` `invalid_url` or `too_long`), not a week of pins failing at publish time."
+            "description": "**The destination link** of the plan's publications — the pin's `link`, the same for every publication of the plan. Optional: a pin without a link is legitimate, it just takes nobody anywhere. On `from_catalog`, each pin leads to **its product's page** (`permalink`) when this is absent; when it is present, it wins.\n\nIt only reaches the publications of the networks that answer `link: true` in `GET /social_capabilities` (today `pinterest`); with none of them in the plan it is dropped. With one, it is validated **at creation**: a URL Pinterest would reject is a **994** now (`data.reason` `invalid_url` or `too_long`), not a week of pins failing at publish time."
           }
         }
       },
@@ -13403,7 +13525,11 @@
           },
           "id_account_catalog": {
             "type": "string",
-            "description": "`from_catalog`. The account whose catalogue was read."
+            "description": "`from_catalog`. The account whose Meta catalogue was read."
+          },
+          "id_integration_catalog": {
+            "type": "string",
+            "description": "`from_catalog`. The connected store (an integration) whose catalogue was read. Only one of the two is present."
           },
           "products": {
             "type": "array",
@@ -13447,7 +13573,7 @@
       },
       "AiPlansAiPlanSourceInput": {
         "type": "object",
-        "description": "The plan's source, as you SEND it. **One shape per template**: send only the fields of the template you chose — what it does not read is ignored, and what it needs and does not get is a 2112.\n\nIt is validated when the plan is **created**, not when it is generated: the article is downloaded, the catalogue is read live and the product pictures are copied. So a source that does not work fails while the user is still there and can fix it, and what gets stored is a SNAPSHOT — a retry three days later does not depend on the article still being online or the product still being in the catalogue.\n\n| Template | Fields |\n| --- | --- |\n| `standard` | none — no source |\n| `from_images` | `images` |\n| `from_text` | `url` **or** `text` |\n| `from_catalog` | `id_account_catalog`, `product_catalog_id`, `products` |\n| `campaign` | `event_name`, `event_date` |",
+        "description": "The plan's source, as you SEND it. **One shape per template**: send only the fields of the template you chose — what it does not read is ignored, and what it needs and does not get is a 2112.\n\nIt is validated when the plan is **created**, not when it is generated: the article is downloaded, the catalogue or the store is read live and the product pictures are copied. So a source that does not work fails while the user is still there and can fix it, and what gets stored is a SNAPSHOT — a retry three days later does not depend on the article still being online or the product still being in the catalogue.\n\n| Template | Fields |\n| --- | --- |\n| `standard` | none — no source |\n| `from_images` | `images` |\n| `from_text` | `url` **or** `text` |\n| `from_catalog` | `id_account_catalog` + `product_catalog_id` (a Meta catalogue) **or** `id_integration_catalog` (a connected store), and `products` |\n| `campaign` | `event_name`, `event_date` |",
         "properties": {
           "images": {
             "type": "array",
@@ -13470,11 +13596,15 @@
           },
           "id_account_catalog": {
             "type": "string",
-            "description": "`from_catalog`. Which account's catalogue the products come from. It has to belong to the organization (2103) and be on a network that supports products (2115). It only chooses the catalogue: the publications still go to every account in `accounts` — a LinkedIn account can publish a product from a Facebook catalogue."
+            "description": "`from_catalog`, from a **Meta catalogue**. Which account's catalogue the products come from. It has to belong to the organization (2103) and be on a network that supports products (2115). It only chooses the catalogue: the publications still go to every account in `accounts` — a LinkedIn account can publish a product from a Facebook catalogue. **Exclusive with `id_integration_catalog`** (both at once is a 2112)."
           },
           "product_catalog_id": {
             "type": "string",
-            "description": "`from_catalog`. The catalogue itself, as the network identifies it."
+            "description": "`from_catalog` with `id_account_catalog` only. The catalogue itself, as the network identifies it: an account can have several catalogues, a store is one."
+          },
+          "id_integration_catalog": {
+            "type": "string",
+            "description": "`from_catalog`, from a **connected store**. An integration of the organization whose provider has `catalog: true` (a WooCommerce store), enabled; another organization's is a 2200, without confirming it exists. The products are its `external_id`s, from `GET .../integrations/{id_integration}/products`. Like the account, it only chooses the catalogue: the publications go to every account in `accounts`. **Exclusive with `id_account_catalog`.**"
           },
           "products": {
             "type": "array",
@@ -13482,7 +13612,7 @@
             "items": {
               "type": "string"
             },
-            "description": "`from_catalog`. Ids of the chosen products, **in the order they should tell the week**. Up to 12 — a unit here is not an id already in the database: it is a live read plus a real download inside this request, with the user waiting. Repeated ids are deduplicated. They are ALL checked against the catalogue before a single picture is downloaded (2112 naming the missing one), and each picture is copied into an upload of the organization: the network CDN URL expires, and a plan published weeks later would carry a broken file. Those uploads count against the storage quota."
+            "description": "`from_catalog`. Ids of the chosen products, **in the order they should tell the week**. Up to 12 — a unit here is not an id already in the database: it is a live read plus a real download inside this request, with the user waiting. Repeated ids are deduplicated. They are ALL checked against the catalogue before a single picture is downloaded (2112 naming the missing one, or the one that is out of stock), and each picture is copied into an upload of the organization: a catalogue's picture URL expires or changes, and a plan published weeks later would carry a broken file. Those uploads count against the storage quota."
           },
           "event_name": {
             "type": "string",
@@ -13502,7 +13632,7 @@
         "properties": {
           "external_id": {
             "type": "string",
-            "description": "The id it has in the network catalogue."
+            "description": "The id it has in the catalogue: the network's, or the store's."
           },
           "name": {
             "type": "string"
@@ -13512,7 +13642,11 @@
           },
           "price": {
             "type": "string",
-            "description": "The price **exactly as the network returned it** (\"9,99 €\"). It is never converted: the same field is a number in other paths of Meta's API and there is no way to tell units from cents, and dividing by 100 \"just in case\" is precisely how a 10 € product gets advertised at 0,10 €. The prompt is told to copy it verbatim or to say nothing."
+            "description": "The price **exactly as the source gave it**: Meta's formatted price (\"9,99 €\"), or a store's displayed price with its tax, symbol and range (\"14,52 € IVA incluido\"). It is never converted: the same field is a number in other paths of Meta's API and there is no way to tell units from cents, and dividing by 100 \"just in case\" is precisely how a 10 € product gets advertised at 0,10 €. The prompt is told to copy it verbatim or to say nothing. Absent when the product has no price, and on a store's taxable products while its `config.tax_location_missing` is true."
+          },
+          "permalink": {
+            "type": "string",
+            "description": "The product's public page (a store's product page, or the `url` of the Meta catalogue item), kept only when it is an http(s) address. The texts use it on the networks where a link in the text can be clicked, never on Instagram or TikTok; and a Pinterest pin leads there unless the plan has its own `options.link`. Absent on plans created before the field existed."
           },
           "id_upload": {
             "type": "string",
@@ -13730,7 +13864,7 @@
               "from_catalog",
               "campaign"
             ],
-            "description": "What the plan is generated FROM, and what you send as `template` when creating it:\n\n• **`standard`** — a theme prompt, images generated by the model. What every plan was before templates existed.\n• **`from_images`** — the user's own photos, each with its own description. One vision pass over ALL of them at once, so the model can sequence a narrative (photo 3 the \"before\", photo 7 the \"after\") instead of writing seven independent posts. It generates no images.\n• **`from_text`** — an article: a URL that is downloaded at creation, or the text pasted by hand.\n• **`from_catalog`** — products read LIVE from a connected catalogue, with their name, their price and their picture. The one template that cannot be copied by a generic AI tool, because it needs the catalogue connection.\n• **`campaign`** — a countdown towards a date, with a narrative arc: teaser, announcement, reminder, today, thank you. The only plan that is a story instead of seven loose posts."
+            "description": "What the plan is generated FROM, and what you send as `template` when creating it:\n\n• **`standard`** — a theme prompt, images generated by the model. What every plan was before templates existed.\n• **`from_images`** — the user's own photos, each with its own description. One vision pass over ALL of them at once, so the model can sequence a narrative (photo 3 the \"before\", photo 7 the \"after\") instead of writing seven independent posts. It generates no images.\n• **`from_text`** — an article: a URL that is downloaded at creation, or the text pasted by hand.\n• **`from_catalog`** — products read LIVE from a connected catalogue (a Meta catalogue through a connected account, or a connected store such as WooCommerce), with their name, their description, their price, their picture and the link to their page. The one template that cannot be copied by a generic AI tool, because it needs the catalogue connection.\n• **`campaign`** — a countdown towards a date, with a narrative arc: teaser, announcement, reminder, today, thank you. The only plan that is a story instead of seven loose posts."
           },
           "allows_shared": {
             "type": "boolean",
@@ -13779,7 +13913,19 @@
             "items": {
               "type": "string"
             },
-            "description": "Fields of which AT LEAST ONE is needed, even though none of them is required on its own. Today it is `from_text`: either the URL or the pasted text, never both empty (2116).\n\nIt exists because a field's `required` cannot say \"one or the other\", and without it your UI would have to hardcode that rule — exactly the copy this catalogue exists to avoid. Absent = there is nothing of the sort to resolve."
+            "description": "Fields of which AT LEAST ONE is needed, even though none of them is required on its own: `from_text` takes the URL or the pasted text, never both empty (2116); `from_catalog` takes `id_account_catalog` or `id_integration_catalog`, and exactly one (2112 with both).\n\nIt exists because a field's `required` cannot say \"one or the other\", and without it your UI would have to hardcode that rule — exactly the copy this catalogue exists to avoid. Absent = there is nothing of the sort to resolve."
+          },
+          "unsupported_networks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SocialNetwork"
+            },
+            "description": "Networks whose accounts cannot be in a plan of this template: creating one is refused with 2120, before anything is read or charged. The ones that do not publish (`whatsapp`, `google_business`) on every template; and on the templates where every publication is the photo of its source (`from_images`, `from_catalog`), also the ones that do not publish images: `youtube`, which only uploads video.\n\nIt is computed from the same data that validates publishing, not from a list: a new network that does not publish photos drops out on its own. Filter the accounts you offer with it.",
+            "example": [
+              "whatsapp",
+              "google_business",
+              "youtube"
+            ]
           }
         }
       },
@@ -15734,20 +15880,21 @@
           },
           "name": {
             "type": "string",
-            "example": "Drive de ana@empresa.com"
+            "example": "Drive de ana@empresa.com",
+            "description": "The Google account, the feed title, or the store's site name."
           },
           "external_identifier": {
             "type": "string",
-            "description": "The Google account email, or the feed URL.",
+            "description": "The Google account email, the feed URL, or the store URL.",
             "example": "ana@empresa.com"
           },
           "config": {
             "allOf": [
               {
-                "$ref": "#/components/schemas/IntegrationsRssConfig"
+                "$ref": "#/components/schemas/IntegrationsIntegrationConfig"
               }
             ],
-            "description": "Provider-specific configuration. **Empty object for `google_drive`** — the Picker supplies everything — so every field here is optional and only an `rss` integration fills them in."
+            "description": "Provider-specific configuration, built by the server. **Empty object for `google_drive`** (the Picker supplies everything), the feed settings for `rss` and the store connection for `woocommerce`, so every field here is optional. It never carries a secret."
           },
           "enabled": {
             "type": "boolean",
@@ -15762,7 +15909,7 @@
               "integer",
               "null"
             ],
-            "description": "PlanVortex error code of the last failure (2203 token revoked, 2205 feed unreachable, 924 no publication allowance left…)."
+            "description": "PlanVortex error code of the last failure (2203 token revoked, 2205 feed unreachable, 2211 the store rejected its key, 924 no publication allowance left…). **2219 is not a failure**: a store connected with the button is being checked, for a few seconds; if it stays there, the check never finished and the store has to be reconnected."
           },
           "last_used_date": {
             "type": "string",
@@ -15785,6 +15932,177 @@
           "creation_date"
         ]
       },
+      "IntegrationsIntegrationCatalogPage": {
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IntegrationsIntegrationCatalogProduct"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "description": "Absent on the last page. **Opaque**: send it back as `cursor` exactly as it came, and never build or parse one. A cursor the server did not issue is a `2208`."
+          }
+        }
+      },
+      "IntegrationsIntegrationCatalogProduct": {
+        "type": "object",
+        "description": "A product of a connected store, already normalised: the same shape whatever the store is.",
+        "required": [
+          "external_id",
+          "name",
+          "available"
+        ],
+        "properties": {
+          "external_id": {
+            "type": "string",
+            "description": "The id it has in the store. **Always a string**, even where the store uses numbers. It is what goes into `source.products` of a `from_catalog` plan.",
+            "example": "68"
+          },
+          "name": {
+            "type": "string",
+            "example": "Taza de cerámica"
+          },
+          "description": {
+            "type": "string",
+            "description": "Plain text, already stripped of HTML, entities and page-builder shortcodes, cut at 400 characters without splitting a word."
+          },
+          "price": {
+            "type": "string",
+            "description": "Text ready to be copied **verbatim**, as the store displays it: with its tax suffix, its currency symbol and the range of a variable product (\"36,30 € - 48,40 € IVA incluido\"); for a product on sale, the sale price alone. Never a number to do arithmetic with. **Absent = no price**: the product has none, or it is taxable and the store's `config.tax_location_missing` is true.",
+            "example": "14,52 € IVA incluido"
+          },
+          "image_url": {
+            "type": "string",
+            "description": "The first image of the product. It is the store's own URL: it can be slow, or blocked when loaded from another domain."
+          },
+          "permalink": {
+            "type": "string",
+            "description": "The product's public page in the store."
+          },
+          "available": {
+            "type": "boolean",
+            "description": "Can it be chosen? **false for what is out of stock**: show it, marked, but do not let it be picked. Advertising what cannot be bought is worse than not advertising, and a plan with one is rejected (`2112`). A product on backorder is available."
+          }
+        }
+      },
+      "IntegrationsIntegrationConfig": {
+        "type": "object",
+        "description": "What `config` holds, per provider. `google_drive`: nothing. `rss`: the feed settings. `woocommerce`: how to reach the store, which the server detects when connecting. None of it is a secret.",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "`rss`: the feed. `woocommerce`: the store, as it was resolved when connecting (after its own redirects, which from then on are never followed). **A store's `url` cannot be changed with `PUT`** (`2220`): it decides which server receives the stored key. Changing store is reconnecting."
+          },
+          "id_accounts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "`rss`."
+          },
+          "publication_type": {
+            "type": "string",
+            "description": "`rss`."
+          },
+          "template": {
+            "type": "string",
+            "description": "`rss`."
+          },
+          "auto_publish": {
+            "type": "boolean",
+            "description": "`rss`."
+          },
+          "import_image": {
+            "type": "boolean",
+            "description": "`rss`."
+          },
+          "seen_guids": {
+            "type": "array",
+            "description": "`rss`. Entries already processed (last 200, FIFO). Owned by the job: filled at connection time with everything the feed already had, so the back catalogue is never published.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "last_checked": {
+            "type": "string",
+            "format": "date-time",
+            "description": "`rss`."
+          },
+          "api_base": {
+            "type": "string",
+            "enum": [
+              "wp-json",
+              "rest_route"
+            ],
+            "description": "`woocommerce`. Where the store's REST API answers: `wp-json` (`/wp-json/wc/v3/…`) or `rest_route` (`/?rest_route=/wc/v3/…`), the fallback for stores with plain permalinks. A `rest_route` store cannot use the approval button (`2216`)."
+          },
+          "auth_mode": {
+            "type": "string",
+            "enum": [
+              "basic",
+              "query"
+            ],
+            "description": "`woocommerce`. How the key travels: `basic` (the `Authorization` header) or `query` (in the URL, only for hostings that drop that header). Detected when connecting."
+          },
+          "key_ending": {
+            "type": "string",
+            "description": "`woocommerce`. The last 7 characters of the consumer key, which is what WooCommerce shows in its key list (WooCommerce → Settings → Advanced → REST API). Disconnecting cannot revoke the key: this is how the user finds which one to delete there.",
+            "example": "3f9a2c1"
+          },
+          "currency": {
+            "type": "string",
+            "description": "`woocommerce`. The store currency, when the key could read it (it needs a shop manager's key). Only used for a product that comes without `price_html`.",
+            "example": "EUR"
+          },
+          "tax_location_missing": {
+            "type": "boolean",
+            "description": "`woocommerce`. **true when the store's API gives prices WITHOUT tax, labelled as tax included.** It happens with the default customer location set to geolocate (or to no location), prices entered without tax and tax based on the customer's address: an API request has no customer, so WooCommerce has nowhere to charge tax, and `price_html` reads \"20,00 € IVA incluido\" where the shop charges 24,20 €. While it is true, the store's **taxable products come back without a price** rather than with a wrong one; products with no tax keep theirs. It is checked when connecting, so after fixing the setting (WooCommerce → Settings → General → Default customer location → Shop country/region) the store has to be reconnected. Always present on a store, also as `false`."
+          }
+        }
+      },
+      "IntegrationsIntegrationFormField": {
+        "type": "object",
+        "description": "One field of a provider's form. Build the form from these, not from a copy of your own: the server that validates the field is the one that announces it.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "url",
+              "text",
+              "textarea",
+              "boolean",
+              "accounts",
+              "select",
+              "secret"
+            ],
+            "description": "`accounts` is a picker of the organization's accounts. `secret` is a credential (WooCommerce's consumer secret): mask it, never prefill it when editing, and mark the input as a new password (`autocomplete=\"new-password\"`), or the browser's password manager fills it with the user's own PlanVortex password and the store answers `2211`."
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "default": {},
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "required"
+        ]
+      },
       "IntegrationsIntegrationProvider": {
         "type": "object",
         "properties": {
@@ -15793,7 +16111,18 @@
           },
           "requires_oauth": {
             "type": "boolean",
-            "description": "true = connect with connect_link + code. false = connect with a form built from config_fields."
+            "description": "true = there is an OAuth token behind the connection (Google Drive): connect with `connect_link` + `code`, one per organization and provider. false = no token to renew. **Having a link is not being OAuth**: read `connect_link` for that."
+          },
+          "connect_link": {
+            "type": "boolean",
+            "description": "Can be connected by sending the user to `GET .../integrations/{provider}/connect_link`: Google Drive (its OAuth) and WooCommerce (the store's approval button, which creates the key without anyone copying it). A provider with a link can ALSO have `config_fields`: a WooCommerce store accepts API keys by hand too."
+          },
+          "connect_link_fields": {
+            "type": "array",
+            "description": "What `connect_link` needs in its query before it can build the link: the store `url` on WooCommerce, because the link points at the store's own WordPress. Empty on Google Drive.",
+            "items": {
+              "$ref": "#/components/schemas/IntegrationsIntegrationFormField"
+            }
           },
           "file_import": {
             "type": "boolean",
@@ -15802,6 +16131,10 @@
           "content_feed": {
             "type": "boolean",
             "description": "Polled by the poll-feeds job, which turns new entries into publications."
+          },
+          "catalog": {
+            "type": "boolean",
+            "description": "Has a product catalogue: `GET .../integrations/{id_integration}/products`, and a source for the `from_catalog` planner template (`source.id_integration_catalog`). WooCommerce."
           },
           "accepted_formats": {
             "type": "array",
@@ -15821,46 +16154,20 @@
           },
           "config_fields": {
             "type": "array",
+            "description": "The connection form. Empty when the provider connects through OAuth alone.",
             "items": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string"
-                },
-                "type": {
-                  "type": "string",
-                  "enum": [
-                    "url",
-                    "text",
-                    "textarea",
-                    "boolean",
-                    "accounts",
-                    "select"
-                  ]
-                },
-                "required": {
-                  "type": "boolean"
-                },
-                "default": {},
-                "options": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
-              },
-              "required": [
-                "name",
-                "type"
-              ]
+              "$ref": "#/components/schemas/IntegrationsIntegrationFormField"
             }
           }
         },
         "required": [
           "provider",
           "requires_oauth",
+          "connect_link",
+          "connect_link_fields",
           "file_import",
           "content_feed",
+          "catalog",
           "accepted_formats",
           "config_fields"
         ]
@@ -15869,7 +16176,8 @@
         "type": "string",
         "enum": [
           "google_drive",
-          "rss"
+          "rss",
+          "woocommerce"
         ]
       },
       "IntegrationsRssConfig": {
@@ -15951,6 +16259,36 @@
           "import_image": {
             "type": "boolean",
             "description": "Import the entry's featured image (enclosure, media:content or the first <img> of the content) into the library and attach it. Optional; defaults to `true`."
+          }
+        }
+      },
+      "IntegrationsWooCommerceConnectRequest": {
+        "type": "object",
+        "required": [
+          "provider",
+          "url",
+          "consumer_key",
+          "consumer_secret"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "woocommerce"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "The store address. **https only**: a store that only answers on http is not connected, because the key would travel in the clear. Its redirects (http to https, bare domain to www) are resolved now, without credentials, and the final URL is what gets stored.",
+            "example": "https://tienda.example.com"
+          },
+          "consumer_key": {
+            "type": "string",
+            "description": "Starts with `ck_`. Created in WooCommerce → Settings → Advanced → REST API with **Read** permission."
+          },
+          "consumer_secret": {
+            "type": "string",
+            "description": "Starts with `cs_`. Stored encrypted and never returned by any endpoint."
           }
         }
       },

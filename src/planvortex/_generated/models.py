@@ -384,7 +384,7 @@ class AiPlansAiPlanOptionsInput(TypedDict):
     """
     link: NotRequired[str]
     """
-    **The destination link** of the plan's publications — the pin's `link`, the same for every publication of the plan. Optional: a pin without a link is legitimate, it just takes nobody anywhere.
+    **The destination link** of the plan's publications — the pin's `link`, the same for every publication of the plan. Optional: a pin without a link is legitimate, it just takes nobody anywhere. On `from_catalog`, each pin leads to **its product's page** (`permalink`) when this is absent; when it is present, it wins.
 
     It only reaches the publications of the networks that answer `link: true` in `GET /social_capabilities` (today `pinterest`); with none of them in the plan it is dropped. With one, it is validated **at creation**: a URL Pinterest would reject is a **994** now (`data.reason` `invalid_url` or `too_long`), not a week of pins failing at publish time.
     """
@@ -434,14 +434,14 @@ class AiPlansAiPlanSourceInput(TypedDict):
     """
     The plan's source, as you SEND it. **One shape per template**: send only the fields of the template you chose — what it does not read is ignored, and what it needs and does not get is a 2112.
 
-    It is validated when the plan is **created**, not when it is generated: the article is downloaded, the catalogue is read live and the product pictures are copied. So a source that does not work fails while the user is still there and can fix it, and what gets stored is a SNAPSHOT — a retry three days later does not depend on the article still being online or the product still being in the catalogue.
+    It is validated when the plan is **created**, not when it is generated: the article is downloaded, the catalogue or the store is read live and the product pictures are copied. So a source that does not work fails while the user is still there and can fix it, and what gets stored is a SNAPSHOT — a retry three days later does not depend on the article still being online or the product still being in the catalogue.
 
     | Template | Fields |
     | --- | --- |
     | `standard` | none — no source |
     | `from_images` | `images` |
     | `from_text` | `url` **or** `text` |
-    | `from_catalog` | `id_account_catalog`, `product_catalog_id`, `products` |
+    | `from_catalog` | `id_account_catalog` + `product_catalog_id` (a Meta catalogue) **or** `id_integration_catalog` (a connected store), and `products` |
     | `campaign` | `event_name`, `event_date` |
     """
 
@@ -459,15 +459,19 @@ class AiPlansAiPlanSourceInput(TypedDict):
     """
     id_account_catalog: NotRequired[str]
     """
-    `from_catalog`. Which account's catalogue the products come from. It has to belong to the organization (2103) and be on a network that supports products (2115). It only chooses the catalogue: the publications still go to every account in `accounts` — a LinkedIn account can publish a product from a Facebook catalogue.
+    `from_catalog`, from a **Meta catalogue**. Which account's catalogue the products come from. It has to belong to the organization (2103) and be on a network that supports products (2115). It only chooses the catalogue: the publications still go to every account in `accounts` — a LinkedIn account can publish a product from a Facebook catalogue. **Exclusive with `id_integration_catalog`** (both at once is a 2112).
     """
     product_catalog_id: NotRequired[str]
     """
-    `from_catalog`. The catalogue itself, as the network identifies it.
+    `from_catalog` with `id_account_catalog` only. The catalogue itself, as the network identifies it: an account can have several catalogues, a store is one.
+    """
+    id_integration_catalog: NotRequired[str]
+    """
+    `from_catalog`, from a **connected store**. An integration of the organization whose provider has `catalog: true` (a WooCommerce store), enabled; another organization's is a 2200, without confirming it exists. The products are its `external_id`s, from `GET .../integrations/{id_integration}/products`. Like the account, it only chooses the catalogue: the publications go to every account in `accounts`. **Exclusive with `id_account_catalog`.**
     """
     products: NotRequired[list[str]]
     """
-    `from_catalog`. Ids of the chosen products, **in the order they should tell the week**. Up to 12 — a unit here is not an id already in the database: it is a live read plus a real download inside this request, with the user waiting. Repeated ids are deduplicated. They are ALL checked against the catalogue before a single picture is downloaded (2112 naming the missing one), and each picture is copied into an upload of the organization: the network CDN URL expires, and a plan published weeks later would carry a broken file. Those uploads count against the storage quota.
+    `from_catalog`. Ids of the chosen products, **in the order they should tell the week**. Up to 12 — a unit here is not an id already in the database: it is a live read plus a real download inside this request, with the user waiting. Repeated ids are deduplicated. They are ALL checked against the catalogue before a single picture is downloaded (2112 naming the missing one, or the one that is out of stock), and each picture is copied into an upload of the organization: a catalogue's picture URL expires or changes, and a plan published weeks later would carry a broken file. Those uploads count against the storage quota.
     """
     event_name: NotRequired[str]
     """
@@ -486,13 +490,17 @@ class AiPlansAiPlanSourceProduct(TypedDict):
 
     external_id: NotRequired[str]
     """
-    The id it has in the network catalogue.
+    The id it has in the catalogue: the network's, or the store's.
     """
     name: NotRequired[str]
     description: NotRequired[str]
     price: NotRequired[str]
     """
-    The price **exactly as the network returned it** ("9,99 €"). It is never converted: the same field is a number in other paths of Meta's API and there is no way to tell units from cents, and dividing by 100 "just in case" is precisely how a 10 € product gets advertised at 0,10 €. The prompt is told to copy it verbatim or to say nothing.
+    The price **exactly as the source gave it**: Meta's formatted price ("9,99 €"), or a store's displayed price with its tax, symbol and range ("14,52 € IVA incluido"). It is never converted: the same field is a number in other paths of Meta's API and there is no way to tell units from cents, and dividing by 100 "just in case" is precisely how a 10 € product gets advertised at 0,10 €. The prompt is told to copy it verbatim or to say nothing. Absent when the product has no price, and on a store's taxable products while its `config.tax_location_missing` is true.
+    """
+    permalink: NotRequired[str]
+    """
+    The product's public page (a store's product page, or the `url` of the Meta catalogue item), kept only when it is an http(s) address. The texts use it on the networks where a link in the text can be clicked, never on Instagram or TikTok; and a Pinterest pin leads there unless the plan has its own `options.link`. Absent on plans created before the field existed.
     """
     id_upload: NotRequired[str]
     """
@@ -1187,15 +1195,113 @@ class IntegrationsGoogleDriveConnectRequest(TypedDict):
     """
 
 
-class ConfigField(TypedDict):
+class IntegrationsIntegrationCatalogProduct(TypedDict):
+    """
+    A product of a connected store, already normalised: the same shape whatever the store is.
+    """
+
+    external_id: str
+    """
+    The id it has in the store. **Always a string**, even where the store uses numbers. It is what goes into `source.products` of a `from_catalog` plan.
+    """
     name: str
-    type: Literal["url", "text", "textarea", "boolean", "accounts", "select"]
-    required: NotRequired[bool]
+    description: NotRequired[str]
+    """
+    Plain text, already stripped of HTML, entities and page-builder shortcodes, cut at 400 characters without splitting a word.
+    """
+    price: NotRequired[str]
+    """
+    Text ready to be copied **verbatim**, as the store displays it: with its tax suffix, its currency symbol and the range of a variable product ("36,30 € - 48,40 € IVA incluido"); for a product on sale, the sale price alone. Never a number to do arithmetic with. **Absent = no price**: the product has none, or it is taxable and the store's `config.tax_location_missing` is true.
+    """
+    image_url: NotRequired[str]
+    """
+    The first image of the product. It is the store's own URL: it can be slow, or blocked when loaded from another domain.
+    """
+    permalink: NotRequired[str]
+    """
+    The product's public page in the store.
+    """
+    available: bool
+    """
+    Can it be chosen? **false for what is out of stock**: show it, marked, but do not let it be picked. Advertising what cannot be bought is worse than not advertising, and a plan with one is rejected (`2112`). A product on backorder is available.
+    """
+
+
+class IntegrationsIntegrationConfig(TypedDict):
+    """
+    What `config` holds, per provider. `google_drive`: nothing. `rss`: the feed settings. `woocommerce`: how to reach the store, which the server detects when connecting. None of it is a secret.
+    """
+
+    url: NotRequired[str]
+    """
+    `rss`: the feed. `woocommerce`: the store, as it was resolved when connecting (after its own redirects, which from then on are never followed). **A store's `url` cannot be changed with `PUT`** (`2220`): it decides which server receives the stored key. Changing store is reconnecting.
+    """
+    id_accounts: NotRequired[list[str]]
+    """
+    `rss`.
+    """
+    publication_type: NotRequired[str]
+    """
+    `rss`.
+    """
+    template: NotRequired[str]
+    """
+    `rss`.
+    """
+    auto_publish: NotRequired[bool]
+    """
+    `rss`.
+    """
+    import_image: NotRequired[bool]
+    """
+    `rss`.
+    """
+    seen_guids: NotRequired[list[str]]
+    """
+    `rss`. Entries already processed (last 200, FIFO). Owned by the job: filled at connection time with everything the feed already had, so the back catalogue is never published.
+    """
+    last_checked: NotRequired[str]
+    """
+    `rss`.
+    """
+    api_base: NotRequired[Literal["wp-json", "rest_route"]]
+    """
+    `woocommerce`. Where the store's REST API answers: `wp-json` (`/wp-json/wc/v3/…`) or `rest_route` (`/?rest_route=/wc/v3/…`), the fallback for stores with plain permalinks. A `rest_route` store cannot use the approval button (`2216`).
+    """
+    auth_mode: NotRequired[Literal["basic", "query"]]
+    """
+    `woocommerce`. How the key travels: `basic` (the `Authorization` header) or `query` (in the URL, only for hostings that drop that header). Detected when connecting.
+    """
+    key_ending: NotRequired[str]
+    """
+    `woocommerce`. The last 7 characters of the consumer key, which is what WooCommerce shows in its key list (WooCommerce → Settings → Advanced → REST API). Disconnecting cannot revoke the key: this is how the user finds which one to delete there.
+    """
+    currency: NotRequired[str]
+    """
+    `woocommerce`. The store currency, when the key could read it (it needs a shop manager's key). Only used for a product that comes without `price_html`.
+    """
+    tax_location_missing: NotRequired[bool]
+    """
+    `woocommerce`. **true when the store's API gives prices WITHOUT tax, labelled as tax included.** It happens with the default customer location set to geolocate (or to no location), prices entered without tax and tax based on the customer's address: an API request has no customer, so WooCommerce has nowhere to charge tax, and `price_html` reads "20,00 € IVA incluido" where the shop charges 24,20 €. While it is true, the store's **taxable products come back without a price** rather than with a wrong one; products with no tax keep theirs. It is checked when connecting, so after fixing the setting (WooCommerce → Settings → General → Default customer location → Shop country/region) the store has to be reconnected. Always present on a store, also as `false`.
+    """
+
+
+class IntegrationsIntegrationFormField(TypedDict):
+    """
+    One field of a provider's form. Build the form from these, not from a copy of your own: the server that validates the field is the one that announces it.
+    """
+
+    name: str
+    type: Literal["url", "text", "textarea", "boolean", "accounts", "select", "secret"]
+    """
+    `accounts` is a picker of the organization's accounts. `secret` is a credential (WooCommerce's consumer secret): mask it, never prefill it when editing, and mark the input as a new password (`autocomplete="new-password"`), or the browser's password manager fills it with the user's own PlanVortex password and the store answers `2211`.
+    """
+    required: bool
     default: NotRequired[Any]
     options: NotRequired[list[str]]
 
 
-IntegrationsIntegrationProviderName: TypeAlias = Literal["google_drive", "rss"]
+IntegrationsIntegrationProviderName: TypeAlias = Literal["google_drive", "rss", "woocommerce"]
 
 
 class IntegrationsRssConfig(TypedDict):
@@ -1241,6 +1347,22 @@ class IntegrationsRssConnectRequest(TypedDict):
     import_image: NotRequired[bool]
     """
     Import the entry's featured image (enclosure, media:content or the first <img> of the content) into the library and attach it. Optional; defaults to `true`.
+    """
+
+
+class IntegrationsWooCommerceConnectRequest(TypedDict):
+    provider: Literal["woocommerce"]
+    url: str
+    """
+    The store address. **https only**: a store that only answers on http is not connected, because the key would travel in the clear. Its redirects (http to https, bare domain to www) are resolved now, without credentials, and the final URL is what gets stored.
+    """
+    consumer_key: str
+    """
+    Starts with `ck_`. Created in WooCommerce → Settings → Advanced → REST API with **Read** permission.
+    """
+    consumer_secret: str
+    """
+    Starts with `cs_`. Stored encrypted and never returned by any endpoint.
     """
 
 
@@ -2403,7 +2525,11 @@ class AiPlansAiPlanSource(TypedDict):
     """
     id_account_catalog: NotRequired[str]
     """
-    `from_catalog`. The account whose catalogue was read.
+    `from_catalog`. The account whose Meta catalogue was read.
+    """
+    id_integration_catalog: NotRequired[str]
+    """
+    `from_catalog`. The connected store (an integration) whose catalogue was read. Only one of the two is present.
     """
     products: NotRequired[list[AiPlansAiPlanSourceProduct]]
     """
@@ -2423,7 +2549,7 @@ class CatalogPlannerTemplate(TypedDict):
     • **`standard`** — a theme prompt, images generated by the model. What every plan was before templates existed.
     • **`from_images`** — the user's own photos, each with its own description. One vision pass over ALL of them at once, so the model can sequence a narrative (photo 3 the "before", photo 7 the "after") instead of writing seven independent posts. It generates no images.
     • **`from_text`** — an article: a URL that is downloaded at creation, or the text pasted by hand.
-    • **`from_catalog`** — products read LIVE from a connected catalogue, with their name, their price and their picture. The one template that cannot be copied by a generic AI tool, because it needs the catalogue connection.
+    • **`from_catalog`** — products read LIVE from a connected catalogue (a Meta catalogue through a connected account, or a connected store such as WooCommerce), with their name, their description, their price, their picture and the link to their page. The one template that cannot be copied by a generic AI tool, because it needs the catalogue connection.
     • **`campaign`** — a countdown towards a date, with a narrative arc: teaser, announcement, reminder, today, thank you. The only plan that is a story instead of seven loose posts.
     """
     allows_shared: NotRequired[bool]
@@ -2457,9 +2583,15 @@ class CatalogPlannerTemplate(TypedDict):
     source_fields: NotRequired[list[CatalogPlannerTemplateField]]
     source_requires_any: NotRequired[list[str]]
     """
-    Fields of which AT LEAST ONE is needed, even though none of them is required on its own. Today it is `from_text`: either the URL or the pasted text, never both empty (2116).
+    Fields of which AT LEAST ONE is needed, even though none of them is required on its own: `from_text` takes the URL or the pasted text, never both empty (2116); `from_catalog` takes `id_account_catalog` or `id_integration_catalog`, and exactly one (2112 with both).
 
     It exists because a field's `required` cannot say "one or the other", and without it your UI would have to hardcode that rule — exactly the copy this catalogue exists to avoid. Absent = there is nothing of the sort to resolve.
+    """
+    unsupported_networks: NotRequired[list[SocialNetwork]]
+    """
+    Networks whose accounts cannot be in a plan of this template: creating one is refused with 2120, before anything is read or charged. The ones that do not publish (`whatsapp`, `google_business`) on every template; and on the templates where every publication is the photo of its source (`from_images`, `from_catalog`), also the ones that do not publish images: `youtube`, which only uploads video.
+
+    It is computed from the same data that validates publishing, not from a list: a new network that does not publish photos drops out on its own. Filter the accounts you offer with it.
     """
 
 
@@ -2815,13 +2947,16 @@ class IntegrationsIntegration(TypedDict):
     id_client: str
     provider: IntegrationsIntegrationProviderName
     name: str
+    """
+    The Google account, the feed title, or the store's site name.
+    """
     external_identifier: NotRequired[str]
     """
-    The Google account email, or the feed URL.
+    The Google account email, the feed URL, or the store URL.
     """
-    config: IntegrationsRssConfig
+    config: IntegrationsIntegrationConfig
     """
-    Provider-specific configuration. **Empty object for `google_drive`** — the Picker supplies everything — so every field here is optional and only an `rss` integration fills them in.
+    Provider-specific configuration, built by the server. **Empty object for `google_drive`** (the Picker supplies everything), the feed settings for `rss` and the store connection for `woocommerce`, so every field here is optional. It never carries a secret.
     """
     enabled: bool
     """
@@ -2833,17 +2968,33 @@ class IntegrationsIntegration(TypedDict):
     """
     error_code: NotRequired[int | None]
     """
-    PlanVortex error code of the last failure (2203 token revoked, 2205 feed unreachable, 924 no publication allowance left…).
+    PlanVortex error code of the last failure (2203 token revoked, 2205 feed unreachable, 2211 the store rejected its key, 924 no publication allowance left…). **2219 is not a failure**: a store connected with the button is being checked, for a few seconds; if it stays there, the check never finished and the store has to be reconnected.
     """
     last_used_date: NotRequired[str]
     creation_date: str
+
+
+class IntegrationsIntegrationCatalogPage(TypedDict):
+    items: list[IntegrationsIntegrationCatalogProduct]
+    next_cursor: NotRequired[str]
+    """
+    Absent on the last page. **Opaque**: send it back as `cursor` exactly as it came, and never build or parse one. A cursor the server did not issue is a `2208`.
+    """
 
 
 class IntegrationsIntegrationProvider(TypedDict):
     provider: IntegrationsIntegrationProviderName
     requires_oauth: bool
     """
-    true = connect with connect_link + code. false = connect with a form built from config_fields.
+    true = there is an OAuth token behind the connection (Google Drive): connect with `connect_link` + `code`, one per organization and provider. false = no token to renew. **Having a link is not being OAuth**: read `connect_link` for that.
+    """
+    connect_link: bool
+    """
+    Can be connected by sending the user to `GET .../integrations/{provider}/connect_link`: Google Drive (its OAuth) and WooCommerce (the store's approval button, which creates the key without anyone copying it). A provider with a link can ALSO have `config_fields`: a WooCommerce store accepts API keys by hand too.
+    """
+    connect_link_fields: list[IntegrationsIntegrationFormField]
+    """
+    What `connect_link` needs in its query before it can build the link: the store `url` on WooCommerce, because the link points at the store's own WordPress. Empty on Google Drive.
     """
     file_import: bool
     """
@@ -2853,11 +3004,18 @@ class IntegrationsIntegrationProvider(TypedDict):
     """
     Polled by the poll-feeds job, which turns new entries into publications.
     """
+    catalog: bool
+    """
+    Has a product catalogue: `GET .../integrations/{id_integration}/products`, and a source for the `from_catalog` planner template (`source.id_integration_catalog`). WooCommerce.
+    """
     accepted_formats: list[str]
     """
     File formats accepted at the door. **Empty when `file_import` is false** — that is what `rss` returns, and it does not mean "anything goes". heic/heif are accepted and converted to JPEG on ingestion, so what ends up stored is always jpeg.
     """
-    config_fields: list[ConfigField]
+    config_fields: list[IntegrationsIntegrationFormField]
+    """
+    The connection form. Empty when the provider connects through OAuth alone.
+    """
 
 
 class MessageOptions(TypedDict):
@@ -3279,11 +3437,11 @@ class AiPlansAiPlanCreateRequest(TypedDict):
     """
     source: NotRequired[AiPlansAiPlanSourceInput]
     """
-    The source itself. Which fields it carries depends on `template`. Required for every template except `standard`, and validated at creation — 2112, 2113, 2114, 2115 or 2116 come back while the user is still there.
+    The source itself. Which fields it carries depends on `template`. Required for every template except `standard`, and validated at creation — 2112, 2113, 2114, 2115, 2116 or a store's own errors (2200, 2207-2214) come back while the user is still there.
     """
     accounts: list[str]
     """
-    Account ids (belonging to the organization) to generate the plan for.
+    Account ids (belonging to the organization) to generate the plan for. **Not every network fits every template**: leave out the ones in the template's `unsupported_networks` (`GET /planner_templates`), or the plan is refused with 2120.
     """
     destinations: NotRequired[list[AiPlansAiPlanDestination]]
     """

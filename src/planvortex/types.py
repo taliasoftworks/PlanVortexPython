@@ -270,6 +270,10 @@ after.
 And ``regenerate`` is per template: the one that did not generate the picture cannot regenerate
 it. Offering that button anyway charges the user 70 credits to replace their own photo with an
 invented one.
+
+``unsupported_networks`` are the networks whose accounts a plan of that template cannot carry
+(2120): filter the accounts you offer with it, instead of letting the user pick a YouTube account
+for a week of product photos.
 """
 
 PlannerTemplateField: TypeAlias = _models.CatalogPlannerTemplateField
@@ -723,25 +727,80 @@ ProductCatalogInput: TypeAlias = _models.ProductsProductCatalogInput
 """What you send to create a catalog."""
 
 Integration: TypeAlias = _models.IntegrationsIntegration
-"""An ORGANIZATION's connection to a tool it pulls material from: Google Drive, an RSS feed.
+"""An ORGANIZATION's connection to a tool it pulls material from: Google Drive, an RSS feed, a
+WooCommerce store.
 
 Not to be confused with an **app** (:data:`ClientApp`), which is access to PlanVortex's own API.
 Credentials never come out: to know whether the connection is alive there is ``connected``, and the
-reason when it is not, in ``error_code``.
+reason when it is not, in ``error_code``. **2219 is not a failure**: a store connected with the
+button is being checked, for a few seconds; if it stays there, reconnect it.
 """
 
 IntegrationProvider: TypeAlias = _models.IntegrationsIntegrationProvider
-"""What a provider can do and what its form asks for. It is what decides how to connect."""
+"""What a provider can do and what its form asks for. It is what decides how to connect, and you
+branch on its gates, never on the provider's name:
+
+- ``requires_oauth``: there is a token behind it (Google Drive). **Having a link is not being
+  OAuth.**
+- ``connect_link``: it connects by sending the user to ``integrations.connect_link``. Drive (its
+  OAuth) and WooCommerce (the store's approval button), which also needs what
+  ``connect_link_fields`` says first (the store ``url``).
+- ``catalog``: it has a product catalogue (``integrations.products``) and is a source for the
+  ``from_catalog`` template.
+"""
+
+IntegrationFormField: TypeAlias = _models.IntegrationsIntegrationFormField
+"""One field of a provider's form. **``secret`` is a credential** (WooCommerce's consumer secret):
+mask it, never prefill it when editing and mark it ``autocomplete="new-password"``, or the browser's
+password manager fills it with the user's own PlanVortex password and the store answers 2211.
+"""
+
+WooCommerceConnectRequest: TypeAlias = _models.IntegrationsWooCommerceConnectRequest
+"""Connect a store with keys created by hand, with **read** permission. The approval button
+(``integrations.connect_link``) does the same without anyone copying a key, and is the better way
+whenever the store allows it: with plain permalinks it cannot (2216).
+"""
 
 IntegrationConnectRequest: TypeAlias = (
-    _models.IntegrationsGoogleDriveConnectRequest | _models.IntegrationsRssConnectRequest
+    _models.IntegrationsGoogleDriveConnectRequest
+    | _models.IntegrationsRssConnectRequest
+    | _models.IntegrationsWooCommerceConnectRequest
 )
-"""What you send to connect or reconnect. Two shapes, told apart by ``provider``: with OAuth the
-``code`` travels, and without it, the ``config_fields`` form.
+"""What you send to connect or reconnect. Three shapes, told apart by ``provider``: with OAuth the
+``code`` travels, and without it, the ``config_fields`` form, FLAT (the feed, or the store with its
+keys).
 """
 
 RssConfig: TypeAlias = _models.IntegrationsRssConfig
-"""The configuration of an RSS feed. On Google Drive ``config`` is an empty object."""
+"""The configuration of an RSS feed: what an ``update`` can send in ``config``."""
+
+IntegrationConfig: TypeAlias = _models.IntegrationsIntegrationConfig
+"""What an integration's ``config`` holds, per provider. Google Drive: nothing. RSS: the feed.
+WooCommerce: how to reach the store, which the server detects when connecting. Never a secret.
+
+Two of the store's keys have to be SHOWN, not just stored:
+
+- **``key_ending``**: disconnecting does not revoke the key (WooCommerce does not let an app delete
+  its own), and this is what says which one to delete in WooCommerce > Settings > Advanced > REST API.
+- **``tax_location_missing``**: the store's API gives prices WITHOUT tax labelled as "tax included",
+  so its taxable products come without ``price``. It is fixed in their WordPress (default customer
+  location > shop country) and by reconnecting.
+"""
+
+IntegrationCatalogProduct: TypeAlias = _models.IntegrationsIntegrationCatalogProduct
+"""A product of a connected store, already normalized: the same shape whatever the store is.
+
+``external_id`` is ALWAYS a string, and it is what goes into ``source["products"]`` of a
+``from_catalog`` plan. ``price`` is TEXT to copy verbatim, as the store displays it (tax, symbol,
+range): never a number to do arithmetic with, and absent means "no price". **``available: False``
+is what is out of stock**: show it marked but do not let it be chosen, and a plan with one is refused
+(2112).
+"""
+
+IntegrationCatalogPage: TypeAlias = _models.IntegrationsIntegrationCatalogPage
+"""One page of a store's catalogue. Without ``next_cursor``, it is the last one. The cursor is
+OPAQUE: send it back exactly as it came, and never build or parse one.
+"""
 
 IntegrationUpdate: TypeAlias = _shapes.IntegrationUpdate
 """What you send to change an integration: its name, its switch and, on RSS, its configuration."""
@@ -795,6 +854,11 @@ accept — a ``shared`` on ``from_images`` — is a 2106, not a silent ignore.
 
 And ``options["link"]`` is the destination link of every pin of the plan: validated at creation
 (994) and dropped when the plan has no network with ``link``.
+
+**Not every network fits every template.** Leave out of ``accounts`` the ones in the template's
+``unsupported_networks`` (:data:`PlannerTemplate`), or the plan is refused with **2120** before
+anything is read or charged: today that is YouTube on ``from_images`` and ``from_catalog``, where
+every publication is the photo of its source and YouTube only uploads video.
 """
 
 AiPlanDestination: TypeAlias = _models.AiPlansAiPlanDestination
@@ -810,8 +874,9 @@ AiPlanSourceInput: TypeAlias = _models.AiPlansAiPlanSourceInput
 
 Send only the fields of the one you chose: what it does not read is ignored, and what it needs and
 does not get is a 2112. ``standard`` has no source; ``from_images`` takes ``images``;
-``from_text`` takes ``url`` **or** ``text``; ``from_catalog`` takes
-``id_account_catalog``, ``product_catalog_id`` and ``products``; ``campaign`` takes
+``from_text`` takes ``url`` **or** ``text``; ``from_catalog`` takes ``products`` and either
+``id_account_catalog`` with ``product_catalog_id`` (a Meta catalogue) **or**
+``id_integration_catalog`` (a connected store), never both (2112); ``campaign`` takes
 ``event_name`` and ``event_date``.
 
 Two traps, neither of which has an error code, so neither fails visibly. **``text`` wins over
@@ -842,11 +907,13 @@ left the catalogue — the same reason as ``organization_context``.
 AiPlanSourceProduct: TypeAlias = _models.AiPlansAiPlanSourceProduct
 """A product of the catalogue, copied when the plan was created.
 
-``price`` comes **exactly as the network returned it** (``"9,99 EUR"``) and is never
-converted: the same field is a number in other paths of Meta's API and there is no way to tell units
-from cents, and dividing by 100 "just in case" is precisely how a 10 EUR product gets advertised at
-0,10 EUR. ``id_upload`` is the picture already copied into an upload of the organization,
-because the network's CDN URL expires.
+``price`` comes **exactly as the source gave it** (``"9,99 EUR"`` from Meta, ``"14,52 EUR IVA
+incluido"`` from a store) and is never converted: the same field is a number in other paths of
+Meta's API and there is no way to tell units from cents, and dividing by 100 "just in case" is
+precisely how a 10 EUR product gets advertised at 0,10 EUR. ``permalink`` is the product's public
+page: the texts use it where a link can be clicked, and a Pinterest pin leads there unless the plan
+has its own ``options["link"]``. ``id_upload`` is the picture already copied into an upload of the
+organization, because the catalogue's URL expires.
 """
 
 AiPlanNotice: TypeAlias = _models.AiPlansAiPlanNotice
@@ -1211,7 +1278,11 @@ __all__ = [
     "ImportFileError",
     "ImportResult",
     "Integration",
+    "IntegrationCatalogPage",
+    "IntegrationCatalogProduct",
+    "IntegrationConfig",
     "IntegrationConnectRequest",
+    "IntegrationFormField",
     "IntegrationPickerConfig",
     "IntegrationProvider",
     "IntegrationProviderName",
@@ -1276,6 +1347,7 @@ __all__ = [
     "TopPublicationsResult",
     "Upload",
     "UploadUpdate",
+    "WooCommerceConnectRequest",
     "account",
     "account_id",
     "is_meta_embedded_signup",

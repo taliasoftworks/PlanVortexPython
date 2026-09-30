@@ -132,6 +132,101 @@ def test_leer_apagar_y_borrar(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -
     assert cuerpo(peticiones(httpx_mock)[1]) == {"enabled": False}
 
 
+def test_el_enlace_de_una_tienda_lleva_su_url_y_el_id_para_reconectar(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    """WooCommerce: el enlace que NO es OAuth apunta al WordPress de la tienda, asi que lleva su URL."""
+    httpx_mock.add_response(
+        url=f"{ORG}/integrations/woocommerce/connect_link?url=https%3A%2F%2Ftienda.example.com&id_integration=int1",
+        json={"url": "https://tienda.example.com/wc-auth/v1/authorize?app_name=PlanVortex&scope=read"},
+    )
+
+    enlace = cliente.esperar(
+        cliente.pv.integrations.connect_link(
+            "org1", "woocommerce", url="https://tienda.example.com", id_integration="int1"
+        )
+    )
+
+    assert "/wc-auth/v1/authorize" in enlace
+    assert query(unica(httpx_mock)) == {"url": ["https://tienda.example.com"], "id_integration": ["int1"]}
+
+
+def test_una_tienda_con_claves_manda_el_formulario_plano(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    tienda = {
+        **INTEGRACION,
+        "provider": "woocommerce",
+        "config": {
+            "url": "https://tienda.example.com",
+            "api_base": "wp-json",
+            "auth_mode": "basic",
+            "key_ending": "3f9a2c1",
+            "tax_location_missing": False,
+        },
+    }
+    httpx_mock.add_response(url=f"{ORG}/integrations", method="POST", json={"integration": tienda})
+
+    conectada = cliente.esperar(
+        cliente.pv.integrations.connect(
+            "org1",
+            {
+                "provider": "woocommerce",
+                "url": "https://tienda.example.com",
+                "consumer_key": "ck_1",
+                "consumer_secret": "cs_1",
+            },
+        )
+    )
+
+    assert cuerpo(unica(httpx_mock)) == {
+        "provider": "woocommerce",
+        "url": "https://tienda.example.com",
+        "consumer_key": "ck_1",
+        "consumer_secret": "cs_1",
+    }
+    # Lo que hay que ENSENAR de una tienda: que clave borrar al desconectar, y si sus precios valen
+    assert conectada["config"].get("key_ending") == "3f9a2c1"
+    assert conectada["config"].get("tax_location_missing") is False
+
+
+def test_los_productos_de_una_tienda_paginan_por_cursor_opaco(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    pagina = {
+        "items": [
+            {"external_id": "68", "name": "Taza", "price": "14,52 EUR IVA incluido", "available": True},
+            {"external_id": "71", "name": "Zapatillas", "available": False},
+        ],
+        "next_cursor": "p3",
+    }
+    httpx_mock.add_response(
+        url=f"{ORG}/integrations/int1/products?cursor=p2&search=taza&limit=20", json=pagina
+    )
+
+    leida = cliente.esperar(
+        cliente.pv.integrations.products("org1", "int1", cursor="p2", search="taza", limit=20)
+    )
+
+    # Sin sobre: la pagina llega tal cual, con el cursor opaco para devolverlo sin tocarlo
+    assert leida == pagina
+    assert leida.get("next_cursor") == "p3"
+    # Lo agotado viene, pero marcado: no se deja elegir
+    assert leida["items"][1]["available"] is False
+    assert ruta(unica(httpx_mock)) == "/organizations/org1/integrations/int1/products"
+
+
+def test_los_productos_sin_cursor_piden_la_primera_pagina(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    httpx_mock.add_response(url=f"{ORG}/integrations/int1/products", json={"items": []})
+
+    leida = cliente.esperar(cliente.pv.integrations.products("org1", "int1"))
+
+    assert leida == {"items": []}
+    assert query(unica(httpx_mock)) == {}
+
+
 def test_la_configuracion_del_selector_llega_en_crudo(
     cliente: ClienteDePrueba, httpx_mock: HTTPXMock
 ) -> None:
