@@ -4,6 +4,54 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-10-02
+
+**Your app can show its own account picker.** Until now the person connecting a social account
+always went through PlanVortex's screen to choose which accounts to enable; with
+`account_selection="integrator"` that screen is yours. It also brings what the AI planner marks
+as generated (`ai_generated`), WhatsApp template variables and Threads' reply control. Nothing was
+removed and no signature moved: upgrading from `0.11.0` needs no changes, and `MIGRATION.md` gains
+no entry.
+
+### Added
+
+- **Your own account picker.** `organizations.create_connect_token(..., account_selection="integrator")` makes the screen where the person picks which
+  accounts to enable yours. The `url` that comes back is the network's own authorization page,
+  and the person lands on your `redirect_uri` with `?connect_session=…&social_network=…` without
+  seeing anything of PlanVortex. Read what they authorized with `accounts.get_connect_session()` and
+  enable the ones they pick with `accounts.confirm_connect_session()`. It needs `social_network` and
+  `redirect_uri` (error 549), Telegram cannot use it (550), and confirming is all or nothing: 706
+  with `{limit, used, requested}` and none enabled. The new codes 549-554 are `auth` errors.
+- **`ai_generated` on `Upload` and on `Publication`**, with the `AiImageOrigin` and
+  `PublicationAiGenerated` types in `planvortex.types` to name them. Both are `NotRequired` and
+  read-only: nothing new to send.
+  - An upload carries it **only when a model generated the image**: the provider, the model, the
+    date and the AI plan that asked for it. A photo you uploaded, a product photo from a connected
+    shop or an imported image never does.
+  - A publication says whether its `text` came from the AI planner (set when the draft is created,
+    and it stays even if the text is rewritten) and whether any of its files is an AI `image`
+    (recomputed on every save, so swapping the generated image for your own photo turns it off).
+    **Absent means nothing is AI**.
+  - It is what you need to show your own AI label. Under Article 50(4) of the EU AI Act, telling
+    the audience that an image which could pass for real was generated with AI is the job of
+    whoever publishes it. The mark inside the file (C2PA, IPTC and SynthID with the default model)
+    is PlanVortex's part; the C2PA signature does not survive a crop, the IPTC marker does.
+- **WhatsApp template variables**: `message_options["template_parameters"]` on a
+  `template_message`, in order (the first fills `{{1}}`). Without them WhatsApp rejects a template
+  whose body has variables. An empty value, or one with line breaks, tabs or more than four spaces
+  in a row, is error 1511 with `data["index"]` pointing at it. `messages.send` shows a full example.
+- **`reply_control` on `PublicationInput`**: who can reply to the publication (`everyone`,
+  `followers_only`, `accounts_you_follow`, `mentioned_only`). Only Threads uses it today
+  (`reply_control: true` in `catalog.social_capabilities()`); every other network deletes the field
+  on save. The spec already declared it and the hand-written body had fallen behind.
+
+### Fixed
+
+- **The README no longer suggests building your own network buttons from `connect_links` with the
+  bare token.** The network sends the person back to PlanVortex, and that return only finds the
+  token when they came in through the token's `url`: without it they ended up on the PlanVortex
+  sign-in page. Your own buttons are one token per network, each one redirecting to its `url`.
+
 ## [0.11.0] - 2026-09-29
 
 A connected **WooCommerce store** becomes a source for the AI planner: the `from_catalog` template

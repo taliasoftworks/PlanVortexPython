@@ -107,7 +107,7 @@
           "accounts"
         ],
         "summary": "Get the connection links of every connectable network",
-        "description": "The authorization URL of each network, so the user can connect an account to this organization.\n\n**A network that cannot produce a link simply does not appear.** That is a legitimate answer, not a failure: it is what happens with `discord` in an organization that has not saved its own bot credentials yet (see `PUT /organizations/{id_organization}/social_credentials/{social_network}`).\n\n**An app cannot call this.** Connecting a social account is an OAuth flow with a person in front of it, so this endpoint only accepts a user token or a temporal connect token; with app credentials it answers error 519. The way an integration does it is to issue a temporal connect token with `GET /organizations/{id_organization}/temporal_connect_token` and hand it to its end user.\n\n**Read `authorization`, not `link`.** Almost every network is `redirect` and you send the person to `link`. Two are not, and neither of them fails visibly if you treat it as one:\n\n• **WhatsApp is not a URL at all.** Its sign-up is Meta's Embedded Signup, a popup you raise with the Facebook JavaScript SDK, so its `link` is an empty string and everything you need to open that popup travels in `authorization`. A client that loops over the list and redirects to `link` sends its user to its own page.\n• **Telegram has a link and still is not a redirect.** It opens a chat with the PlanVortex bot, and nobody comes back from it: the account is born minutes later, from the bot being added to a channel, and it is announced over the WebSocket. Open it in another tab and keep listening; redirect to it and there is nobody left to tell.",
+        "description": "The authorization URL of each network, so the user can connect an account to this organization.\n\n**A network that cannot produce a link simply does not appear.** That is a legitimate answer, not a failure: it is what happens with `discord` in an organization that has not saved its own bot credentials yet (see `PUT /organizations/{id_organization}/social_credentials/{social_network}`).\n\n**An app cannot call this.** Connecting a social account is an OAuth flow with a person in front of it, so this endpoint only accepts a user token or a temporal connect token; with app credentials it answers error 519. The way an integration does it is to issue a temporal connect token with `GET /organizations/{id_organization}/temporal_connect_token` and hand it to its end user.\n\n**Read `authorization`, not `link`.** Almost every network is `redirect` and you send the person to `link`. Two are not, and neither of them fails visibly if you treat it as one:\n\n• **WhatsApp is not a URL at all.** Its sign-up is Meta's Embedded Signup, a popup you raise with the Facebook JavaScript SDK, so its `link` is an empty string and everything you need to open that popup travels in `authorization`. A client that loops over the list and redirects to `link` sends its user to its own page.\n• **Telegram has a link and still is not a redirect.** It opens a chat with the PlanVortex bot, and nobody comes back from it: the account is born minutes later, from the bot being added to a channel, and it is announced over the WebSocket. Open it in another tab and keep listening; redirect to it and there is nobody left to tell.\n\n**With a temporal token issued with `account_selection=integrator`** the list has a single entry: the session's network, with the session's `state` inside its link. Any other link would go back through the hosted flow, which that token cannot use (error 554). Once the person has come back from the network the session is no longer waiting for a link, and this answers 551.",
         "operationId": "getConnectLinks",
         "x-planvortex-identity": [
           "current_user",
@@ -125,7 +125,7 @@
             }
           },
           "400": {
-            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `1101` | Invalid organization |\n| `523` | Invalid application |\n| `532` | `redirect_uri` is not one of the fronts registered on the server |",
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `523` | Invalid application |\n| `532` | `redirect_uri` is not one of the fronts registered on the server |\n| `551` | The temporal token is for `account_selection=integrator` and its connect session has expired or is no longer waiting for the person |\n| `1101` | Invalid organization |",
             "content": {
               "application/json": {
                 "schema": {
@@ -834,7 +834,7 @@
             }
           },
           "400": {
-            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `519` | This endpoint does not accept app credentials |\n| `543` | This temporal connect token has already connected an account. Issue a new one |\n| `544` | This temporal connect token was issued for a different social network |\n| `700` | The connection cannot be completed through this endpoint. It is what `telegram` always answers here: that network's accounts are created from the bot being added to a channel, never from a call of yours |\n| `1101` | Invalid organization, or a temporal token for a different one |",
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `519` | This endpoint does not accept app credentials |\n| `543` | This temporal connect token has already connected an account. Issue a new one |\n| `544` | This temporal connect token was issued for a different social network |\n| `554` | The temporal token was issued with `account_selection=integrator`. In that mode the return goes through the connect session, which checks the `state` that ties it to whoever started |\n| `700` | The connection cannot be completed through this endpoint. It is what `telegram` always answers here: that network's accounts are created from the bot being added to a channel, never from a call of yours |\n| `1101` | Invalid organization, or a temporal token for a different one |",
             "content": {
               "application/json": {
                 "schema": {
@@ -1147,6 +1147,208 @@
             "lang": "Python",
             "label": "Python",
             "source": "from planvortex import PlanVortex\n\npv = PlanVortex()\n\nresult = pv.accounts.set_persistent_menu(\n    id_organization,\n    id_account,\n    {\n        \"persistent_menu\": [\n            {\n                \"locale\": \"default\",\n                \"composer_input_disabled\": False,\n                \"call_to_actions\": [\n                    {\n                        \"type\": \"postback\",\n                        \"title\": \"Opening hours\",\n                        \"payload\": \"HOURS\",\n                    },\n                    {\n                        \"type\": \"web_url\",\n                        \"title\": \"Our shop\",\n                        \"url\": \"https://example.com\",\n                    },\n                ],\n            },\n        ],\n    },\n)"
+          }
+        ]
+      }
+    },
+    "/organizations/{id_organization}/connect_sessions/{id_session}": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Read a connect session",
+        "description": "What your user authorized, so your app can show its own account picker. It only exists for temporal tokens issued with `account_selection=integrator`.\n\n**What arrives at your `redirect_uri`**: `connect_session` and `social_network`, never account ids. When the connection did not finish there is also `error`: the network's own value (`access_denied` when the person cancelled), `no_accounts` when the network returned none (on `instagram`, an account that is not a business account linked to a page), or `connect_failed` together with our `error_code`. In those three cases the session is still `pending` and the person can try again with the same link.\n\n**Only the app that issued the token** can read it, with its own credentials. Any other app gets 551, the same answer as an unknown or expired session: the id travels in a URL and should not confirm to anybody that it exists.\n\n`already_enabled` marks an account that was already connected (a reconnection), which takes no slot. `accounts_used` and `accounts_limit` are the plan counter. A `returned` session lives **thirty minutes**.",
+        "operationId": "getConnectSession",
+        "x-planvortex-identity": [
+          "current_app"
+        ],
+        "parameters": [
+          {
+            "name": "id_organization",
+            "in": "path",
+            "description": "Organization identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id_session",
+            "in": "path",
+            "description": "The `connect_session` that came back in your `redirect_uri`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The session and its accounts.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connect_session": {
+                      "$ref": "#/components/schemas/AccountsConnectSession"
+                    }
+                  },
+                  "required": [
+                    "connect_session"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `514` | This endpoint needs app credentials |\n| `551` | Connect session not found, expired, or issued by another app |\n| `1101` | Invalid organization |",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled error by the server"
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "curl",
+            "label": "curl",
+            "source": "curl \"https://api.planvortex.com/v1.0.0/organizations/$ID_ORGANIZATION/connect_sessions/$ID_SESSION\" \\\n  -H \"Authorization: Bearer $PLANVORTEX_TOKEN\""
+          },
+          {
+            "lang": "JavaScript",
+            "label": "Node",
+            "source": "import { PlanVortex } from \"planvortex\";\n\nconst pv = new PlanVortex({\n    clientId: process.env.PLANVORTEX_CLIENT_ID,\n    clientSecret: process.env.PLANVORTEX_CLIENT_SECRET,\n});\n\nconst result = await pv.accounts.getConnectSession(idOrganization, idSession);"
+          },
+          {
+            "lang": "Python",
+            "label": "Python",
+            "source": "from planvortex import PlanVortex\n\npv = PlanVortex()\n\nresult = pv.accounts.get_connect_session(id_organization, id_session)"
+          }
+        ]
+      }
+    },
+    "/organizations/{id_organization}/connect_sessions/{id_session}/confirm": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Confirm the accounts of a connect session",
+        "description": "Enables the accounts your user picked and closes the session. Send an empty list if they picked none: the session closes and nothing is enabled.\n\n**All or nothing.** If the new accounts do not fit in the plan, the answer is 706 with `{limit, used, requested}` and **none** of them is enabled, so you can show that number as it is. Accounts with `already_enabled: true` do not count.\n\nEach enabled account fires the `new_account` webhook to your app, as on any other connection.",
+        "operationId": "confirmConnectSession",
+        "x-planvortex-identity": [
+          "current_app"
+        ],
+        "parameters": [
+          {
+            "name": "id_organization",
+            "in": "path",
+            "description": "Organization identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id_session",
+            "in": "path",
+            "description": "The `connect_session` that came back in your `redirect_uri`",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "accounts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "Ids of the session's accounts to enable."
+                  }
+                },
+                "required": [
+                  "accounts"
+                ]
+              },
+              "examples": {
+                "pick_two": {
+                  "summary": "Two of the accounts",
+                  "value": {
+                    "accounts": [
+                      "665f1c2e8b3a4d0012a1b2c3",
+                      "665f1c2e8b3a4d0012a1b2c4"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The accounts that were enabled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "accounts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Account"
+                      }
+                    }
+                  },
+                  "required": [
+                    "accounts"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `514` | This endpoint needs app credentials |\n| `551` | Connect session not found, expired, or issued by another app |\n| `552` | The session is not waiting for a confirmation: the person has not come back yet, or it was already confirmed. `data.status` says which |\n| `553` | Some account is not part of this session. `data.accounts` lists them |\n| `706` | The new accounts do not fit in the plan. `data` carries `limit`, `used` and `requested`, and none was enabled |\n| `1101` | Invalid organization |",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled error by the server"
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "curl",
+            "label": "curl",
+            "source": "curl -X POST \"https://api.planvortex.com/v1.0.0/organizations/$ID_ORGANIZATION/connect_sessions/$ID_SESSION/confirm\" \\\n  -H \"Authorization: Bearer $PLANVORTEX_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"accounts\": [\n      \"665f1c2e8b3a4d0012a1b2c3\",\n      \"665f1c2e8b3a4d0012a1b2c4\"\n    ]\n  }'"
+          },
+          {
+            "lang": "JavaScript",
+            "label": "Node",
+            "source": "import { PlanVortex } from \"planvortex\";\n\nconst pv = new PlanVortex({\n    clientId: process.env.PLANVORTEX_CLIENT_ID,\n    clientSecret: process.env.PLANVORTEX_CLIENT_SECRET,\n});\n\nconst result = await pv.accounts.confirmConnectSession(idOrganization, idSession, [\"665f1c2e8b3a4d0012a1b2c3\", \"665f1c2e8b3a4d0012a1b2c4\"]);"
+          },
+          {
+            "lang": "Python",
+            "label": "Python",
+            "source": "from planvortex import PlanVortex\n\npv = PlanVortex()\n\nresult = pv.accounts.confirm_connect_session(\n    id_organization,\n    id_session,\n    [\"665f1c2e8b3a4d0012a1b2c3\", \"665f1c2e8b3a4d0012a1b2c4\"],\n)"
           }
         ]
       }
@@ -5397,7 +5599,7 @@
           "catalog"
         ],
         "summary": "What every network supports",
-        "description": "The full matrix network → capabilities. It is the **single source of truth** about what a network can do: the catalogue publishes it, the backend checks it before acting, and your integration should filter its account pickers with it rather than keeping a list of its own.\n\n`comments` is the coarse gate — whether the network has comments at all. Which *actions* it allows on one is a finer question and lives in `GET /social_comment_actions`, because the shape here is `{[capability]: boolean}` and nesting an object inside would break it.\n\nToday ten networks answer `comments: true`: Facebook, Instagram, Threads, LinkedIn, X, YouTube, Google Business, Bluesky, Discord and Telegram. TikTok, WhatsApp, Slack and Pinterest answer `false`, for reasons of theirs and not ours — on Pinterest the API *counts* a pin's comments and offers no way to read them, so the figure shows up in the publication's statistics and there is still no inbox.\n\n**Two of the keys are about publishing, not about reading.** `destinations` says the network publishes into places inside the account and every publication has to name one — a Pinterest board, read with `GET /organizations/{id_organization}/accounts/{id_account}/destinations`. `link` says a publication carries a destination link of its own, separate from its text. Both are `false` everywhere but `pinterest` today, and both are the reason to ask this matrix instead of keeping a list of your own: a composer with its own copy of which network has which field is exactly what drifted with the character limits.\n\nA `true` here is about the **network**, not about one account of it: a Telegram channel with no linked discussion group answers 965 on its comments even though the network has them.\n\nOnly needs authentication.",
+        "description": "The full matrix network → capabilities. It is the **single source of truth** about what a network can do: the catalogue publishes it, the backend checks it before acting, and your integration should filter its account pickers with it rather than keeping a list of its own.\n\n`comments` is the coarse gate — whether the network has comments at all. Which *actions* it allows on one is a finer question and lives in `GET /social_comment_actions`, because the shape here is `{[capability]: boolean}` and nesting an object inside would break it.\n\nToday ten networks answer `comments: true`: Facebook, Instagram, Threads, LinkedIn, X, YouTube, Google Business, Bluesky, Discord and Telegram. TikTok, WhatsApp, Slack and Pinterest answer `false`, for reasons of theirs and not ours — on Pinterest the API *counts* a pin's comments and offers no way to read them, so the figure shows up in the publication's statistics and there is still no inbox.\n\n**Three of the keys are about publishing, not about reading.** `destinations` says the network publishes into places inside the account and every publication has to name one — a Pinterest board, read with `GET /organizations/{id_organization}/accounts/{id_account}/destinations`. `link` says a publication carries a destination link of its own, separate from its text. Both are `false` everywhere but `pinterest` today. `reply_control` says a publication can choose who can reply to it, and is `true` only on `threads`. The three are the reason to ask this matrix instead of keeping a list of your own: a composer with its own copy of which network has which field is exactly what drifted with the character limits.\n\nA `true` here is about the **network**, not about one account of it: a Telegram channel with no linked discussion group answers 965 on its comments even though the network has them.\n\nOnly needs authentication.",
         "operationId": "getSocialCapabilities",
         "x-planvortex-identity": [
           "current_user",
@@ -5424,7 +5626,8 @@
                     "persistent_menu": false,
                     "comments": true,
                     "destinations": false,
-                    "link": false
+                    "link": false,
+                    "reply_control": false
                   },
                   "google_business": {
                     "publications": false,
@@ -5434,7 +5637,8 @@
                     "persistent_menu": false,
                     "comments": true,
                     "destinations": false,
-                    "link": false
+                    "link": false,
+                    "reply_control": false
                   },
                   "pinterest": {
                     "publications": true,
@@ -5444,7 +5648,19 @@
                     "persistent_menu": false,
                     "comments": false,
                     "destinations": true,
-                    "link": true
+                    "link": true,
+                    "reply_control": false
+                  },
+                  "threads": {
+                    "publications": true,
+                    "messages": false,
+                    "products": false,
+                    "webhooks": true,
+                    "persistent_menu": false,
+                    "comments": true,
+                    "destinations": false,
+                    "link": false,
+                    "reply_control": true
                   }
                 }
               }
@@ -7592,7 +7808,7 @@
           "messages"
         ],
         "summary": "Send a message to a contact",
-        "description": "Writes to the contact through the account's network.\n\nWhat is valid depends on `message_type` and on the network:\n\n• `simple_message` needs `text`, and it is validated against `characters` in `GET /social_limits`.\n• **WhatsApp only allows a free-form message inside 24 hours** of the contact's last message. Outside that window the only thing that goes through is a `template_message` with a pre-approved template, and anything else answers an error.\n• `file_message` needs at least one entry in `message_options.files` (an upload of this organization) or in `files_urls`.\n• Facebook and Instagram accept **one** file per message.\n• `quick_reply_message`, `button_message`, `elements_message` and `interactive_message` are Meta-only shapes and each one requires its own block inside `message_options`.",
+        "description": "Writes to the contact through the account's network.\n\nWhat is valid depends on `message_type` and on the network:\n\n• `simple_message` needs `text`, and it is validated against `characters` in `GET /social_limits`.\n• **WhatsApp only allows a free-form message inside 24 hours** of the contact's last message. Outside that window the only thing that goes through is a `template_message` with a pre-approved template, and anything else answers an error.\n• A `template_message` needs `message_options.template_name` and `template_language`, and, if the template's body has variables, `template_parameters` with their values in order (`{{1}}`, `{{2}}`...). That is what turns an approved template into an appointment reminder with the customer's name and time.\n• `file_message` needs at least one entry in `message_options.files` (an upload of this organization) or in `files_urls`.\n• Facebook and Instagram accept **one** file per message.\n• `quick_reply_message`, `button_message`, `elements_message` and `interactive_message` are Meta-only shapes and each one requires its own block inside `message_options`.",
         "operationId": "createMessage",
         "x-planvortex-identity": [
           "current_user",
@@ -8708,7 +8924,7 @@
           "orgnaizations"
         ],
         "summary": "Issue a temporal connect token for an end user",
-        "description": "Returns a URL that lets **a person** connect a social account to this organization, without that person having a PlanVortex account and without your `client_secret` ever leaving your server.\n\nIt exists because **an app cannot connect accounts**: `connect_links` and `account-connect` refuse app credentials with error 519, since authorizing Instagram is an OAuth flow with a human in front of it. The shape of the integration is therefore:\n\n1. Your server asks for this token — **this endpoint is the one that requires app credentials**, and a user token is refused. So is a temporal connect token: it cannot renew itself, which is what keeps its life a real limit rather than the first link of a chain.\n2. You send your end user to the `url` that comes back, by redirect or in an iframe. The bare\n   `token` comes back too, so a server-side client can authenticate with it directly instead of\n   parsing it out of that URL.\n3. With that token the browser completes `connect_links` and `account-connect`.\n\nThe token lasts **fifteen minutes**, is tied to **this** organization — using it against another answers error 1101 — and carries only two permissions: create accounts and read the organization. It is the piece designed for a browser, and the only credential of ours that belongs there.\n\n**It connects once.** As soon as an `account-connect` succeeds, the token stops being able to connect anything else and answers error 543; the `enable` calls that finish that same connection keep working until it expires. Issue a new one per connection — they are free and immediate.\n\n**If you pass `social_network`, the token is bound to that network** and will not connect any other (error 544). Leave it out to let the person pick.\n\nIf you send `redirect_uri` it has to be one of the app's `redirect_urls`, or the call answers error 532.",
+        "description": "Returns a URL that lets **a person** connect a social account to this organization, without that person having a PlanVortex account and without your `client_secret` ever leaving your server.\n\nIt exists because **an app cannot connect accounts**: `connect_links` and `account-connect` refuse app credentials with error 519, since authorizing Instagram is an OAuth flow with a human in front of it. The shape of the integration is therefore:\n\n1. Your server asks for this token — **this endpoint is the one that requires app credentials**, and a user token is refused. So is a temporal connect token: it cannot renew itself, which is what keeps its life a real limit rather than the first link of a chain.\n2. You send your end user to the `url` that comes back, by redirect or in an iframe. The bare\n   `token` comes back too, so a server-side client can authenticate with it directly instead of\n   parsing it out of that URL.\n3. With that token the browser completes `connect_links` and `account-connect`.\n\nThe token lasts **fifteen minutes**, is tied to **this** organization — using it against another answers error 1101 — and carries only two permissions: create accounts and read the organization. It is the piece designed for a browser, and the only credential of ours that belongs there.\n\n**It connects once.** As soon as an `account-connect` succeeds, the token stops being able to connect anything else and answers error 543; the `enable` calls that finish that same connection keep working until it expires. Issue a new one per connection — they are free and immediate.\n\n**If you pass `social_network`, the token is bound to that network** and will not connect any other (error 544). Leave it out to let the person pick.\n\n**Or show the account picker yourself** with `account_selection=integrator`. By default PlanVortex shows the screen where the person picks which accounts to enable, and only then sends them to your `redirect_uri`. In this mode that screen is yours:\n\n1. The `url` that comes back is **the network's own authorization page**, so the person goes there straight from your app. Keep the `connect_session` id next to your user's session.\n2. When they finish, the network sends them through PlanVortex, which renders nothing, to `redirect_uri?connect_session=…&social_network=…`. Check that the id is the one you started.\n3. Read the accounts with `GET /organizations/{id_organization}/connect_sessions/{id_session}`, show your picker, and confirm with `POST /organizations/{id_organization}/connect_sessions/{id_session}/confirm`.\n\nThis mode needs `redirect_uri` and `social_network` (error 549): your app also picks the network. `telegram` cannot use it (error 550), because its link opens a chat that never comes back to the browser. On `whatsapp` the `url` is still a PlanVortex page with one button, because Meta's popup only opens on our domain; the picker after it is yours.\n\nPlanVortex's domain does show in the address bar on the way back: networks only return to the URLs registered in their own portals.\n\nIf you send `redirect_uri` it has to be one of the app's `redirect_urls`, or the call answers error 532.",
         "operationId": "createTemporalConnectToken",
         "x-planvortex-identity": [
           "current_app"
@@ -8740,6 +8956,20 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "account_selection",
+            "in": "query",
+            "required": false,
+            "description": "Who shows the screen where the person picks which accounts to enable. `planvortex` (the default) is the PlanVortex screen. `integrator` sends the person back to your `redirect_uri` with a connect session, and the picking is yours: see above. Requires `redirect_uri` and `social_network` (error 549).",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "planvortex",
+                "integrator"
+              ],
+              "default": "planvortex"
+            }
           }
         ],
         "responses": {
@@ -8752,7 +8982,7 @@
                   "properties": {
                     "url": {
                       "type": "string",
-                      "description": "Ready to redirect to. Carries the token in its `token` query parameter, and the network in `social_network` when one was asked for."
+                      "description": "Ready to redirect to. Carries the token in its `token` query parameter, and the network in `social_network` when one was asked for. With `account_selection=integrator` it is the network's authorization page instead (on `whatsapp`, the PlanVortex page that opens Meta's popup)."
                     },
                     "token": {
                       "type": "string",
@@ -8762,6 +8992,10 @@
                       "type": "string",
                       "format": "date-time",
                       "description": "When the token stops working. Fifteen minutes after it was issued."
+                    },
+                    "connect_session": {
+                      "type": "string",
+                      "description": "Only with `account_selection=integrator`: the id of the connect session. It comes back in your `redirect_uri` as `connect_session`; compare the two, so a session somebody else started cannot land in your user's browser."
                     }
                   },
                   "required": [
@@ -8774,7 +9008,7 @@
             }
           },
           "400": {
-            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `514` | This endpoint needs app credentials: neither a user token nor a temporal connect token can issue one |\n| `532` | `redirect_uri` is not one of the app's registered `redirect_urls` |\n| `702` | `social_network` is not one of the networks PlanVortex supports |\n| `1101` | Invalid organization |",
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `514` | This endpoint needs app credentials: neither a user token nor a temporal connect token can issue one |\n| `532` | `redirect_uri` is not one of the app's registered `redirect_urls` |\n| `549` | `account_selection` is not `planvortex` or `integrator`, or it is `integrator` without `redirect_uri` or `social_network`. `data` says which |\n| `550` | `account_selection=integrator` on a network with no return to the browser (`telegram`) |\n| `702` | `social_network` is not one of the networks PlanVortex supports |\n| `1101` | Invalid organization |",
             "content": {
               "application/json": {
                 "schema": {
@@ -12463,6 +12697,93 @@
           "account"
         ]
       },
+      "AccountsConnectSession": {
+        "type": "object",
+        "description": "A connection in `account_selection=integrator` mode, from the moment the temporal token is issued until your app confirms which accounts stay.",
+        "properties": {
+          "_id": {
+            "type": "string",
+            "description": "The id that comes back in your `redirect_uri` as `connect_session`."
+          },
+          "social_network": {
+            "$ref": "#/components/schemas/SocialNetwork"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "returned",
+              "confirmed"
+            ],
+            "description": "`pending`: the person has not come back from the network yet. `returned`: the accounts are waiting for your choice. `confirmed`: done, the session cannot be used again."
+          },
+          "redirect_uri": {
+            "type": "string"
+          },
+          "keycloak_client_idenfifier": {
+            "type": "string",
+            "description": "The app that issued the token. Only that app can read or confirm the session."
+          },
+          "id_client": {
+            "type": "string"
+          },
+          "id_organization": {
+            "type": "string"
+          },
+          "accounts": {
+            "type": "array",
+            "description": "The accounts **this** authorization brought back, in the order the network returned them. Never other pending accounts of the organization. Empty while `pending`.",
+            "items": {
+              "$ref": "#/components/schemas/AccountsConnectSessionAccount"
+            }
+          },
+          "accounts_used": {
+            "type": "integer",
+            "description": "Accounts of the plan already in use: the same counter the PlanVortex screen shows."
+          },
+          "accounts_limit": {
+            "type": "integer",
+            "description": "Accounts the plan allows. New accounts beyond `accounts_limit - accounts_used` answer 706 on confirm."
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "While `pending`, the token's expiry. Once `returned`, thirty minutes after the person came back. After it the session answers 551 and its accounts stay unconnected."
+          },
+          "creation_date": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "_id",
+          "social_network",
+          "status",
+          "accounts",
+          "accounts_used",
+          "accounts_limit",
+          "expires_at"
+        ]
+      },
+      "AccountsConnectSessionAccount": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Account"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "already_enabled": {
+                "type": "boolean",
+                "description": "`true` when the account was already connected before this authorization (a reconnection). Confirming it takes no slot of the plan."
+              }
+            },
+            "required": [
+              "already_enabled"
+            ]
+          }
+        ]
+      },
       "AccountsMetricList": {
         "type": "array",
         "items": {
@@ -12655,6 +12976,10 @@
           "add_to_group_link": {
             "type": "string",
             "description": "`telegram_bot` only. The **second** step, and it does not follow from the first: `link` opens the list of channels and this one opens the list of groups. It adds the bot to the channel's linked discussion group, which is what turns comments on — a Telegram channel with no discussion group has no comment inbox at all (error 965). Optional for the user: publishing and statistics work without it."
+          },
+          "state": {
+            "type": "string",
+            "description": "`meta_embedded_signup` only, and only with a temporal token issued with `account_selection=integrator`. The popup hands the `code` back in JavaScript, not in a URL from Meta, so whoever builds the return URL has to add this as `state`. The PlanVortex page does it for you."
           }
         }
       },
@@ -12750,6 +13075,33 @@
           "notes": {
             "type": "string",
             "description": "Anything else the model should know."
+          }
+        }
+      },
+      "AiImageOrigin": {
+        "type": "object",
+        "description": "Where an AI-generated image came from. **Only images a model generated carry it**: a photo the organization uploaded, a product photo pulled from a connected shop or an image imported from an integration never does.\n\nIt is set when the image is generated and cannot be edited. Use it to show your own AI label: under article 50(4) of the EU AI Act, telling the audience that an image is AI-generated is the job of whoever publishes it.\n\nImages made with the default model also carry a signed C2PA manifest, IPTC metadata and a SynthID watermark in the file itself. PlanVortex keeps the IPTC marker when it crops or recompresses an image for a network; the C2PA signature does not survive a change of pixels.",
+        "required": [
+          "provider",
+          "model",
+          "generated_at"
+        ],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "description": "The AI provider that answered: `openrouter` unless the client brought its own key."
+          },
+          "model": {
+            "type": "string",
+            "description": "The model, as it was requested, for instance `google/gemini-3.1-flash-image`."
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id_ai_plan": {
+            "type": "string",
+            "description": "The AI plan that generated it."
           }
         }
       },
@@ -14816,6 +15168,10 @@
           "link": {
             "type": "boolean",
             "description": "The publication carries a **destination link of its own** (`link`), separate from its text: where a pin takes whoever clicks it. On a network that answers `false` the field is deleted on save, so do not offer it. Today only `pinterest`."
+          },
+          "reply_control": {
+            "type": "boolean",
+            "description": "The publication can say **who can reply** to it (`reply_control`): anyone, the account's followers, the profiles it follows or the profiles mentioned in the text. It is set when the publication goes out and cannot be changed afterwards. On a network that answers `false` the field is deleted on save, so do not offer it. Today only `threads`."
           }
         },
         "required": [
@@ -14826,7 +15182,8 @@
           "persistent_menu",
           "comments",
           "destinations",
-          "link"
+          "link",
+          "reply_control"
         ]
       },
       "CommentsWebhookChange": {
@@ -15777,7 +16134,7 @@
           },
           "code": {
             "type": "integer",
-            "description": "PlanVortex error code. Ranges: 500-548 auth, tokens and client apps · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations."
+            "description": "PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations."
           },
           "data": {
             "additionalProperties": true,
@@ -16411,6 +16768,13 @@
           "template_language": {
             "type": "string",
             "description": "Required for `template_message`, as the network's language code."
+          },
+          "template_parameters": {
+            "type": "array",
+            "description": "For a `template_message` whose body has variables: their values, in order. The first one fills `{{1}}`, the second `{{2}}`, and so on. Without them WhatsApp rejects a template that has variables, so a reminder with the customer's name and time needs this. Each value is a non-empty string with no line breaks, no tabs and no more than four consecutive spaces; anything else answers `1511` with `data.field` = `template_parameters` and `data.index` pointing at the bad value. Only positional body variables are supported: named variables (`{{name}}`) and variables in the header or in a button URL are not sent yet.",
+            "items": {
+              "type": "string"
+            }
           },
           "payload": {
             "type": "string",
@@ -17331,6 +17695,16 @@
             "type": "string",
             "description": "**The destination link**: where the publication takes whoever clicks it. Not to be confused with `url`, which is the link to the publication *on the network* and only exists once it is published.\n\nOnly the networks that answer `link: true` in `GET /social_capabilities` carry it — today `pinterest` alone, where a pin has a `link` field of its own and sending traffic somewhere is the whole point of publishing there. Putting the URL inside `text` instead leaves it visible and unclickable.\n\n**On every other network the field is deleted on save**, like `destination`."
           },
+          "reply_control": {
+            "type": "string",
+            "enum": [
+              "everyone",
+              "accounts_you_follow",
+              "mentioned_only",
+              "followers_only"
+            ],
+            "description": "**Who can reply** to the publication, on the networks that answer `reply_control: true` in `GET /social_capabilities` (today `threads`). Absent means the network's default, which is anyone. It is set when the publication goes out and cannot be changed afterwards.\n\n**On every other network the field is deleted on save**, like `link`."
+          },
           "publication_type": {
             "type": "string",
             "enum": [
@@ -17439,6 +17813,27 @@
           "id_integration": {
             "type": "string",
             "description": "The integration this publication came from — an RSS feed, for instance. Set when it is created and never changed afterwards."
+          },
+          "ai_generated": {
+            "$ref": "#/components/schemas/PublicationAiGenerated"
+          }
+        }
+      },
+      "PublicationAiGenerated": {
+        "type": "object",
+        "description": "Which part of a publication was generated by AI. **Absent means nothing was.**\n\nUse it to show your own AI label: under article 50(4) of the EU AI Act, telling the audience is the job of whoever publishes.",
+        "required": [
+          "text",
+          "image"
+        ],
+        "properties": {
+          "text": {
+            "type": "boolean",
+            "description": "The text was written by the AI planner. Set when the draft is created and never changed afterwards, not even if the text is rewritten: it says where the text came from, not who reviewed it."
+          },
+          "image": {
+            "type": "boolean",
+            "description": "At least one of the files carries `ai_generated`. Recomputed every time the publication is saved, so replacing an AI image with a photo of your own turns it off."
           }
         }
       },
@@ -17692,6 +18087,16 @@
           "link": {
             "type": "string",
             "description": "**The destination link**: where the publication takes whoever clicks it. Only on the networks that answer `link: true` in `GET /social_capabilities` — today `pinterest`, where it is the whole point of a pin — and **deleted** on every other one. It is not `url`, which is the link to the publication on the network once published.\n\nIt is optional (a pin with no link is legitimate), but if it is sent it must be a real `http(s)://` URL of at most 2.048 characters: a bare domain such as `mysite.com/recipe` is created in state `withErrors` with `publication_errors[].code = 994` and `data.reason` of `invalid_url` or `too_long`. It is checked when the publication is **created**, not when it is published, so a scheduled pin does not die at 3 a.m. over a link that was already wrong.\n\nOn an update: omit it to keep what was there, send `null` or `\"\"` to remove it."
+          },
+          "reply_control": {
+            "type": "string",
+            "enum": [
+              "everyone",
+              "accounts_you_follow",
+              "mentioned_only",
+              "followers_only"
+            ],
+            "description": "**Who can reply** to the publication. Only on the networks that answer `reply_control: true` in `GET /social_capabilities` (today `threads`), and **deleted** on every other one.\n\n- `everyone`: anyone. It is the network's default, and what applies when the field is omitted.\n- `followers_only`: only the account's followers.\n- `accounts_you_follow`: only the profiles the account follows.\n- `mentioned_only`: only the profiles mentioned in the text.\n\n**It is set when the publication goes out and cannot be changed afterwards**: Threads has no way to change it on a published post through its API. A value the network does not accept does not fail the request: the publication is still created, in state `withErrors` with `publication_errors[].code = 997`, whose `data` carries the `allowed` values. It is checked when the publication is **created**, so a scheduled post does not fail at 3 a.m. over a value that was already wrong.\n\nOn an update: omit it to keep what was there, send `null` or `\"\"` to go back to the network's default."
           },
           "files": {
             "type": "array",
@@ -18135,6 +18540,9 @@
           "cover_offset": {
             "type": "integer",
             "description": "Point of the video, in milliseconds, used as the cover frame."
+          },
+          "ai_generated": {
+            "$ref": "#/components/schemas/AiImageOrigin"
           },
           "is_temporal": {
             "type": "boolean",

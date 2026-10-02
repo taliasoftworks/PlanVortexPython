@@ -2,9 +2,9 @@
 
 Conectar un Instagram es un OAuth con una PERSONA delante, asi que las credenciales de tu app no
 sirven para eso y ningun script lo puede hacer solo. Lo que si se hace desde aqui es emitir el
-credencial temporal que autoriza a esa persona, montar la URL a la que mandarla, y —si la interfaz
-la pones tu— pedir la lista de como se autoriza cada red. El navegador es el que falta, y es la
-parte que este ejemplo explica por escrito en vez de fingir.
+credencial temporal que autoriza a esa persona, montar la URL a la que mandarla, y saber que redes
+se pueden conectar ahora y como se autoriza cada una. El navegador es el que falta, y es la parte
+que este ejemplo explica por escrito en vez de fingir.
 
     PLANVORTEX_CLIENT_ID=... PLANVORTEX_CLIENT_SECRET=... \\
     PLANVORTEX_BASE_URL=http://localhost:3000/v1.0.0 \\
@@ -74,9 +74,10 @@ def main(redirect_uri: str | None) -> int:
 
         _explicar_el_navegador(conexion["url"])
 
-        # 4. Y la otra mitad: la lista de como se autoriza cada red, para quien sirve su propia
-        #    interfaz. Se pide CON EL TOKEN TEMPORAL —con las credenciales de app es un 519—, que es
-        #    para lo que existe `as_temporal_token`.
+        # 4. Y la otra mitad: la lista de que redes se pueden conectar ahora y como se autoriza cada
+        #    una, para quien pinta sus propios botones de red. Se pide CON EL TOKEN TEMPORAL —con las
+        #    credenciales de app es un 519—, que es para lo que existe `as_temporal_token`. Ojo: es
+        #    para saber QUE redes ensenar, no para mandar a la persona a esos enlaces (ver abajo).
         #
         #    Leer no gasta el token: lo que se quema es la redencion, o sea el `accounts.connect`
         #    que termina bien. Este listado se puede pedir las veces que haga falta.
@@ -159,31 +160,36 @@ def _explicar_el_navegador(url: str) -> None:
         "\n  --- y aqui empieza el navegador ---\n"
         f"  Manda a tu usuario a:\n    {url}\n\n"
         "  Ahi PlanVortex se encarga de todo: la eleccion de red, el OAuth, y la pantalla donde la\n"
-        "  persona elige que cuentas se queda. Con esto la integracion esta hecha; los pasos que\n"
-        "  siguen son solo para quien quiera servir esa interfaz por su cuenta.\n"
+        "  persona elige que cuentas se queda. Con esto la integracion esta hecha; lo que sigue es\n"
+        "  para quien quiera poner su propia interfaz.\n"
     )
 
 
 def _explicar_la_vuelta() -> None:
-    """Que pasa cuando la persona vuelve, y por que este ejemplo se para justo antes.
+    """Las dos formas de poner tu propia interfaz, y por que la obvia no funciona.
 
-    `accounts.connect()` se completa con lo que la red PEGO a la URL de vuelta (`code`, `state`,
-    y en X un `oauth_token`/`oauth_verifier`), y eso solo existe en un navegador que acaba de
-    volver de la red social. Inventarlo aqui seria un ejemplo que no se parece a nada.
+    La obvia es mandar a la persona directamente a los enlaces de `connect_links`. No vale: la red
+    la devuelve a PlanVortex (es la URL registrada en su portal), y esa vuelta solo encuentra el
+    token si la persona entro por `conexion["url"]`. Sin eso acaba en el login de PlanVortex.
     """
     print(
-        "\n  Cuando la persona vuelva, si la interfaz es tuya:\n"
-        "    resultado = persona.accounts.connect(org_id, red, params_de_la_url_de_vuelta)\n"
-        "    for cuenta in resultado['accounts']:\n"
-        "        persona.accounts.enable(org_id, cuenta['_id'])\n\n"
+        "\n  Si la interfaz es tuya, hay dos piezas y cada una tiene su forma:\n"
+        "   - TUS BOTONES DE RED: un token por boton, con `social_network`, y la persona va a su\n"
+        "     `url`. NO a los enlaces de `connect_links`: la red devuelve a PlanVortex y esa vuelta\n"
+        "     solo encuentra el token si la persona entro por la `url` del token.\n"
+        "   - TU SELECTOR DE CUENTAS: account_selection='integrator' (pide red y redirect_uri). La\n"
+        "     `url` es la pagina de la red y la persona vuelve a tu redirect_uri con\n"
+        "     ?connect_session=..., sin ver nada de PlanVortex. Despues:\n"
+        "       sesion = pv.accounts.get_connect_session(org_id, connect_session)\n"
+        "       pv.accounts.confirm_connect_session(org_id, sesion['_id'], ids_elegidos)\n"
+        "     Con las credenciales de la APP, no con el token: la eleccion es tuya.\n\n"
         "  Tres cosas que no se ven venir:\n"
-        "   - Las cuentas vuelven DESHABILITADAS. No ocupan plaza ni publican hasta el `enable`,\n"
+        "   - Las cuentas vuelven DESHABILITADAS. No ocupan plaza ni publican hasta que se eligen,\n"
         "     que es el paso donde de verdad se gasta el plan (706 si no cabe).\n"
         "   - Una autorizacion puede dejar VARIAS. Un Facebook con cuatro paginas son cuatro, y por\n"
         "     eso hay una pantalla para elegir en medio.\n"
-        "   - El token se quema con el `connect`, no con la primera peticion: los `enable` que\n"
-        "     terminan esa misma conexion siguen valiendo hasta que caduque. Un `connect` mas con\n"
-        "     el mismo token contesta 543. Emite uno por conexion: son gratis e inmediatos.\n"
+        "   - El token se quema cuando la conexion termina, no con la primera peticion. Una segunda\n"
+        "     conexion con el mismo token contesta 543. Emite uno por conexion: son gratis.\n"
         "\n  Dura QUINCE MINUTOS, vale para UNA organizacion (1101 contra otra) y no puede pedir\n"
         "  otro token (514). Guardartelo para 'la proxima vez' no funciona de cuatro formas.\n"
     )

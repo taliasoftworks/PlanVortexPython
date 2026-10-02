@@ -110,6 +110,10 @@ class ConnectToken(TypedDict):
     token: str
     expires_at: str
     """ISO-8601. Fifteen minutes after it was issued."""
+    connect_session: NotRequired[str]
+    """Only with ``account_selection="integrator"``: the id of the connect session. It comes back in
+    your ``redirect_uri`` as ``connect_session``; compare the two, so a session somebody else started
+    cannot land in your user's browser."""
 
 
 class OrganizationUse(TypedDict):
@@ -178,6 +182,12 @@ class MetaEmbeddedSignupAuthorization(TypedDict):
     """``extras.featureType``."""
     session_info_version: str
     """``extras.sessionInfoVersion``."""
+    state: NotRequired[str]
+    """**Only with a token issued with** ``account_selection="integrator"``: the ``state`` of the
+    connect session. The popup hands the ``code`` back in JavaScript, not in a URL from Meta, so
+    whoever builds the return URL has to add it. The PlanVortex page that opens the popup in that
+    mode does it for you. It is the one optional key of the split, because it is the one that
+    depends on the token and not on the network."""
 
 
 class TelegramBotAuthorization(TypedDict):
@@ -332,6 +342,11 @@ class PublicationInput(TypedDict):
     link on Pinterest. It goes here, not inside ``text``, where it would be visible and
     unclickable. Anything that is not an ``http(s)`` URL is error 994 at creation. On every other
     network the field is deleted on save; ask ``link`` in ``catalog.social_capabilities()``."""
+    reply_control: NotRequired[Literal["everyone", "accounts_you_follow", "mentioned_only", "followers_only"]]
+    """**Who can reply**, on the networks that answer ``reply_control: true`` in
+    ``catalog.social_capabilities()`` (today Threads). Omitted, the network's default: anyone. It is
+    set when the publication goes out and cannot be changed afterwards; on every other network the
+    field is deleted on save."""
     name: NotRequired[str]
     """Internal name, for grouping. Never shown on the network."""
     publication_type: NotRequired[Literal["profile", "page", "group", "reels", "stories"]]

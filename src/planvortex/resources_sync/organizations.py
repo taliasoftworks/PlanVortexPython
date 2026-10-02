@@ -15,6 +15,7 @@ from planvortex._core.pagination import Page, PageParams
 from planvortex._shapes import ConnectToken, OrganizationUse
 from planvortex.resources_sync.base import Resource, require_id
 from planvortex.types import (
+    AccountSelection,
     AiContext,
     Limit,
     Organization,
@@ -153,6 +154,7 @@ class OrganizationsResource(Resource):
         *,
         social_network: str | None = None,
         redirect_uri: str | None = None,
+        account_selection: AccountSelection | None = None,
         timeout: float | None = None,
     ) -> ConnectToken:
         """Issue the temporal token a **person** connects a social account to this organization with.
@@ -176,10 +178,23 @@ class OrganizationsResource(Resource):
 
         ``redirect_uri`` is where YOUR user comes back to when they finish, and it has to be one of
         the ``redirect_urls`` registered on the app or the call answers 532.
+
+        **With** ``account_selection="integrator"`` **the account picker is yours.** The ``url``
+        that comes back is the network's own authorization page, so the person goes there straight
+        from your app, and when they finish they land on your ``redirect_uri`` with
+        ``?connect_session=…&social_network=…`` without seeing anything of PlanVortex. Read it with
+        ``accounts.get_connect_session()`` and confirm with ``accounts.confirm_connect_session()``.
+        It needs ``redirect_uri`` and ``social_network`` (549), and Telegram cannot use it (550):
+        its link opens a chat that never comes back. On WhatsApp the ``url`` is still a PlanVortex
+        page with one button, because Meta's popup only opens on our domain.
         """
         token: ConnectToken = self._get(
             f"{self._path(id_organization)}/temporal_connect_token",
-            {"social_network": social_network, "redirect_uri": redirect_uri},
+            {
+                "social_network": social_network,
+                "redirect_uri": redirect_uri,
+                "account_selection": account_selection,
+            },
             timeout=timeout,
         )
         return token

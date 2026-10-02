@@ -115,24 +115,58 @@ Connecting is the one flow the library **cannot finish on its own**: it ends wit
 "allow" on Instagram's page. What the library does is hand you a URL to send them to.
 
 ```python
-connection = pv.organizations.create_connect_token(org_id)
-# connection["url"] is where the person goes. Never send them your client_secret.
-
-person = pv.as_temporal_token(connection["token"])  # a client that can only do this
-for link in person.accounts.connect_links(org_id):
-    ...
+connection = pv.organizations.create_connect_token(org_id, redirect_uri="https://your-app.example/done")
+# connection["url"] is where the person goes: PlanVortex asks which network, runs the OAuth and
+# shows them which accounts to enable. Never send them your client_secret.
 ```
 
 Four things about that token, and each one bites separately: it lasts **fifteen minutes**, it is
 **single-use**, it is tied to **one** organization, and it **cannot issue another one**. Saving it
 for "next time" fails four different ways — issue a fresh one per connection, they are free.
 
-And one that trips people without giving an error: branch on `link["authorization"]["type"]`, never
-on the `link`. WhatsApp's is the empty string, because its sign-up is Meta's *Embedded Signup* popup
-and not an OAuth redirect; walking the list redirecting to `link` sends your user to your own page.
+**To show your own network buttons**, mint one token per button with `social_network=` and send the
+person to its `url`. `accounts.connect_links()` tells you which networks can be connected right now,
+but do not send the person to those links: the network returns them to PlanVortex, and that return
+only finds the token when they came in through the token's `url`. When you list them, branch on
+`link["authorization"]["type"]`, never on the `link`: WhatsApp's is the empty string, because its
+sign-up is Meta's *Embedded Signup* popup and not an OAuth redirect.
 
-Accounts come back **disabled** and take no plan slot until `pv.accounts.enable(...)`, and one
-authorization can leave several — a Facebook user with four pages is four of them.
+Accounts come back **disabled** and take no plan slot until they are enabled, and one authorization
+can leave several — a Facebook user with four pages is four of them.
+
+### Your own account picker
+
+With `account_selection="integrator"` the screen where the person picks which accounts to enable is
+yours. The `url` is the network's own authorization page, and when the person finishes they land on
+your `redirect_uri` with `?connect_session=…&social_network=…`, without seeing anything of
+PlanVortex on the way:
+
+```python
+connection = pv.organizations.create_connect_token(
+    org_id,
+    social_network="facebook",  # required in this mode
+    redirect_uri="https://your-app.example/pick",
+    account_selection="integrator",
+)
+# Keep connection["connect_session"] with your user's session and send them to connection["url"].
+
+# Later, on https://your-app.example/pick?connect_session=…&social_network=facebook
+session = pv.accounts.get_connect_session(org_id, connect_session)
+# Show session["accounts"]. accounts_limit - accounts_used more fit in the plan, and
+# already_enabled marks a reconnection that takes no slot.
+enabled = pv.accounts.confirm_connect_session(org_id, session["_id"], chosen_ids)
+```
+
+- **Compare the `connect_session` that comes back** with the one you kept, so a session somebody
+  else started cannot land in your user's browser.
+- **If an `error` comes back with it**, the connection did not finish: `access_denied` when the
+  person cancelled, `no_accounts` when the network returned none, `connect_failed` with
+  `error_code`. The session is still open and the same link can be tried again.
+- **Confirming is all or nothing**: error 706 with `{limit, used, requested}` and none enabled.
+- **Only the app that minted the token can read the session**, and it lives thirty minutes once the
+  person is back (551 after that).
+- **Telegram cannot use this mode** (error 550). On WhatsApp the `url` is still a PlanVortex page
+  with one button, because Meta's popup only opens on our domain.
 
 ## Comments and messages
 
@@ -212,7 +246,7 @@ memorising numbers:
 
 | Codes | Family | Exception |
 |---|---|---|
-| 500-548 | `auth` | `AuthError` |
+| 500-554 | `auth` | `AuthError` |
 | 601-612 | `user` | `UserError` |
 | 700-716 | `account` | `AccountError` |
 | 800-810 | `file` | `FileError` |

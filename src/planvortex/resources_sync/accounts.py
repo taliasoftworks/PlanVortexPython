@@ -22,6 +22,7 @@ from planvortex.types import (
     AccountMetricNames,
     AccountMetrics,
     ConnectLink,
+    ConnectSession,
     Destination,
     PersistentMenu,
 )
@@ -215,6 +216,54 @@ class AccountsResource(Resource):
             )
 
         return self._iterate_pages(buscar, limit=limit, offset=offset)
+
+    def get_connect_session(
+        self, id_organization: str, id_session: str, *, timeout: float | None = None
+    ) -> ConnectSession:
+        """A connect session: what your user authorized when the token was issued with
+        ``account_selection="integrator"``. It is what you draw in YOUR account picker.
+
+        ``id_session`` is the ``connect_session`` that arrives at your ``redirect_uri`` (and the one
+        ``create_connect_token`` returned: compare them, so a session somebody else started cannot
+        land in your user's browser). If an ``error`` arrives with it, the connection did not
+        finish (``access_denied`` when they cancelled, ``no_accounts`` when the network returned
+        none, ``connect_failed`` with ``error_code``) and the session is still ``pending``: the same
+        link can be tried again.
+
+        **Only the app that issued the token** can read it. Any other gets 551, the same as a session
+        that does not exist or has expired; a ``returned`` one lives thirty minutes.
+        """
+        sesion: ConnectSession = self._one(
+            f"/organizations/{require_id(id_organization, 'id_organization')}"
+            f"/connect_sessions/{require_id(id_session, 'id_session')}",
+            "connect_session",
+            timeout=timeout,
+        )
+        return sesion
+
+    def confirm_connect_session(
+        self,
+        id_organization: str,
+        id_session: str,
+        account_ids: Sequence[str],
+        *,
+        timeout: float | None = None,
+    ) -> builtins.list[Account]:
+        """Enable the accounts your user picked and close the session. An empty list means "none".
+
+        **All or nothing**: if the new accounts do not fit in the plan it answers 706 with
+        ``{limit, used, requested}`` and enables NONE, so that number can be shown as it is.
+        Accounts with ``already_enabled`` do not count. Each enabled account fires the
+        ``new_account`` webhook, as on any other connection.
+        """
+        cuerpo: Any = self._post(
+            f"/organizations/{require_id(id_organization, 'id_organization')}"
+            f"/connect_sessions/{require_id(id_session, 'id_session')}/confirm",
+            {"accounts": builtins.list(account_ids)},
+            timeout=timeout,
+        )
+        cuentas: builtins.list[Account] = cuerpo.get("accounts", []) if isinstance(cuerpo, dict) else []
+        return cuentas
 
     def get(self, id_organization: str, id_account: str, *, timeout: float | None = None) -> Account:
         """One account's record."""

@@ -120,6 +120,39 @@ def test_la_respuesta_privada_a_un_comentario_lleva_el_identificador_de_la_red(
     assert cuerpo(unica(httpx_mock))["in_response_external_id"] == "ig_comment_9"
 
 
+def test_las_variables_de_la_plantilla_viajan_en_orden(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    """Lo que convierte una plantilla aprobada en un recordatorio con el nombre y la hora."""
+    httpx_mock.add_response(
+        url=f"{CUENTA}/messages/con1",
+        method="POST",
+        json={"message": {**MENSAJE, "message_type": "template_message"}},
+    )
+
+    cliente.esperar(
+        cliente.pv.messages.send(
+            "org1",
+            "acc1",
+            "con1",
+            {
+                "message_type": "template_message",
+                "message_options": {
+                    "template_name": "recordatorio_cita",
+                    "template_language": "es",
+                    "template_parameters": ["María", "jueves 2 de octubre", "17:00"],
+                },
+            },
+        )
+    )
+
+    assert cuerpo(unica(httpx_mock))["message_options"] == {
+        "template_name": "recordatorio_cita",
+        "template_language": "es",
+        "template_parameters": ["María", "jueves 2 de octubre", "17:00"],
+    }
+
+
 def test_el_contador_de_mensajes_sin_leer(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:
     httpx_mock.add_response(url=f"{ORG}/unread_messages", json={"total": 3})
 

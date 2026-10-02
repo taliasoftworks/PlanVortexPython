@@ -18,10 +18,12 @@ from planvortex.types import (
     PUBLISHABLE_NETWORKS,
     SOCIAL_NETWORKS,
     Account,
+    AiImageOrigin,
     Comment,
     Message,
     MetaEmbeddedSignupAuthorization,
     Publication,
+    PublicationAiGenerated,
     PublishableNetwork,
     RedirectAuthorization,
     SocialAuthorizationMethod,
@@ -291,3 +293,29 @@ def test_pinterest_publica_y_no_comenta() -> None:
     assert "pinterest" not in COMMENT_NETWORKS
     assert "google_business" in COMMENT_NETWORKS
     assert "google_business" not in PUBLISHABLE_NETWORKS
+
+
+# ------------------------------------------------------------------------------ la marca de IA
+
+
+def test_la_marca_de_ia_es_opcional_en_la_imagen_y_en_la_publicacion() -> None:
+    """Fase 16 del servidor (AI Act art. 50): ausente quiere decir que nada es de IA.
+
+    Si alguien regenerara los modelos y el campo pasara a obligatorio, el codigo que lee
+    ``upload.get("ai_generated")`` seguiria funcionando y el que construye un ``Upload`` a mano
+    dejaria de pasar el ``mypy`` del integrador sin que nada aqui lo avisara.
+    """
+    origen: AiImageOrigin = {
+        "provider": "openrouter",
+        "model": "google/gemini-3.1-flash-image",
+        "generated_at": "2026-09-30T09:00:00.000Z",
+    }
+    marcada: PublicationAiGenerated = {"text": True, "image": False}
+
+    assert "ai_generated" in get_type_hints(Upload)
+    assert "ai_generated" not in Upload.__required_keys__
+    assert "ai_generated" not in Publication.__required_keys__
+    assert get_type_hints(Upload)["ai_generated"] is AiImageOrigin
+    assert get_type_hints(Publication)["ai_generated"] is PublicationAiGenerated
+    assert origen["provider"] == "openrouter"
+    assert marcada["text"] is True

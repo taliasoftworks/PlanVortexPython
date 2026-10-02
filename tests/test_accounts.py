@@ -270,3 +270,98 @@ def test_un_identificador_vacio_falla_antes_de_salir(cliente: ClienteDePrueba) -
 
     with pytest.raises(TypeError, match="id_account"):
         cliente.esperar(cliente.pv.accounts.get("org1", "   "))
+
+
+# ------------------------------------------------------- el selector de cuentas del integrador
+
+
+def test_el_token_pide_el_modo_del_integrador_en_la_query(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    """`account_selection` viaja en la query y vuelve el id de la sesion de conexion."""
+    httpx_mock.add_response(
+        url=(
+            f"{ORG}/temporal_connect_token?social_network=facebook"
+            "&redirect_uri=https%3A%2F%2Fmio.test%2Fvuelta&account_selection=integrator"
+        ),
+        json={
+            "url": "https://www.facebook.com/dialog/oauth?client_id=1&state=pvcs_x",
+            "token": "abc",
+            "expires_at": "2026-10-02T13:00:00.000Z",
+            "connect_session": "ses1",
+        },
+    )
+
+    token = cliente.esperar(
+        cliente.pv.organizations.create_connect_token(
+            "org1",
+            social_network="facebook",
+            redirect_uri="https://mio.test/vuelta",
+            account_selection="integrator",
+        )
+    )
+
+    assert token["connect_session"] == "ses1"
+    assert query(unica(httpx_mock)) == {
+        "social_network": ["facebook"],
+        "redirect_uri": ["https://mio.test/vuelta"],
+        "account_selection": ["integrator"],
+    }
+
+
+def test_la_sesion_de_conexion_se_desenvuelve(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:
+    httpx_mock.add_response(
+        url=f"{ORG}/connect_sessions/ses1",
+        json={
+            "connect_session": {
+                "_id": "ses1",
+                "social_network": "facebook",
+                "status": "returned",
+                "accounts": [{**CUENTA, "already_enabled": False}],
+                "accounts_used": 3,
+                "accounts_limit": 10,
+                "expires_at": "2026-10-02T13:30:00.000Z",
+            }
+        },
+    )
+
+    sesion = cliente.esperar(cliente.pv.accounts.get_connect_session("org1", "ses1"))
+
+    assert sesion["status"] == "returned"
+    assert sesion["accounts"][0]["already_enabled"] is False
+    assert sesion["accounts_limit"] - sesion["accounts_used"] == 7
+
+
+def test_confirmar_manda_los_ids_y_devuelve_las_habilitadas(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    httpx_mock.add_response(
+        url=f"{ORG}/connect_sessions/ses1/confirm", method="POST", json={"accounts": [CUENTA]}
+    )
+
+    habilitadas = cliente.esperar(cliente.pv.accounts.confirm_connect_session("org1", "ses1", ["acc1"]))
+
+    assert [cuenta["_id"] for cuenta in habilitadas] == ["acc1"]
+    assert cuerpo(unica(httpx_mock)) == {"accounts": ["acc1"]}
+
+
+def test_confirmar_sin_plazas_es_un_706_con_el_numero(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    """O todas o ninguna: el 706 llega como excepcion, con lo que hay que ensenarle al usuario."""
+    httpx_mock.add_response(
+        url=f"{ORG}/connect_sessions/ses1/confirm",
+        method="POST",
+        status_code=400,
+        json={
+            "code": 706,
+            "message": "Max accounts reached",
+            "data": {"limit": 10, "used": 9, "requested": 2},
+        },
+    )
+
+    with pytest.raises(AccountError) as error:
+        cliente.esperar(cliente.pv.accounts.confirm_connect_session("org1", "ses1", ["acc1", "acc2"]))
+
+    assert error.value.code == 706
+    assert error.value.data == {"limit": 10, "used": 9, "requested": 2}

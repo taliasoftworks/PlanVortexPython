@@ -252,7 +252,8 @@ def test_la_introspeccion_de_los_typeddict_no_miente() -> None:
     """
     assert _shapes.ImportFileError.__optional_keys__, "no hay ni una clave opcional: algo miente"
     assert set(_shapes.ImportFileError.__required_keys__) == {"code", "message"}
-    assert set(_shapes.ConnectToken.__optional_keys__) == set()
+    # `connect_session` solo vuelve con `account_selection="integrator"`: es la unica opcional.
+    assert set(_shapes.ConnectToken.__optional_keys__) == {"connect_session"}
 
 
 def test_las_mitades_de_authorization_cubren_lo_que_declara_el_spec() -> None:
@@ -272,6 +273,12 @@ def test_las_mitades_de_authorization_cubren_lo_que_declara_el_spec() -> None:
     obligatorias: set[str] = set()
     for mitad in MITADES_DE_AUTORIZACION:
         propias, opcionales = _claves(mitad)
+        # La UNICA excepcion, y no es de la red sino del token: el `state` del popup de Meta solo
+        # viaja con un token del selector del integrador (`account_selection="integrator"`).
+        if mitad is _shapes.MetaEmbeddedSignupAuthorization:
+            assert opcionales == {"state"}
+            obligatorias |= opcionales
+            opcionales = set()
         # Todas obligatorias en su mitad: es el reparto entero lo que se gana partiendo el tipo. Si
         # alguna sale opcional aqui, leerla vuelve a ser un `KeyError` que mypy no ve. Y ojo con
         # `add_to_group_link`, que el spec SI declara opcional: aqui no lo es, porque el servidor la

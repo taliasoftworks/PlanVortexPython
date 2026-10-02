@@ -198,6 +198,27 @@ class MessagesResource(Resource):
         On Facebook and Instagram only **one** attachment per message is accepted (error 1509), and on
         WhatsApp outside the 24-hour window only a template is.
 
+        If the template's body has variables, their values go in ``template_parameters``, in order: the
+        first fills ``{{1}}``, the second ``{{2}}``. Without them WhatsApp rejects the template. An
+        empty value, or one with line breaks, tabs or more than four consecutive spaces, is a 1511
+        with ``data["index"]`` pointing at it. Only positional body variables:
+
+        .. code-block:: python
+
+            pv.messages.send(
+                org_id,
+                account_id,
+                contact_id,
+                {
+                    "message_type": "template_message",
+                    "message_options": {
+                        "template_name": "recordatorio_cita",
+                        "template_language": "es",
+                        "template_parameters": ["María", "jueves 2 de octubre", "17:00"],
+                    },
+                },
+            )
+
         ``comment_message`` and ``publication_message`` need ``in_response_external_id``: the
         identifier ON THE NETWORK of what is being answered — a comment's ``external_id``, a
         publication's ``external_identifier`` — never a PlanVortex ``_id``, and error 1510 without it.

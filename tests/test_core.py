@@ -343,6 +343,9 @@ def test_cada_rango_del_catalogo_cae_en_su_clase() -> None:
     # rotate_secret) y 716 (la sesion de Bluesky la renueva otro proceso: reintentar).
     assert error_class_for_code(547).__name__ == "AuthError"
     assert error_class_for_code(548).__name__ == "AuthError"
+    # 549-554: el selector de cuentas del integrador y su sesion de conexion.
+    assert error_class_for_code(551).__name__ == "AuthError"
+    assert error_class_for_code(554).__name__ == "AuthError"
     assert error_class_for_code(716).__name__ == "AccountError"
     assert error_class_for_code(1300).__name__ == "PlanLimitError"
     # 1308 es el tope de APPS del plan, y 545/546 los dos codigos que trajo abrir la API publica

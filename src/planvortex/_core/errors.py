@@ -30,8 +30,9 @@ PLANVORTEX_ERROR_RANGES: tuple[ErrorRange, ...] = (
     # Hasta 548, no 544: la API publica se abrio a todos los planes y trajo dos codigos nuevos
     # —545 (ritmo por plan, que sale 429) y 546 (correo sin verificar al crear una app)—, y las
     # apps dos mas —547 (el identificador de una app no se cambia) y 548 (fallo al rotar el
-    # secreto, que es justo lo que estreno rotate_secret)—.
-    ErrorRange(500, 548, "auth"),
+    # secreto, que es justo lo que estreno rotate_secret)—. Y hasta 554 desde que el selector de
+    # cuentas puede ponerlo el integrador (549-554: el modo y su sesion de conexion).
+    ErrorRange(500, 554, "auth"),
     ErrorRange(601, 612, "user"),
     # 716: la sesion de Bluesky la esta renovando otro proceso. Es temporal, y fuera de familia no
     # habia forma de saber que la respuesta es reintentar.
@@ -113,7 +114,10 @@ class PlanVortexError(Exception):
 
 
 class AuthError(PlanVortexError):
-    """500-548 — tokens, client apps, permissions. Includes 501 and 522, the expired-token ones."""
+    """500-554 — tokens, client apps, permissions, connect sessions.
+
+    Includes 501 and 522, the expired-token ones.
+    """
 
 
 class UserError(PlanVortexError):

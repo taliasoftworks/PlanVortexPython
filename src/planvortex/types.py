@@ -418,6 +418,25 @@ ConnectToken: TypeAlias = _shapes.ConnectToken
 Fifteen minutes, one organization, one connection, and it cannot issue another token.
 """
 
+AccountSelection: TypeAlias = Literal["planvortex", "integrator"]
+"""Who shows the screen where the person picks which accounts to enable. ``"planvortex"`` is the
+default; with ``"integrator"`` the person comes back to your ``redirect_uri`` with a connect session
+and the picker is yours. See :data:`ConnectSession`.
+"""
+
+ConnectSession: TypeAlias = _models.AccountsConnectSession
+"""A connection in ``account_selection="integrator"`` mode: what your user authorized, so your app
+can show its own picker and confirm with ``accounts.confirm_connect_session()``.
+
+Only the app that issued the token can read it. ``accounts`` are the ones THIS authorization
+brought back, never other pending accounts of the organization; ``already_enabled`` marks a
+reconnection, which takes no slot; and ``accounts_used`` / ``accounts_limit`` are the plan counter.
+A ``returned`` session lives thirty minutes.
+"""
+
+ConnectSessionAccount: TypeAlias = _models.AccountsConnectSessionAccount
+"""One account of a :data:`ConnectSession`: an :data:`Account` plus ``already_enabled``."""
+
 ConnectResult: TypeAlias = _shapes.ConnectResult
 """What completing a connection leaves: accounts, still DISABLED, and where to send the user next."""
 
@@ -533,6 +552,25 @@ ImportResult: TypeAlias = _shapes.ImportResult
 
 FileProperties: TypeAlias = _models.FileProperties
 """Width, height, duration and size of a file, plus which networks it fits in **by its crop**."""
+
+AiImageOrigin: TypeAlias = _models.AiImageOrigin
+"""Which model an image came from: the ``ai_generated`` of an :data:`Upload`.
+
+**Only images the AI generated carry it**, never an uploaded photo or a shop's product photo, and it
+cannot be edited. It is what you need for YOUR part of the EU AI Act: article 50(4) makes whoever
+publishes responsible for telling the audience when a generated image could pass for real, and with
+this field you show the label in your own product. PlanVortex puts the mark in the file itself
+(C2PA, IPTC and SynthID with the default model); the C2PA does not survive a crop, the IPTC does.
+"""
+
+PublicationAiGenerated: TypeAlias = _models.PublicationAiGenerated
+"""Which part of a :data:`Publication` the AI generated. **Absent means nothing.**
+
+``text`` is set by the planner when the draft is created and does not change even if the text is
+rewritten: it says where it came from, not who reviewed it. ``image`` is recomputed from the files
+every time the publication is saved, so replacing the generated image with a photo of your own turns
+it off.
+"""
 
 Publication: TypeAlias = _models.Publication
 """A publication: scheduled, sent or failed.
@@ -1217,9 +1255,11 @@ __all__ = [
     "Account",
     "AccountMetricNames",
     "AccountMetrics",
+    "AccountSelection",
     "AccountUpdate",
     "AccountWithError",
     "AiContext",
+    "AiImageOrigin",
     "AiPlan",
     "AiPlanCostEstimate",
     "AiPlanCreateRequest",
@@ -1256,6 +1296,8 @@ __all__ = [
     "CommentUpdate",
     "ConnectLink",
     "ConnectResult",
+    "ConnectSession",
+    "ConnectSessionAccount",
     "ConnectToken",
     "Contact",
     "ContactChannel",
@@ -1315,6 +1357,7 @@ __all__ = [
     "ProductCatalogInput",
     "ProductInput",
     "Publication",
+    "PublicationAiGenerated",
     "PublicationDestination",
     "PublicationErrorDetail",
     "PublicationInput",
