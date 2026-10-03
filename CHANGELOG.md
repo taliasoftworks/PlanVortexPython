@@ -4,6 +4,35 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-10-03
+
+### Added
+
+- **Two webhook events for AI plans: `ai_plan_generated` and `ai_plan_failed`**, typed as
+  `AiPlanChange` (with `AiPlanFailure` for its `error`) and narrowed with `is_ai_plan_change` in
+  `planvortex.webhooks`. When a plan finishes, your app's `webhook_url` now hears about it, so you
+  no longer have to poll `pv.ai_plans.get` every few seconds. The change carries ids and numbers
+  only (`id_ai_plan`, `state`, `template`, `total_publications`, `credits_spent`, how many
+  `warnings`, and `error` with its `code` and `message` on a failure), never the prompt or the
+  generated text: read the plan once when it arrives. Each plan sends one of the two, never a
+  `failed` followed by a `generated`. Deliveries are not retried, so keep polling as the fallback
+  if your endpoint can be down.
+
+- **`pending_publish` on `Publication`**, with the `PublicationPending` type to name it. An
+  Instagram video that Meta takes more than ~30 seconds to process now comes back in state
+  `publishing` with this object, and PlanVortex keeps asking Instagram in the background for up to
+  10 minutes. **Wait and read the publication again after `next_check`; do not retry it or create
+  it again**, or the video goes out twice. While it is present the publication cannot be updated
+  (error 921). It is read-only: nothing new to send.
+
+### Changed
+
+- The reference no longer says that an X publication left without credits (940) fires your app's
+  webhook. It never did: no webhook announces publications, so read the publication to find out.
+- `publication_errors` documents two new Instagram codes: **998** (Meta rejected the file, so
+  retrying it unchanged fails the same way) and **999** (Meta ran out of time, and a retry usually
+  works).
+
 ## [0.12.0] - 2026-10-02
 
 **Your app can show its own account picker.** Until now the person connecting a social account

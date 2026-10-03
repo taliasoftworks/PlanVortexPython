@@ -66,21 +66,22 @@ def test_la_autoprueba_acepta_la_firma_buena_y_rechaza_la_mala(
     assert "El servidor contesto 200" in salida
     assert "Con la firma cambiada: 401" in salida
 
-    # Y lo de la entrega buena se ha procesado: los tres cambios, cada uno por su rama.
-    assert "3 cambio(s) en la entrega" in salida
+    # Y lo de la entrega buena se ha procesado: los cuatro cambios, cada uno por su rama.
+    assert "4 cambio(s) en la entrega" in salida
     assert "comentario de Marta" in salida
     assert "la integracion google_drive fallo con 2201" in salida
+    assert "el plan plan1 esta listo: 7 borradores" in salida
     assert "evento desconocido: un_evento_del_futuro" in salida
 
     # La entrega con la firma cambiada NO ha llegado a procesarse: si lo hubiera hecho, habria un
-    # segundo bloque de tres cambios. Un `count` y no un `in`, que es lo que lo distingue.
-    assert salida.count("3 cambio(s) en la entrega") == 1
+    # segundo bloque de cuatro cambios. Un `count` y no un `in`, que es lo que lo distingue.
+    assert salida.count("4 cambio(s) en la entrega") == 1
 
 
 def test_cada_rama_lee_lo_suyo_y_aguanta_lo_que_puede_faltar(
     ejemplo: ModuleType, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """Los cuatro tipos de evento por separado, con sus ausencias.
+    """Cada tipo de evento por separado, con sus ausencias.
 
     Las tres ausencias son reales y ninguna es un error: un comentario borrado que nunca vimos llega
     sin `commentObj`, y un `messaging_seen` llega sin `messageObj` porque lo que se confirma no tiene
@@ -111,6 +112,17 @@ def test_cada_rama_lee_lo_suyo_y_aguanta_lo_que_puede_faltar(
             "id_organization": "org1",
             "social_network": "bluesky",
         },
+        {
+            "field": "ai_plan_failed",
+            "id_ai_plan": "plan2",
+            "id_organization": "org1",
+            "state": "failed",
+            "template": "standard",
+            "total_publications": 0,
+            "credits_spent": 15,
+            "warnings": 0,
+            "error": {"code": 941, "message": "Not enough AI credits"},
+        },
     ]
 
     ejemplo._procesar(cambios)
@@ -120,6 +132,7 @@ def test_cada_rama_lee_lo_suyo_y_aguanta_lo_que_puede_faltar(
     assert "messaging_seen sin mensaje asociado" in salida
     assert "messages (incoming) con Marta: Hola" in salida
     assert "la cuenta acc2 (bluesky): new_account" in salida
+    assert "el plan plan2 fallo con 941: Not enough AI credits" in salida
 
 
 def test_un_cuerpo_que_no_es_una_lista_se_contesta_con_400(ejemplo: ModuleType) -> None:

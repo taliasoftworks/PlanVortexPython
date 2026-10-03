@@ -572,6 +572,18 @@ every time the publication is saved, so replacing the generated image with a pho
 it off.
 """
 
+PublicationPending: TypeAlias = _models.PublicationPending
+"""The network is still **processing** what was sent and PlanVortex is waiting to publish it: the
+``pending_publish`` of a :data:`Publication`. Today that is an Instagram video that Meta takes longer
+than ~30 seconds to process. The publication stays in ``publishing`` for up to 10 minutes, and
+PlanVortex asks Instagram again by itself about once a minute.
+
+**Wait for it. Do not retry it or create it again**, or the video goes out twice. No webhook
+announces the outcome: read the publication again after ``next_check``. While it is present the
+publication cannot be updated (error 921). ``temp_keys`` and ``data`` are PlanVortex's own
+bookkeeping.
+"""
+
 Publication: TypeAlias = _models.Publication
 """A publication: scheduled, sent or failed.
 
@@ -1363,6 +1375,7 @@ __all__ = [
     "PublicationInput",
     "PublicationLimits",
     "PublicationMetrics",
+    "PublicationPending",
     "PublicationRetryResult",
     "PublicationState",
     "PublicationStats",

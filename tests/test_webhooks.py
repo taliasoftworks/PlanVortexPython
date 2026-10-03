@@ -27,6 +27,8 @@ from planvortex.webhooks import (
     WEBHOOK_EVENTS,
     WEBHOOK_SIGNATURE_HEADERS,
     AccountStateChange,
+    AiPlanChange,
+    AiPlanFailure,
     CommentChange,
     IntegrationErrorChange,
     MessageChange,
@@ -36,6 +38,7 @@ from planvortex.webhooks import (
     WebhookSignatureError,
     handle_webhook_request,
     is_account_state_change,
+    is_ai_plan_change,
     is_comment_change,
     is_integration_error_change,
     is_message_change,
@@ -327,11 +330,19 @@ def _cambio(field: str, **extra: Any) -> WebhookChange:
         ("messaging_error", is_message_change),
         ("comments", is_comment_change),
         ("integration_error", is_integration_error_change),
+        ("ai_plan_generated", is_ai_plan_change),
+        ("ai_plan_failed", is_ai_plan_change),
     ],
 )
 def test_cada_evento_lo_reconoce_su_predicado_y_solo_el_suyo(field: str, predicado: Any) -> None:
     cambio = _cambio(field)
-    todos = (is_account_state_change, is_message_change, is_comment_change, is_integration_error_change)
+    todos = (
+        is_account_state_change,
+        is_message_change,
+        is_comment_change,
+        is_integration_error_change,
+        is_ai_plan_change,
+    )
 
     assert predicado(cambio)
     assert [otro for otro in todos if otro(cambio)] == [predicado]
@@ -345,6 +356,7 @@ def test_un_evento_desconocido_no_lo_reconoce_nadie_y_no_rompe() -> None:
     assert not is_message_change(nuevo)
     assert not is_comment_change(nuevo)
     assert not is_integration_error_change(nuevo)
+    assert not is_ai_plan_change(nuevo)
     assert nuevo["field"] == "live_comments"
 
 
@@ -362,9 +374,65 @@ def test_el_error_de_integracion_no_cuelga_de_ninguna_cuenta() -> None:
     assert "social_network" not in claves
 
 
+def test_el_final_de_un_plan_tampoco_cuelga_de_ninguna_cuenta() -> None:
+    """Un plan puede abarcar varias redes: cuelga de la organizacion, como una integracion."""
+    claves = AiPlanChange.__required_keys__ | AiPlanChange.__optional_keys__
+
+    assert "id_account" not in claves
+    assert "social_network" not in claves
+
+
+def test_los_dos_finales_de_un_plan_llegan_firmados_y_se_estrechan() -> None:
+    """Tal y como los manda `createNotification` del servidor: ids y numeros, nada del contenido."""
+    entrega = [
+        {
+            "field": "ai_plan_generated",
+            "id_ai_plan": "66d04a6a427f4c43b9d97fb0",
+            "id_organization": "66b0f4a1c2d3e4f5a6b7c8d0",
+            "state": "generated",
+            "template": "from_images",
+            "total_publications": 7,
+            "credits_spent": 48,
+            "warnings": 1,
+        },
+        {
+            "field": "ai_plan_failed",
+            "id_ai_plan": "66d04a6a427f4c43b9d97fb1",
+            "id_organization": "66b0f4a1c2d3e4f5a6b7c8d0",
+            "state": "failed",
+            "template": "standard",
+            "total_publications": 0,
+            "credits_spent": 15,
+            "warnings": 0,
+            "error": {"code": 941, "message": "Not enough AI credits"},
+        },
+    ]
+    crudo = json.dumps(entrega, separators=(",", ":")).encode("utf8")
+    cabeceras = {WEBHOOK_SIGNATURE_HEADERS["sha256"]: _firmar(crudo)}
+
+    generado, fallido = handle_webhook_request(body=crudo, headers=cabeceras, secret=SECRETO)
+
+    assert is_ai_plan_change(generado)
+    assert is_ai_plan_change(fallido)
+    assert not is_integration_error_change(generado)
+    if is_ai_plan_change(generado):
+        assert generado["state"] == "generated"
+        assert "error" not in generado
+    if is_ai_plan_change(fallido):
+        assert fallido["state"] == "failed"
+        assert fallido.get("error", {}).get("code") == 941
+
+
 # ======================================================== § Trampa P13: la introspeccion en verde
 
-TIPOS = (AccountStateChange, MessageChange, CommentChange, IntegrationErrorChange, UnknownWebhookChange)
+TIPOS = (
+    AccountStateChange,
+    MessageChange,
+    CommentChange,
+    IntegrationErrorChange,
+    AiPlanChange,
+    UnknownWebhookChange,
+)
 
 
 @pytest.mark.parametrize("tipo", TIPOS, ids=lambda tipo: cast("str", tipo.__name__))
@@ -381,6 +449,8 @@ def test_lo_que_puede_faltar_de_verdad_esta_declarado_opcional() -> None:
     assert MessageChange.__optional_keys__ >= {"messageObj", "id_contact", "originalChange"}
     assert CommentChange.__optional_keys__ >= {"commentObj", "originalChange"}
     assert IntegrationErrorChange.__optional_keys__ == frozenset()
+    # El error del plan solo viene cuando fallo: en uno generado no esta.
+    assert AiPlanChange.__optional_keys__ == frozenset({"error"})
 
 
 # ============================================================== paridad contra el OpenAPI
@@ -390,6 +460,7 @@ SPEC: dict[str, Any] = json.loads(OPENAPI.read_text(encoding="utf8"))
 ESQUEMAS: dict[str, Any] = SPEC["components"]["schemas"]
 CUENTA_SPEC: dict[str, Any] = ESQUEMAS["CommentsWebhookChange"]
 INTEGRACION_SPEC: dict[str, Any] = ESQUEMAS["CommentsIntegrationWebhookChange"]
+PLAN_SPEC: dict[str, Any] = ESQUEMAS["CommentsAiPlanWebhookChange"]
 
 
 def _claves(tipo: Any) -> frozenset[str]:
@@ -400,8 +471,10 @@ def test_la_lista_de_eventos_es_la_del_spec_en_las_dos_direcciones() -> None:
     """La tupla escrita a mano contra las dos enumeraciones del bundle. Si el servidor anade un
     evento y el spec lo documenta, esto se pone rojo y hay que decidir si se tipa.
     """
-    del_spec = tuple(CUENTA_SPEC["properties"]["field"]["enum"]) + tuple(
-        INTEGRACION_SPEC["properties"]["field"]["enum"]
+    del_spec = (
+        tuple(CUENTA_SPEC["properties"]["field"]["enum"])
+        + tuple(INTEGRACION_SPEC["properties"]["field"]["enum"])
+        + tuple(PLAN_SPEC["properties"]["field"]["enum"])
     )
 
     assert set(WEBHOOK_EVENTS) == set(del_spec)
@@ -420,6 +493,19 @@ def test_los_tres_tipos_de_cuenta_cubren_el_esquema_del_spec() -> None:
 def test_el_error_de_integracion_es_el_esquema_del_spec() -> None:
     assert _claves(IntegrationErrorChange) == set(INTEGRACION_SPEC["properties"])
     assert IntegrationErrorChange.__required_keys__ == set(INTEGRACION_SPEC["required"])
+
+
+def test_el_final_de_un_plan_es_el_esquema_del_spec() -> None:
+    assert _claves(AiPlanChange) == set(PLAN_SPEC["properties"])
+    assert AiPlanChange.__required_keys__ == set(PLAN_SPEC["required"])
+    assert _claves(AiPlanFailure) == set(ESQUEMAS["CommentsAiPlanWebhookError"]["properties"])
+    assert AiPlanFailure.__required_keys__ == set(ESQUEMAS["CommentsAiPlanWebhookError"]["required"])
+    assert sorted(get_args(AiPlanChange.__annotations__["field"])) == sorted(
+        PLAN_SPEC["properties"]["field"]["enum"]
+    )
+    assert sorted(get_args(AiPlanChange.__annotations__["state"])) == sorted(
+        PLAN_SPEC["properties"]["state"]["enum"]
+    )
 
 
 @pytest.mark.parametrize(

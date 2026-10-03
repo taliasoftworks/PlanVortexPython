@@ -45,7 +45,7 @@ import sys
 from typing import Any, Literal, Protocol, TypeAlias, TypeGuard, cast
 
 from planvortex._core.errors import NO_ERROR_CODE, PlanVortexConfigError, PlanVortexError
-from planvortex.types import Comment, Message, SocialNetwork
+from planvortex.types import Comment, Message, PlannerTemplateName, SocialNetwork
 
 # Igual que en `_shapes.py` y por lo mismo (§ Trampa P13 del roadmap): NO hay `from __future__
 # import annotations` en este fichero, y `TypedDict` y `NotRequired` salen del MISMO sitio. Con las
@@ -83,6 +83,8 @@ WEBHOOK_EVENTS: tuple[str, ...] = (
     "messaging_error",
     "comments",
     "integration_error",
+    "ai_plan_generated",
+    "ai_plan_failed",
 )
 """The events delivered today, taken from the specification and not from memory.
 
@@ -170,6 +172,49 @@ class IntegrationErrorChange(TypedDict):
     """The PlanVortex code saying what went wrong. Integration codes live in the 2200-2299 range."""
 
 
+class AiPlanFailure(TypedDict):
+    """Why an AI plan failed: the same ``code`` and ``message`` as the plan's ``error``.
+
+    Its ``data`` does not travel in the webhook, because it can carry what the AI provider answered;
+    read the plan for it.
+    """
+
+    code: int
+    message: str
+
+
+class AiPlanChange(TypedDict):
+    """An AI plan FINISHED: it came out (``ai_plan_generated``) or it gave up (``ai_plan_failed``).
+
+    This is what saves you from asking for the plan every few seconds: wait for this event and read
+    the plan once with ``pv.ai_plans.get``. It carries ids and numbers only, never the prompt or the
+    generated text.
+
+    **It carries no ``id_account`` and no ``social_network``**, like :class:`IntegrationErrorChange`:
+    a plan can span several networks and hangs off the organization.
+
+    A transient error sends the plan back to the queue and sends nothing, so each plan sends **one**
+    of the two, never a ``failed`` followed by a ``generated``. And it is not retried: if your
+    endpoint was down when the plan finished, ``pv.ai_plans.get`` still tells you how it ended.
+    """
+
+    field: Literal["ai_plan_generated", "ai_plan_failed"]
+    id_ai_plan: str
+    id_organization: str
+    state: Literal["generated", "failed"]
+    """The state the plan finished in. It always matches ``field``."""
+    template: PlannerTemplateName
+    """What the plan was generated from, the same value as the plan's ``template``."""
+    total_publications: int
+    """How many draft publications the plan holds. A failed one can keep those of its failed attempt."""
+    credits_spent: int
+    """AI credits the generation consumed. A failed plan can have spent some too; they are not refunded."""
+    warnings: int
+    """**How many** notices the plan has, not the notices: those are in the plan. It is still usable."""
+    error: NotRequired[AiPlanFailure]
+    """Only on ``ai_plan_failed``."""
+
+
 class UnknownWebhookChange(TypedDict):
     """A ``field`` this release of the package does not know yet.
 
@@ -182,7 +227,12 @@ class UnknownWebhookChange(TypedDict):
 
 
 WebhookChange: TypeAlias = (
-    AccountStateChange | MessageChange | CommentChange | IntegrationErrorChange | UnknownWebhookChange
+    AccountStateChange
+    | MessageChange
+    | CommentChange
+    | IntegrationErrorChange
+    | AiPlanChange
+    | UnknownWebhookChange
 )
 """One of the changes that come in the array. Discriminated by ``field``.
 
@@ -194,6 +244,7 @@ friends — are what narrows for real, and they are the recommended way.
 
 _ACCOUNT_STATE_EVENTS = frozenset({"new_account", "change_state_account"})
 _MESSAGE_EVENTS = frozenset({"messages", "messaging_postbacks", "messaging_seen", "messaging_error"})
+_AI_PLAN_EVENTS = frozenset({"ai_plan_generated", "ai_plan_failed"})
 
 
 def is_account_state_change(change: WebhookChange) -> TypeGuard[AccountStateChange]:
@@ -214,6 +265,11 @@ def is_comment_change(change: WebhookChange) -> TypeGuard[CommentChange]:
 def is_integration_error_change(change: WebhookChange) -> TypeGuard[IntegrationErrorChange]:
     """An integration stopped working."""
     return change["field"] == "integration_error"
+
+
+def is_ai_plan_change(change: WebhookChange) -> TypeGuard[AiPlanChange]:
+    """An AI plan finished, well or badly. Look at ``field`` (or ``state``) to tell which."""
+    return change["field"] in _AI_PLAN_EVENTS
 
 
 # =================================================================================================
@@ -456,6 +512,8 @@ __all__ = [
     "WEBHOOK_SIGNATURE_HEADERS",
     "AccountStateChange",
     "AccountWebhookChangeBase",
+    "AiPlanChange",
+    "AiPlanFailure",
     "CommentChange",
     "IntegrationErrorChange",
     "MessageChange",
@@ -468,6 +526,7 @@ __all__ = [
     "WebhookSignatureError",
     "handle_webhook_request",
     "is_account_state_change",
+    "is_ai_plan_change",
     "is_comment_change",
     "is_integration_error_change",
     "is_message_change",

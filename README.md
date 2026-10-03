@@ -339,12 +339,18 @@ would rather do it in two steps, `verify_webhook_signature(payload, signature, s
 plain `True`/`False` and `parse_webhook_body(payload)` gives you the changes.
 
 Narrow with the predicates — `is_account_state_change`, `is_message_change`, `is_comment_change`,
-`is_integration_error_change` — and let anything else fall through: **the event list grows**, and a
+`is_integration_error_change`, `is_ai_plan_change` — and let anything else fall through: **the event list grows**, and a
 `field` this release has never heard of is not an error.
 
 **PlanVortex does not retry a failed delivery.** A 500 of yours loses the event, so if your work is
 slow, queue it and answer — and use `pv.comments.list` / `pv.messages.list` to catch up on anything
 you missed.
+
+**An AI plan tells you when it is done.** `ai_plan_generated` and `ai_plan_failed` arrive when a plan
+finishes, so you do not have to poll `pv.ai_plans.get` every few seconds: read the plan once when
+one of them comes in. They carry ids and numbers only (`id_ai_plan`, `state`, how many `warnings`,
+and `error` on a failure), never the prompt or the generated text. If your endpoint was down,
+`pv.ai_plans.get` still tells you how the plan ended.
 
 ## The whole API, in fourteen resources
 

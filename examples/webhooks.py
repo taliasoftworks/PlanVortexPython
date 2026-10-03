@@ -40,6 +40,7 @@ from planvortex.webhooks import (
     WebhookSignatureError,
     handle_webhook_request,
     is_account_state_change,
+    is_ai_plan_change,
     is_comment_change,
     is_integration_error_change,
     is_message_change,
@@ -122,8 +123,18 @@ def _procesar(cambios: list[WebhookChange]) -> None:
                 )
 
         elif is_integration_error_change(cambio):
-            # El unico evento que NO cuelga de una cuenta: una integracion es de la organizacion.
+            # No cuelga de una cuenta: una integracion es de la organizacion.
             print(f"  · la integracion {cambio['provider']} fallo con {cambio['error_code']}")
+
+        elif is_ai_plan_change(cambio):
+            # Tampoco cuelga de una cuenta. Solo ids y numeros: el plan entero se lee una vez, ahora,
+            # con `pv.ai_plans.get`.
+            error = cambio.get("error")
+            if error is None:
+                listas = cambio["total_publications"]
+                print(f"  · el plan {cambio['id_ai_plan']} esta listo: {listas} borradores")
+            else:
+                print(f"  · el plan {cambio['id_ai_plan']} fallo con {error['code']}: {error['message']}")
 
         elif is_account_state_change(cambio):
             print(f"  · la cuenta {cambio['id_account']} ({cambio['social_network']}): {cambio['field']}")
@@ -160,6 +171,16 @@ def _autoprueba() -> None:
             "id_organization": "org1",
             "provider": "google_drive",
             "error_code": 2201,
+        },
+        {
+            "field": "ai_plan_generated",
+            "id_ai_plan": "plan1",
+            "id_organization": "org1",
+            "state": "generated",
+            "template": "standard",
+            "total_publications": 7,
+            "credits_spent": 519,
+            "warnings": 0,
         },
         # Uno que esta version no conoce, para ver que cae en el `else` y no revienta nada.
         {"field": "un_evento_del_futuro"},

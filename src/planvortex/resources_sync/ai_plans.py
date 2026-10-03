@@ -114,8 +114,10 @@ class AiPlansResource(Resource):
     ) -> AiPlan:
         """One plan, with its publications **already resolved** and with each one's files.
 
-        It is the endpoint you poll while ``state`` is ``pending`` or ``generating``. There is no
-        webhook for this yet.
+        Read it when your app receives ``ai_plan_generated`` or ``ai_plan_failed``. Without a
+        webhook, it is the endpoint you poll while ``state`` is ``pending`` or ``generating``. The
+        webhook is not retried, so if your endpoint was down when the plan finished, this still tells
+        you how it ended.
 
         Read ``warnings`` on a plan that came out ``generated``, which is the place nobody
         looks: it is not an error of the response, it is a notice about a plan that generated fine.
@@ -272,8 +274,8 @@ class AiPlansResource(Resource):
         *,
         timeout: float | None = None,
     ) -> AiPlan:
-        """Queue a ``failed`` plan again with the same data. The state goes back to ``pending`` and you
-        have to poll again.
+        """Queue a ``failed`` plan again with the same data. The state goes back to ``pending`` and the
+        end arrives again as after ``create()``: on your webhook, or by polling.
 
         It uses the brand context copied when the plan was created, not today's: a plan is
         reproducible even if somebody edited the configuration in the meantime.

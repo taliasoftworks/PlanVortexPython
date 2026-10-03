@@ -24,6 +24,7 @@ from planvortex.types import (
     MetaEmbeddedSignupAuthorization,
     Publication,
     PublicationAiGenerated,
+    PublicationPending,
     PublishableNetwork,
     RedirectAuthorization,
     SocialAuthorizationMethod,
@@ -319,3 +320,20 @@ def test_la_marca_de_ia_es_opcional_en_la_imagen_y_en_la_publicacion() -> None:
     assert get_type_hints(Publication)["ai_generated"] is PublicationAiGenerated
     assert origen["provider"] == "openrouter"
     assert marcada["text"] is True
+
+
+def test_el_video_que_instagram_aun_procesa_tiene_tipo_propio() -> None:
+    """``pending_publish``: el reel que Meta tarda en procesar deja la publicacion en ``publishing``.
+
+    Es opcional en la publicacion (casi nunca esta) y ``next_check`` es lo que tiene que leer el
+    integrador para saber cuando volver a mirar, en vez de reintentar y publicar el video dos veces.
+    """
+    pendiente: PublicationPending = {
+        "next_check": "2026-10-03T10:01:00.000Z",
+        "deadline": "2026-10-03T10:10:00.000Z",
+    }
+
+    assert "pending_publish" not in Publication.__required_keys__
+    assert get_type_hints(Publication)["pending_publish"] is PublicationPending
+    assert "next_check" in get_type_hints(PublicationPending)
+    assert pendiente["next_check"] == "2026-10-03T10:01:00.000Z"

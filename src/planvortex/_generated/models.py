@@ -562,7 +562,7 @@ class AppsClientApp(TypedDict):
 
     **The body is an array of changes, not a single object**, and it carries two signature headers computed with this app's secret over the **raw** body: `x-hub-signature` (`sha1=<hex>`) and `x-hub-signature-256` (`sha256=<hex>`). Verify against the bytes you received — parsing the JSON and re-serialising it changes them and the signature will not match.
 
-    The events delivered today are `new_account`, `change_state_account`, `messages`, `messaging_postbacks`, `messaging_seen`, `messaging_error`, `comments` and `integration_error`. The payload is documented in the `comments` specification. Delivery is best effort: PlanVortex does not retry a webhook that fails.
+    The events delivered today are `new_account`, `change_state_account`, `messages`, `messaging_postbacks`, `messaging_seen`, `messaging_error`, `comments`, `integration_error`, `ai_plan_generated` and `ai_plan_failed`. The payload is documented in the `comments` specification. **Every** app of the client that has a `webhook_url` receives every event, not only the app whose call caused it: with two apps, each event arrives twice. Delivery is best effort: PlanVortex does not retry a webhook that fails.
     """
     creation_date: str
     deleted: bool
@@ -895,6 +895,15 @@ class ClientsRolesUser(TypedDict):
 class ClientsRolesUserList(TypedDict):
     users: NotRequired[list[ClientsRolesUser]]
     total: NotRequired[int]
+
+
+class CommentsAiPlanWebhookError(TypedDict):
+    """
+    Why an AI plan failed, inside `AiPlanWebhookChange.error`: the same `code` and `message` as `AiPlan.error`. Its `data` is left out, because it can carry what the AI provider answered; read the plan for it.
+    """
+
+    code: int
+    message: str
 
 
 class CommentsCommentActions(TypedDict):
@@ -1927,6 +1936,33 @@ class PublicationDestination(TypedDict):
     """
 
 
+class PublicationPending(TypedDict):
+    """
+    Present only while the network is still **processing** what was sent, and PlanVortex is waiting to publish it. Today that happens on Instagram alone, when Meta takes longer than the ~30 seconds the request waits to process the media. In practice, that means videos.
+
+    The publication stays in state `publishing`, and the background job asks Instagram again about once a minute until it goes out (`sended`) or fails (`withErrors`). It gives up 10 minutes after the media was sent to Instagram, and then the publication ends in `withErrors` with code 999. The object disappears as soon as the publication is resolved.
+
+    **Wait for it. Do not retry it and do not create it again**: it has not failed, and a second publication would put the same video out twice. There is no webhook for the outcome: read the publication again after `next_check`. While this object is present the publication **cannot be updated** (error 921), for the same reason.
+    """
+
+    next_check: NotRequired[str]
+    """
+    When PlanVortex will ask the network again. A good moment to read the publication again: asking before it changes nothing.
+    """
+    deadline: NotRequired[str]
+    """
+    When PlanVortex stops waiting. If the network has not finished by then, the publication ends in `withErrors` (999 on Instagram).
+    """
+    temp_keys: NotRequired[list[str]]
+    """
+    PlanVortex's own bookkeeping: the temporary cropped files the network may still be downloading. Do not rely on it.
+    """
+    data: NotRequired[dict[str, Any]]
+    """
+    PlanVortex's own bookkeeping to resume the publication (on Instagram, the ids of Meta's containers). Its content may change without notice.
+    """
+
+
 class PublicationStats(TypedDict):
     """
     Raw, per-network metrics for a publication. Only the fields that belong to the publication's own social network are returned.
@@ -2773,6 +2809,42 @@ class ClientsPlan(TypedDict):
     stripe_customer_id: NotRequired[str]
 
 
+class CommentsAiPlanWebhookChange(TypedDict):
+    """
+    One change in the array PlanVortex posts to your app's `webhook_url`, when an **AI plan finished**: `ai_plan_generated` when it came out, `ai_plan_failed` when it gave up.
+
+    Like `IntegrationWebhookChange`, it carries no `id_account` and no `social_network`: a plan can span several networks, and it hangs off the organization. It carries ids and numbers only. Read the plan itself with `GET /clients/{id_client}/organizations/{id_organization}/ai_plans/{id_ai_plan}`.
+    """
+
+    field: Literal["ai_plan_generated", "ai_plan_failed"]
+    id_ai_plan: str
+    id_organization: str
+    state: Literal["generated", "failed"]
+    """
+    The state the plan finished in. It always matches `field`: `generated` with `ai_plan_generated`, `failed` with `ai_plan_failed`.
+    """
+    template: Literal["standard", "from_images", "from_text", "from_catalog", "campaign"]
+    """
+    What the plan was generated from, the same value as `AiPlan.template`.
+    """
+    total_publications: int
+    """
+    How many draft publications the plan holds. A failed plan can still hold the drafts of its failed attempt; retrying it discards them.
+    """
+    credits_spent: int
+    """
+    AI credits the generation consumed, the same figure as `AiPlan.credits_spent`. A failed plan can have spent credits too, and they are not refunded.
+    """
+    warnings: int
+    """
+    **How many** non-blocking notices the plan has, not the notices themselves: those are in `AiPlan.warnings`. Above zero the plan is still generated and usable.
+    """
+    error: NotRequired[CommentsAiPlanWebhookError]
+    """
+    Only on `ai_plan_failed`: why the plan failed, the same `code` and `message` as `AiPlan.error`. Its `data` does not travel here; read the plan for it.
+    """
+
+
 class Contact(TypedDict):
     """
     A person the organization exchanges messages with. The same contact can be reachable on several channels — that is what `social_identifiers` is.
@@ -3307,7 +3379,10 @@ class Publication(TypedDict):
     state: Literal["ready", "withErrors", "sended", "draft", "publishing"]
     """
     `draft` is never sent; `ready` is scheduled; `publishing` is in the network's hands right now; `sended` went out; `withErrors` failed and carries the reason in `publication_errors`.
+
+    `publishing` usually lasts a few seconds, but it can last **up to 10 minutes** when the network is still processing a video (today, Instagram). Then `pending_publish` is present: wait and read the publication again, do not retry it.
     """
+    pending_publish: NotRequired[PublicationPending]
     files: list[Upload]
     """
     The attached files, **already resolved**: every read and write path returns full uploads, not identifiers. Identifiers are what you SEND (see `PublicationInput.files`).
@@ -3318,7 +3393,9 @@ class Publication(TypedDict):
     """
     Why the publication failed, one entry per problem. **It is an array**, and it is empty on a publication that has not failed.
 
-    For a scheduled X (Twitter) publication that runs out of credits at publish time, `code` is 940 and `data` is `{ used, limit }`; the publication stays in state `withErrors` and the client-app webhook is fired.
+    For a scheduled X (Twitter) publication that runs out of credits at publish time, `code` is 940 and `data` is `{ used, limit }`; the publication stays in state `withErrors`. No webhook announces it: read the publication to find out.
+
+    On Instagram, two codes tell you whether a retry makes sense. **998**: Meta rejected the media while processing it (a codec, a duration, a URL it could not download). `data` carries `container_id`, `status_code` and, when Meta gives one, its reason in `status`. Retrying the same file fails the same way: change it first. **999**: Meta had not finished processing the media 10 minutes after it was sent. `data` carries `container_ids` and `minutes`. The file is not the problem, and a retry usually works.
     """
     retries: int
     """
@@ -3493,7 +3570,7 @@ class AiPlansAiPlan(TypedDict):
     options: AiPlansAiPlanOptions
     state: Literal["pending", "generating", "generated", "validated", "failed", "cancelled"]
     """
-    State machine: pending -> generating -> generated -> validated | failed | cancelled. Poll the plan while state is pending or generating.
+    State machine: pending -> generating -> generated -> validated | failed | cancelled. Reaching `generated` or `failed` is announced to your app's webhook (`ai_plan_generated`, `ai_plan_failed`); without one, poll the plan while state is pending or generating.
     """
     archived_date: NotRequired[str]
     """
@@ -3877,7 +3954,7 @@ class CommentsWebhookChange(TypedDict):
     """
     One change in the array PlanVortex posts to your app's `webhook_url`, when the change concerns a social **account**.
 
-    An integration that stopped working has a shape of its own — `IntegrationWebhookChange` — and one delivery can mix both. Switch on `field`, and ignore what you do not handle.
+    An integration that stopped working has a shape of its own (`IntegrationWebhookChange`), and so does an AI plan that finished (`AiPlanWebhookChange`). One delivery can mix them. Switch on `field`, and ignore what you do not handle.
     """
 
     field: Literal[

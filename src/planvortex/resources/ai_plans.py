@@ -11,8 +11,10 @@ THE CYCLE, which is what to have clear before anything else::
 AND WHAT SURPRISES PEOPLE:
 
 - **``create()`` generates nothing**: it queues the plan and returns the budget. The generating is
-  done by a separate job, so you poll :meth:`AsyncAiPlansResource.get` while the state is ``pending``
-  or ``generating``. It can take minutes.
+  done by a separate job and can take minutes. When it ends, your app's ``webhook_url`` receives
+  ``ai_plan_generated`` or ``ai_plan_failed`` (``is_ai_plan_change`` in :mod:`planvortex.webhooks`);
+  without a webhook, poll :meth:`AsyncAiPlansResource.get` while the state is ``pending`` or
+  ``generating``.
 - **What is generated are NORMAL publications in state ``draft``.** They are edited and deleted with
   ``pv.publications``, not with anything here. Validating is what moves them to ``ready``.
 - **It is paid for in AI credits and the price is known BEFOREHAND.** The budget is computed by the
@@ -175,8 +177,10 @@ class AsyncAiPlansResource(AsyncResource):
     ) -> AiPlan:
         """One plan, with its publications **already resolved** and with each one's files.
 
-        It is the endpoint you poll while ``state`` is ``pending`` or ``generating``. There is no
-        webhook for this yet.
+        Read it when your app receives ``ai_plan_generated`` or ``ai_plan_failed``. Without a
+        webhook, it is the endpoint you poll while ``state`` is ``pending`` or ``generating``. The
+        webhook is not retried, so if your endpoint was down when the plan finished, this still tells
+        you how it ended.
 
         Read ``warnings`` on a plan that came out ``generated``, which is the place nobody
         looks: it is not an error of the response, it is a notice about a plan that generated fine.
@@ -333,8 +337,8 @@ class AsyncAiPlansResource(AsyncResource):
         *,
         timeout: float | None = None,
     ) -> AiPlan:
-        """Queue a ``failed`` plan again with the same data. The state goes back to ``pending`` and you
-        have to poll again.
+        """Queue a ``failed`` plan again with the same data. The state goes back to ``pending`` and the
+        end arrives again as after ``create()``: on your webhook, or by polling.
 
         It uses the brand context copied when the plan was created, not today's: a plan is
         reproducible even if somebody edited the configuration in the meantime.
