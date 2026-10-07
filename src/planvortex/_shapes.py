@@ -347,6 +347,18 @@ class PublicationInput(TypedDict):
     ``catalog.social_capabilities()`` (today Threads). Omitted, the network's default: anyone. It is
     set when the publication goes out and cannot be changed afterwards; on every other network the
     field is deleted on save."""
+    visibility: NotRequired[Literal["public", "unlisted", "private"]]
+    """**Who can see the publication** when it goes out, on the networks that answer
+    ``visibility: true`` in ``catalog.social_capabilities()`` (today YouTube). Omitted, ``public``.
+    YouTube's policies require it to be the user's choice: if you publish for someone, ask them. A
+    value the network does not take does not raise: the publication is created in ``withErrors``
+    with code 2500. On every other network the field is deleted on save."""
+    made_for_kids: NotRequired[bool]
+    """Whether the video is **made for kids** (COPPA), on the networks that answer
+    ``made_for_kids: true`` in ``catalog.social_capabilities()`` (today YouTube). Omitted, ``False``.
+    It is the user's call, and it must be a real boolean: anything else is not guessed, and the
+    publication is created in ``withErrors`` with code 2501. On every other network the field is
+    deleted on save."""
     name: NotRequired[str]
     """Internal name, for grouping. Never shown on the network."""
     publication_type: NotRequired[Literal["profile", "page", "group", "reels", "stories"]]

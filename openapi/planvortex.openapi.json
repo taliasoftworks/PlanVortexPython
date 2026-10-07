@@ -273,7 +273,7 @@
           {
             "name": "capability",
             "in": "query",
-            "description": "Only accounts whose network can do this. It is the same matrix `GET /social_capabilities` publishes, applied server-side: the way to ask for 'the accounts I can publish with' without keeping your own table of which network does what.",
+            "description": "Only accounts whose network can do this. It is the same matrix `GET /social_capabilities` publishes, applied server-side: the way to ask for 'the accounts I can publish with' without keeping your own table of which network does what.\n\n`comments` also looks at each account, not only at its network: a LinkedIn **personal profile** is left out, because only LinkedIn pages have a comment inbox. `total` counts the same way.",
             "required": false,
             "explode": true,
             "schema": {
@@ -5627,7 +5627,9 @@
                     "comments": true,
                     "destinations": false,
                     "link": false,
-                    "reply_control": false
+                    "reply_control": false,
+                    "visibility": false,
+                    "made_for_kids": false
                   },
                   "google_business": {
                     "publications": false,
@@ -5638,7 +5640,9 @@
                     "comments": true,
                     "destinations": false,
                     "link": false,
-                    "reply_control": false
+                    "reply_control": false,
+                    "visibility": false,
+                    "made_for_kids": false
                   },
                   "pinterest": {
                     "publications": true,
@@ -5649,7 +5653,9 @@
                     "comments": false,
                     "destinations": true,
                     "link": true,
-                    "reply_control": false
+                    "reply_control": false,
+                    "visibility": false,
+                    "made_for_kids": false
                   },
                   "threads": {
                     "publications": true,
@@ -5660,7 +5666,9 @@
                     "comments": true,
                     "destinations": false,
                     "link": false,
-                    "reply_control": true
+                    "reply_control": true,
+                    "visibility": false,
+                    "made_for_kids": false
                   }
                 }
               }
@@ -12602,7 +12610,7 @@
     "schemas": {
       "Account": {
         "type": "object",
-        "description": "A social account connected to an organization.\n\nOn `discord`, on `telegram` and on `slack` an account is a **channel**, not a profile: publishing to two Discord channels of the same server — or to two Telegram channels of the same brand, or to `#anuncios` and `#general` of the same Slack workspace — costs two accounts of the plan.\n\n`error_code` other than `0` means the connection is broken — an expired token, a permission taken away — and the account has to be connected again. On `telegram` nothing expires, because there is no account token: what breaks the connection is the bot being removed from the channel or losing its permission to post there (error 968). On `slack` the bot token does not expire either: what breaks it is the app being removed from the channel (error 980) or the channel being archived or deleted (error 985).",
+        "description": "A social account connected to an organization.\n\nOn `discord`, on `telegram` and on `slack` an account is a **channel**, not a profile: publishing to two Discord channels of the same server — or to two Telegram channels of the same brand, or to `#anuncios` and `#general` of the same Slack workspace — costs two accounts of the plan.\n\nOn `linkedin` one authorization brings two kinds of account: the **personal profile** of whoever authorizes and each **page** they manage. Both publish and both have statistics, but only pages have a comment inbox: LinkedIn does not let any app read the comments on a member's posts, so on a profile every comment endpoint returns error `2600`. `extra_data.is_personal_profile` tells them apart.\n\n`error_code` other than `0` means the connection is broken — an expired token, a permission taken away — and the account has to be connected again. On `telegram` nothing expires, because there is no account token: what breaks the connection is the bot being removed from the channel or losing its permission to post there (error 968). On `slack` the bot token does not expire either: what breaks it is the app being removed from the channel (error 980) or the channel being archived or deleted (error 985).",
         "required": [
           "_id",
           "id_organization",
@@ -12668,6 +12676,17 @@
           "private_message_link": {
             "type": "string",
             "description": "A link that opens a private chat with this account (`m.me`, `ig.me`, `wa.me`). Absent on every other network."
+          },
+          "extra_data": {
+            "type": "object",
+            "description": "What only makes sense on this account's network. Only the keys documented here are part of the contract: anything else in the object can change without notice.",
+            "properties": {
+              "is_personal_profile": {
+                "type": "boolean",
+                "description": "`linkedin` only. `true` on the personal profile of whoever authorized, `false` on a page. A profile publishes and has statistics but no comment inbox (error `2600`). Pages connected before personal profiles existed do not carry it, so treat absent as a page."
+              }
+            },
+            "additionalProperties": true
           }
         }
       },
@@ -15259,6 +15278,14 @@
           "reply_control": {
             "type": "boolean",
             "description": "The publication can say **who can reply** to it (`reply_control`): anyone, the account's followers, the profiles it follows or the profiles mentioned in the text. It is set when the publication goes out and cannot be changed afterwards. On a network that answers `false` the field is deleted on save, so do not offer it. Today only `threads`."
+          },
+          "visibility": {
+            "type": "boolean",
+            "description": "The publication can say **who can see it** when it goes out (`visibility`): public, unlisted or private. On a network that answers `false` the field is deleted on save, so do not offer it. Today only `youtube`."
+          },
+          "made_for_kids": {
+            "type": "boolean",
+            "description": "The publication can say whether it is **made for kids** (`made_for_kids`, COPPA). On a network that answers `false` the field is deleted on save, so do not offer it. Today only `youtube`."
           }
         },
         "required": [
@@ -15270,7 +15297,9 @@
           "comments",
           "destinations",
           "link",
-          "reply_control"
+          "reply_control",
+          "visibility",
+          "made_for_kids"
         ]
       },
       "CommentsWebhookChange": {
@@ -15957,6 +15986,29 @@
                 }
               }
             }
+          },
+          "publication_warnings": {
+            "type": "array",
+            "description": "What still has to be done **by hand on the network** for a publication that DID go out. Same shape as `publication_errors`, and an empty array when there is nothing to do.\n\nIt is a separate field because these are not failures: the publication stays in state `sended` and must **not** be retried, because retrying would publish it twice. Like `publication_errors`, it belongs to the last attempt.\n\nToday there is one code. **2400** (YouTube): YouTube accepted the upload but did not make the video public, so YouTube Studio shows it as a draft or private until someone sets its audience and visibility there. The upload does not fail when this happens; PlanVortex reads the video back right after uploading it to find out. `data` carries `requested_privacy_status`, `privacy_status` (what YouTube actually left), `upload_status`, `made_for_kids` and `studio_url`, the YouTube Studio page where it is finished.",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "message"
+              ],
+              "properties": {
+                "code": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "data": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
           }
         }
       },
@@ -16221,7 +16273,7 @@
           },
           "code": {
             "type": "integer",
-            "description": "PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations."
+            "description": "PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2600-2699 comments, the ones that no longer fit in 945-948."
           },
           "data": {
             "additionalProperties": true,
@@ -17792,6 +17844,19 @@
             ],
             "description": "**Who can reply** to the publication, on the networks that answer `reply_control: true` in `GET /social_capabilities` (today `threads`). Absent means the network's default, which is anyone. It is set when the publication goes out and cannot be changed afterwards.\n\n**On every other network the field is deleted on save**, like `link`."
           },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "unlisted",
+              "private"
+            ],
+            "description": "**Who can see the publication** when it goes out, on the networks that answer `visibility: true` in `GET /social_capabilities` (today `youtube`). Absent means `public`. It is set when the publication goes out.\n\n**On every other network the field is deleted on save**, like `reply_control`."
+          },
+          "made_for_kids": {
+            "type": "boolean",
+            "description": "Whether the video is **made for kids** (COPPA), on the networks that answer `made_for_kids: true` in `GET /social_capabilities` (today `youtube`). Absent means `false`.\n\n**On every other network the field is deleted on save**, like `reply_control`."
+          },
           "publication_type": {
             "type": "string",
             "enum": [
@@ -17835,6 +17900,29 @@
           "publication_errors": {
             "type": "array",
             "description": "Why the publication failed, one entry per problem. **It is an array**, and it is empty on a publication that has not failed.\n\nFor a scheduled X (Twitter) publication that runs out of credits at publish time, `code` is 940 and `data` is `{ used, limit }`; the publication stays in state `withErrors`. No webhook announces it: read the publication to find out.\n\nOn Instagram, two codes tell you whether a retry makes sense. **998**: Meta rejected the media while processing it (a codec, a duration, a URL it could not download). `data` carries `container_id`, `status_code` and, when Meta gives one, its reason in `status`. Retrying the same file fails the same way: change it first. **999**: Meta had not finished processing the media 10 minutes after it was sent. `data` carries `container_ids` and `minutes`. The file is not the problem, and a retry usually works.",
+            "items": {
+              "type": "object",
+              "required": [
+                "code",
+                "message"
+              ],
+              "properties": {
+                "code": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "data": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "publication_warnings": {
+            "type": "array",
+            "description": "What still has to be done **by hand on the network** for a publication that DID go out. Same shape as `publication_errors`, and an empty array when there is nothing to do.\n\nIt is a separate field because these are not failures: the publication stays in state `sended` and must **not** be retried, because retrying would publish it twice. Like `publication_errors`, it belongs to the last attempt.\n\nToday there is one code. **2400** (YouTube): YouTube accepted the upload but did not make the video public, so YouTube Studio shows it as a draft or private until someone sets its audience and visibility there. The upload does not fail when this happens; PlanVortex reads the video back right after uploading it to find out. `data` carries `requested_privacy_status`, `privacy_status` (what YouTube actually left), `upload_status`, `made_for_kids` and `studio_url`, the YouTube Studio page where it is finished.",
             "items": {
               "type": "object",
               "required": [
@@ -18215,6 +18303,19 @@
               "followers_only"
             ],
             "description": "**Who can reply** to the publication. Only on the networks that answer `reply_control: true` in `GET /social_capabilities` (today `threads`), and **deleted** on every other one.\n\n- `everyone`: anyone. It is the network's default, and what applies when the field is omitted.\n- `followers_only`: only the account's followers.\n- `accounts_you_follow`: only the profiles the account follows.\n- `mentioned_only`: only the profiles mentioned in the text.\n\n**It is set when the publication goes out and cannot be changed afterwards**: Threads has no way to change it on a published post through its API. A value the network does not accept does not fail the request: the publication is still created, in state `withErrors` with `publication_errors[].code = 997`, whose `data` carries the `allowed` values. It is checked when the publication is **created**, so a scheduled post does not fail at 3 a.m. over a value that was already wrong.\n\nOn an update: omit it to keep what was there, send `null` or `\"\"` to go back to the network's default."
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "unlisted",
+              "private"
+            ],
+            "description": "**Who can see the publication** when it goes out. Only on the networks that answer `visibility: true` in `GET /social_capabilities` (today `youtube`), and **deleted** on every other one.\n\n- `public`: anyone. It is what applies when the field is omitted.\n- `unlisted`: only people with the link. It does not show on the channel or in search.\n- `private`: only the channel owner and the people they invite from YouTube Studio.\n\nYouTube's policies require this to be **the user's choice**: if your software publishes on behalf of someone, ask them. A value the network does not accept does not fail the request: the publication is still created, in state `withErrors` with `publication_errors[].code = 2500`, whose `data` carries the `allowed` values. It is checked when the publication is **created**, so a scheduled video does not fail at 3 a.m. over a value that was already wrong.\n\nIf YouTube does not leave the video with the visibility that was asked for, the publication still ends up `sended` (the video is on the channel) and carries a warning in `publication_warnings` with `code = 2400`.\n\nOn an update: omit it to keep what was there, send `null` or `\"\"` to go back to `public`."
+          },
+          "made_for_kids": {
+            "type": "boolean",
+            "description": "Whether the video is **made for kids**. Only on the networks that answer `made_for_kids: true` in `GET /social_capabilities` (today `youtube`), and **deleted** on every other one. Absent means `false`.\n\nThe law (COPPA) and YouTube's policies require a video directed at children to be uploaded with `true`, and it is the **user's** call: if your software publishes on behalf of someone, ask them. YouTube then turns off features such as comments and personalised ads on that video.\n\nIt must be a JSON boolean. Anything else (`\"yes\"`, `\"no\"`, `1`) is not guessed: the publication is still created, in state `withErrors` with `publication_errors[].code = 2501`.\n\nOn an update: omit it to keep what was there, send `null` or `\"\"` to go back to `false`."
           },
           "files": {
             "type": "array",
@@ -19130,7 +19231,7 @@
         }
       },
       "CommentsCommentError": {
-        "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `516` | Comments require a paid plan. Every endpoint here returns this on the free plan. |\n| `700` | The account is not connected — no valid token, or nothing to ask the network about. |\n| `936` | The publication was never sent, so it has no thread to read. |\n| `940` | The client's monthly X credits are exhausted. Only X. |\n| `945` | This network has no comments (TikTok, WhatsApp). Carries `social_network` in `data`. |\n| `946` | The network has comments but does not allow **this action**: hiding on LinkedIn or Google Business, deleting someone else's on Instagram or X, deleting a review. Carries `social_network` and `action` in `data`. See `GET /social_comment_actions`. |\n| `947` | The comment no longer exists on the network. What is stored is a photograph; the network always wins. Carries `external_id` in `data`. |\n| `948` | The reply is empty or longer than the network allows. Carries the limit in `data.max`; the same number is published in `comment_characters` of `GET /social_limits`. |\n| `951` | The Google Business listing is not verified, so it cannot reply to its reviews. It is the state of the customer's profile, not of your token. |\n| `952` | PlanVortex's Google Cloud project has no approved access to the Google Business API yet. Until it does, reviews cannot be read or replied to. |\n| `965` | This Telegram channel has no linked discussion group, so it has no comments. The network gate says `true`; what is missing is a setting of **that channel**, which its owner fixes in two taps. Carries `chat_id` in `data`. |\n| `969` | The PlanVortex bot is not allowed to delete messages in this Telegram discussion group. The network allows it; this installation does not. Carries `chat_id` in `data`. |\n| `970` | Telegram is rate limiting the bot and the wait was longer than PlanVortex is willing to hold the request for. Carries `retry_after_seconds` in `data`: retry after it. |\n| `1101` | Invalid organization. |\n| `1501` | The comment's account could not be resolved. |",
+        "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `516` | Comments require a paid plan. Every endpoint here returns this on the free plan. |\n| `700` | The account is not connected — no valid token, or nothing to ask the network about. |\n| `936` | The publication was never sent, so it has no thread to read. |\n| `940` | The client's monthly X credits are exhausted. Only X. |\n| `945` | This network has no comments (TikTok, WhatsApp). Carries `social_network` in `data`. |\n| `946` | The network has comments but does not allow **this action**: hiding on LinkedIn or Google Business, deleting someone else's on Instagram or X, deleting a review. Carries `social_network` and `action` in `data`. See `GET /social_comment_actions`. |\n| `947` | The comment no longer exists on the network. What is stored is a photograph; the network always wins. Carries `external_id` in `data`. |\n| `948` | The reply is empty or longer than the network allows. Carries the limit in `data.max`; the same number is published in `comment_characters` of `GET /social_limits`. |\n| `951` | The Google Business listing is not verified, so it cannot reply to its reviews. It is the state of the customer's profile, not of your token. |\n| `952` | PlanVortex's Google Cloud project has no approved access to the Google Business API yet. Until it does, reviews cannot be read or replied to. |\n| `965` | This Telegram channel has no linked discussion group, so it has no comments. The network gate says `true`; what is missing is a setting of **that channel**, which its owner fixes in two taps. Carries `chat_id` in `data`. |\n| `969` | The PlanVortex bot is not allowed to delete messages in this Telegram discussion group. The network allows it; this installation does not. Carries `chat_id` in `data`. |\n| `970` | Telegram is rate limiting the bot and the wait was longer than PlanVortex is willing to hold the request for. Carries `retry_after_seconds` in `data`: retry after it. |\n| `1101` | Invalid organization. |\n| `1501` | The comment's account could not be resolved. |\n| `2600` | The network has comments but **this account** has none: a LinkedIn personal profile. LinkedIn does not let any app read a member's comments, so only pages have an inbox. Carries `social_network` and `id_account` in `data`. |",
         "content": {
           "application/json": {
             "schema": {

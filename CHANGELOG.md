@@ -4,6 +4,33 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-10-07
+
+### Added
+
+- **LinkedIn personal profiles.** Connecting LinkedIn now returns the personal profile of whoever
+  authorizes as well as the pages they manage, and the profile can be enabled like any other
+  account. It publishes in that person's name and has statistics, but **no comment inbox**:
+  LinkedIn does not let any app read the comments on a member's posts, so every `comments` call on
+  a profile raises error 2600. `Account` now types `extra_data["is_personal_profile"]` (`True` on
+  the profile, `False` on a page, absent on pages connected before profiles existed), and
+  `accounts.list(..., capability="comments")` leaves profiles out.
+- **`visibility` and `made_for_kids` on publications**, today on YouTube only: who can see the
+  video when it goes out (`public`, `unlisted` or `private`; absent is `public`) and whether it
+  is made for kids (COPPA; absent is `false`). Both are typed on `PublicationInput` and on
+  `Publication`. They are the user's choice, so ask them if your software publishes for someone. A
+  value the network does not take does not fail the request: the publication is created in
+  `withErrors` with code 2500 (visibility) or 2501 (not a boolean). On every other network the
+  fields are deleted on save; ask `catalog.social_capabilities()` for `visibility` and
+  `made_for_kids` rather than checking for YouTube.
+- **`publication_warnings` on `Publication`**: what still has to be done by hand on the network
+  for a publication that did go out. Same shape as `publication_errors`, but it is not a failure:
+  the publication stays `sended` and **must not be retried**, or it goes out twice. Today the only
+  code is 2400: YouTube accepted the video but left it as a draft or private, and `data.studio_url`
+  is the YouTube Studio page where it is finished.
+- Error 2600 is raised as a `PublicationError`, the same class as 945 ("this network has no
+  comments"), of which it is the per-account version. It used to fall back to the base class.
+
 ## [0.13.0] - 2026-10-03
 
 ### Added

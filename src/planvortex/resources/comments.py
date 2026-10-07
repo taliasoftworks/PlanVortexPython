@@ -16,6 +16,10 @@ WHAT TO KNOW BEFORE CALLING ANYTHING HERE:
   :meth:`AsyncCommentsResource.actions`: Instagram, X and Bluesky do not let you delete somebody
   else's, LinkedIn has no "hide" (neither do Discord and Telegram), and Google Business only lets
   you delete **your own reply**.
+- **Nor every ACCOUNT.** A LinkedIn personal profile publishes but has no inbox: LinkedIn does not
+  let any app read the comments on a profile, only on a page. Everything here raises error 2600 on
+  one. Check ``account.get("extra_data", {}).get("is_personal_profile")`` first, or list the accounts with
+  ``capability="comments"``, which already leaves them out.
 - **On Telegram the inbox starts the day the channel was connected.** The Bot API cannot read the
   past: a bot only learns what happens while it is inside, so nothing written before the connection
   exists here and never will. Say so in your interface — an inbox that opens empty on a busy channel

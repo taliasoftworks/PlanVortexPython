@@ -17,6 +17,18 @@ if sys.version_info >= (3, 11):
 else:  # pragma: no cover - la rama la elige el interprete, no un test
     from typing_extensions import NotRequired, TypedDict
 
+
+class ExtraData(TypedDict):
+    """
+    What only makes sense on this account's network. Only the keys documented here are part of the contract: anything else in the object can change without notice.
+    """
+
+    is_personal_profile: NotRequired[bool]
+    """
+    `linkedin` only. `true` on the personal profile of whoever authorized, `false` on a page. A profile publishes and has statistics but no comment inbox (error `2600`). Pages connected before personal profiles existed do not carry it, so treat absent as a page.
+    """
+
+
 AccountsMetricList: TypeAlias = list[
     Literal[
         "page_total_actions",
@@ -1003,6 +1015,14 @@ class CommentsSocialCapabilities(TypedDict):
     """
     The publication can say **who can reply** to it (`reply_control`): anyone, the account's followers, the profiles it follows or the profiles mentioned in the text. It is set when the publication goes out and cannot be changed afterwards. On a network that answers `false` the field is deleted on save, so do not offer it. Today only `threads`.
     """
+    visibility: bool
+    """
+    The publication can say **who can see it** when it goes out (`visibility`): public, unlisted or private. On a network that answers `false` the field is deleted on save, so do not offer it. Today only `youtube`.
+    """
+    made_for_kids: bool
+    """
+    The publication can say whether it is **made for kids** (`made_for_kids`, COPPA). On a network that answers `false` the field is deleted on save, so do not offer it. Today only `youtube`.
+    """
 
 
 ContactChannel: TypeAlias = Literal[
@@ -1123,6 +1143,12 @@ class PublicationError(TypedDict):
     data: NotRequired[dict[str, Any]]
 
 
+class PublicationWarning(TypedDict):
+    code: int
+    message: str
+    data: NotRequired[dict[str, Any]]
+
+
 class DashboardDashboardRange(TypedDict):
     """
     The range that was actually used, plus the previous period of exactly the same length. The previous one is not "last month": comparing 30 days against a calendar month would move the delta with the calendar.
@@ -1186,7 +1212,7 @@ class Error1(TypedDict):
     """
     code: int
     """
-    PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations.
+    PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2600-2699 comments, the ones that no longer fit in 945-948.
     """
     data: NotRequired[dict[str, Any]]
     """
@@ -2172,6 +2198,30 @@ class PublicationsPublicationInput(TypedDict):
 
     On an update: omit it to keep what was there, send `null` or `""` to go back to the network's default.
     """
+    visibility: NotRequired[Literal["public", "unlisted", "private"]]
+    """
+    **Who can see the publication** when it goes out. Only on the networks that answer `visibility: true` in `GET /social_capabilities` (today `youtube`), and **deleted** on every other one.
+
+    - `public`: anyone. It is what applies when the field is omitted.
+    - `unlisted`: only people with the link. It does not show on the channel or in search.
+    - `private`: only the channel owner and the people they invite from YouTube Studio.
+
+    YouTube's policies require this to be **the user's choice**: if your software publishes on behalf of someone, ask them. A value the network does not accept does not fail the request: the publication is still created, in state `withErrors` with `publication_errors[].code = 2500`, whose `data` carries the `allowed` values. It is checked when the publication is **created**, so a scheduled video does not fail at 3 a.m. over a value that was already wrong.
+
+    If YouTube does not leave the video with the visibility that was asked for, the publication still ends up `sended` (the video is on the channel) and carries a warning in `publication_warnings` with `code = 2400`.
+
+    On an update: omit it to keep what was there, send `null` or `""` to go back to `public`.
+    """
+    made_for_kids: NotRequired[bool]
+    """
+    Whether the video is **made for kids**. Only on the networks that answer `made_for_kids: true` in `GET /social_capabilities` (today `youtube`), and **deleted** on every other one. Absent means `false`.
+
+    The law (COPPA) and YouTube's policies require a video directed at children to be uploaded with `true`, and it is the **user's** call: if your software publishes on behalf of someone, ask them. YouTube then turns off features such as comments and personalised ads on that video.
+
+    It must be a JSON boolean. Anything else (`"yes"`, `"no"`, `1`) is not guessed: the publication is still created, in state `withErrors` with `publication_errors[].code = 2501`.
+
+    On an update: omit it to keep what was there, send `null` or `""` to go back to `false`.
+    """
     files: NotRequired[list[str]]
     """
     Identifiers of uploads previously created through the uploads endpoints, attached to this publication.
@@ -2399,6 +2449,8 @@ class Account(TypedDict):
 
     On `discord`, on `telegram` and on `slack` an account is a **channel**, not a profile: publishing to two Discord channels of the same server — or to two Telegram channels of the same brand, or to `#anuncios` and `#general` of the same Slack workspace — costs two accounts of the plan.
 
+    On `linkedin` one authorization brings two kinds of account: the **personal profile** of whoever authorizes and each **page** they manage. Both publish and both have statistics, but only pages have a comment inbox: LinkedIn does not let any app read the comments on a member's posts, so on a profile every comment endpoint returns error `2600`. `extra_data.is_personal_profile` tells them apart.
+
     `error_code` other than `0` means the connection is broken — an expired token, a permission taken away — and the account has to be connected again. On `telegram` nothing expires, because there is no account token: what breaks the connection is the bot being removed from the channel or losing its permission to post there (error 968). On `slack` the bot token does not expire either: what breaks it is the app being removed from the channel (error 980) or the channel being archived or deleted (error 985).
     """
 
@@ -2444,6 +2496,10 @@ class Account(TypedDict):
     private_message_link: NotRequired[str]
     """
     A link that opens a private chat with this account (`m.me`, `ig.me`, `wa.me`). Absent on every other network.
+    """
+    extra_data: NotRequired[ExtraData]
+    """
+    What only makes sense on this account's network. Only the keys documented here are part of the contract: anything else in the object can change without notice.
     """
 
 
@@ -2993,6 +3049,14 @@ class DashboardDashboardPublicationRef(TypedDict):
     """
     Only on the failed ones. Same shape as in a full `Publication`.
     """
+    publication_warnings: NotRequired[list[PublicationWarning]]
+    """
+    What still has to be done **by hand on the network** for a publication that DID go out. Same shape as `publication_errors`, and an empty array when there is nothing to do.
+
+    It is a separate field because these are not failures: the publication stays in state `sended` and must **not** be retried, because retrying would publish it twice. Like `publication_errors`, it belongs to the last attempt.
+
+    Today there is one code. **2400** (YouTube): YouTube accepted the upload but did not make the video public, so YouTube Studio shows it as a draft or private until someone sets its audience and visibility there. The upload does not fail when this happens; PlanVortex reads the video back right after uploading it to find out. `data` carries `requested_privacy_status`, `privacy_status` (what YouTube actually left), `upload_status`, `made_for_kids` and `studio_url`, the YouTube Studio page where it is finished.
+    """
 
 
 class DashboardPlanUse(TypedDict):
@@ -3375,6 +3439,18 @@ class Publication(TypedDict):
 
     **On every other network the field is deleted on save**, like `link`.
     """
+    visibility: NotRequired[Literal["public", "unlisted", "private"]]
+    """
+    **Who can see the publication** when it goes out, on the networks that answer `visibility: true` in `GET /social_capabilities` (today `youtube`). Absent means `public`. It is set when the publication goes out.
+
+    **On every other network the field is deleted on save**, like `reply_control`.
+    """
+    made_for_kids: NotRequired[bool]
+    """
+    Whether the video is **made for kids** (COPPA), on the networks that answer `made_for_kids: true` in `GET /social_capabilities` (today `youtube`). Absent means `false`.
+
+    **On every other network the field is deleted on save**, like `reply_control`.
+    """
     publication_type: Literal["profile", "page", "group", "reels", "stories", "message"]
     state: Literal["ready", "withErrors", "sended", "draft", "publishing"]
     """
@@ -3396,6 +3472,14 @@ class Publication(TypedDict):
     For a scheduled X (Twitter) publication that runs out of credits at publish time, `code` is 940 and `data` is `{ used, limit }`; the publication stays in state `withErrors`. No webhook announces it: read the publication to find out.
 
     On Instagram, two codes tell you whether a retry makes sense. **998**: Meta rejected the media while processing it (a codec, a duration, a URL it could not download). `data` carries `container_id`, `status_code` and, when Meta gives one, its reason in `status`. Retrying the same file fails the same way: change it first. **999**: Meta had not finished processing the media 10 minutes after it was sent. `data` carries `container_ids` and `minutes`. The file is not the problem, and a retry usually works.
+    """
+    publication_warnings: NotRequired[list[PublicationWarning]]
+    """
+    What still has to be done **by hand on the network** for a publication that DID go out. Same shape as `publication_errors`, and an empty array when there is nothing to do.
+
+    It is a separate field because these are not failures: the publication stays in state `sended` and must **not** be retried, because retrying would publish it twice. Like `publication_errors`, it belongs to the last attempt.
+
+    Today there is one code. **2400** (YouTube): YouTube accepted the upload but did not make the video public, so YouTube Studio shows it as a draft or private until someone sets its audience and visibility there. The upload does not fail when this happens; PlanVortex reads the video back right after uploading it to find out. `data` carries `requested_privacy_status`, `privacy_status` (what YouTube actually left), `upload_status`, `made_for_kids` and `studio_url`, the YouTube Studio page where it is finished.
     """
     retries: int
     """

@@ -172,7 +172,9 @@ class AccountsResource(Resource):
         ``capability`` filters by what the account's network can do — ``publications``, ``messages``,
         ``products``, ``webhooks``, ``persistent_menu``, ``comments`` — applied on the server with
         the same matrix ``catalog.social_capabilities()`` publishes. It is how you ask for "the
-        accounts I can publish with" without keeping a table of your own.
+        accounts I can publish with" without keeping a table of your own. ``comments`` also looks
+        at each account: it leaves out LinkedIn personal profiles, which have no inbox although
+        LinkedIn pages do.
         """
         pagina: Page[Account] = self._list(
             f"{self._organization_path(id_organization)}/accounts",

@@ -56,6 +56,10 @@ PLANVORTEX_ERROR_RANGES: tuple[ErrorRange, ...] = (
     ErrorRange(2000, 2099, "product"),
     ErrorRange(2100, 2199, "ai_plan"),
     ErrorRange(2200, 2299, "integration"),
+    # Los COMENTARIOS siguen aqui porque sus 945-948 se llenaron, y van con ellos a `publication`:
+    # el 2600 (esta cuenta no tiene bandeja, un perfil personal de LinkedIn) es la version por
+    # cuenta del 945, y separarlos daria dos clases para el mismo «aqui no hay comentarios».
+    ErrorRange(2600, 2699, "publication"),
 )
 
 # El `code` que lleva un error que NO trae codigo del servidor: un fallo de red, un timeout, un 502
@@ -139,6 +143,10 @@ class PublicationError(PlanVortexError):
     the channel, and Pinterest's (987-996), which start the same way: 987, the publication does not
     say which board it goes to. One of them is not a failure: 991 is Pinterest throttling the
     application, it arrives as a 429 with ``Retry-After`` and the answer is to wait.
+
+    Also 2600-2699, the comment codes that did not fit after 945-948: 2600 is the per-account
+    version of 945, an account with no comment inbox on a network that has one (a LinkedIn
+    personal profile).
     """
 
 

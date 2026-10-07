@@ -481,6 +481,12 @@ Account: TypeAlias = _models.Account
 On Discord an account is a **channel**, not a profile: publishing to two channels of the same server
 spends two accounts of the plan. ``error_code`` other than ``0`` means the connection broke — expired
 token, permission taken away — and it has to be connected again.
+
+On LinkedIn one authorization brings two kinds of account: the **personal profile** of whoever
+authorizes and each **page** they manage. Both publish and have statistics, but only pages have a
+comment inbox: LinkedIn does not let any app read the comments on a personal profile, so every
+``comments`` call on one raises error 2600. Tell them apart with ``extra_data["is_personal_profile"]``;
+absent means a page (those connected before profiles existed).
 """
 
 AccountMetrics: TypeAlias = _models.AccountsMetricModel
