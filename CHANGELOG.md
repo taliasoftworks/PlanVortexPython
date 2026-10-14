@@ -4,6 +4,14 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-10-14
+
+### Added
+
+- **`billing_interval` on `ClientPlan`** (`"month"` or `"year"`): how often the plan is billed. A
+  yearly plan costs ten monthly fees, paid up front, and its resources are still counted per
+  calendar month, AI and X credits included. Clients from before yearly billing read `"month"`.
+
 ## [0.14.0] - 2026-10-07
 
 ### Added

@@ -2862,6 +2862,10 @@ class ClientsPlan(TypedDict):
     """
     When the current billing period ends. A cancelled plan keeps working until then.
     """
+    billing_interval: NotRequired[Literal["month", "year"]]
+    """
+    How often the plan is billed. A yearly plan costs ten monthly fees, paid up front, and every resource in it is still counted per calendar month (AI and X credits included). Clients from before yearly billing existed read `month`. It means nothing on `free`.
+    """
     stripe_customer_id: NotRequired[str]
 
 
