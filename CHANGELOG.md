@@ -4,6 +4,28 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-10-15
+
+### Added
+
+- **`accounts.publish_settings()`**: what an account allows when publishing, read from the network
+  right now. Today only TikTok (`publish_settings` in `catalog.social_capabilities()`; anywhere
+  else it raises error 2508). It returns the creator's nickname, the `visibility` values the
+  account allows now, the interactions the creator switched off in the app, the longest video it
+  can post and whether TikTok will take a post from it right now. TikTok's content sharing
+  guidelines ask any app that posts to show these before posting, with no privacy chosen in
+  advance: read it every time your compose screen opens. The result is typed as `PublishSettings`.
+- **TikTok fields on publications.** `visibility` now also takes `friends` and `followers` (TikTok
+  only), and `PublicationInput` and `Publication` gain `interactions` (`comments`, `duet`,
+  `stitch`: what the audience can do) and `commercial_content` (`your_brand`, `branded_content`).
+  A paid partnership cannot be private (error 2504); values that are not booleans are 2502 and
+  2503. When the publication goes out, a visibility the account no longer allows is 2505, a video
+  longer than the account can post is 2506, and a creator TikTok will not take a post from right
+  now is 2507. All of them land in `publication_errors`.
+- `SocialCapabilities` gains `interactions`, `commercial_content` and `publish_settings`.
+- Errors 2500-2599 now belong to the `publication` family (`PublicationError`), like 2600. Only
+  2508 is raised; the rest travel in `publication_errors`.
+
 ## [0.15.0] - 2026-10-14
 
 ### Added

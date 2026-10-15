@@ -25,6 +25,7 @@ from planvortex.types import (
     ConnectSession,
     Destination,
     PersistentMenu,
+    PublishSettings,
 )
 
 # Lo que la red social pego a la URL de vuelta. Se pasa TAL CUAL, sin tocar ni filtrar: cada red
@@ -386,6 +387,31 @@ class AccountsResource(Resource):
             timeout=timeout,
         )
         return destino
+
+    def publish_settings(
+        self, id_organization: str, id_account: str, *, timeout: float | None = None
+    ) -> PublishSettings:
+        """What the account allows WHEN PUBLISHING, read from the network right now. Today only
+        TikTok: the networks with ``publish_settings`` in ``catalog.social_capabilities()``;
+        anywhere else it raises error 2508.
+
+        It is what TikTok's guidelines ask to show before posting: which account the post goes to
+        (``creator["nickname"]``), the privacy options the account allows NOW
+        (``visibility_options``, offered with none chosen in advance), the interactions the creator
+        switched off in the app (``interactions[...]["disabled"]``) and the longest video it can
+        post. Read it every time your compose screen opens: an account can go from public to
+        private in between.
+
+        ``can_post`` false means TikTok will not take a post from this account now (``reason``
+        carries its code): tell the user to try later instead of sending it. If TikTok does not
+        answer, it is error 919, never an empty list.
+        """
+        ajustes: PublishSettings = self._one(
+            f"{self._path(id_organization, id_account)}/publish_settings",
+            "publish_settings",
+            timeout=timeout,
+        )
+        return ajustes
 
     def get_persistent_menu(
         self, id_organization: str, id_account: str, *, timeout: float | None = None

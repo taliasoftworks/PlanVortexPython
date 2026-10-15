@@ -530,6 +530,13 @@ Only ``id`` decides (and ``section_id``, to send it to a section of the board). 
 ``section_name`` are labels for display — "Recipes > Desserts" — and the server never checks them.
 """
 
+PublishSettings: TypeAlias = _models.PublicationsPublishSettings
+"""What an account allows WHEN PUBLISHING, read from the network right now: what
+``accounts.publish_settings()`` returns. Today only TikTok, whose content sharing guidelines ask
+any app that posts to show it before posting. Values are in the publication's vocabulary:
+``visibility_options`` is what you send back in ``visibility``.
+"""
+
 Upload: TypeAlias = _models.Upload
 """A file in the organization's library.
 
@@ -1391,6 +1398,7 @@ __all__ = [
     "PublicationsStatsResult",
     "PublicationsSummary",
     "PublicationsSummaryResult",
+    "PublishSettings",
     "PublishableNetwork",
     "RedirectAuthorization",
     "RssConfig",

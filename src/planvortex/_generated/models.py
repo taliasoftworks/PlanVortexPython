@@ -1017,11 +1017,23 @@ class CommentsSocialCapabilities(TypedDict):
     """
     visibility: bool
     """
-    The publication can say **who can see it** when it goes out (`visibility`): public, unlisted or private. On a network that answers `false` the field is deleted on save, so do not offer it. Today only `youtube`.
+    The publication can say **who can see it** when it goes out (`visibility`). On a network that answers `false` the field is deleted on save, so do not offer it. Today `youtube` (public, unlisted, private) and `tiktok` (public, friends, followers, private; which ones each account allows comes from `publish_settings`).
     """
     made_for_kids: bool
     """
     The publication can say whether it is **made for kids** (`made_for_kids`, COPPA). On a network that answers `false` the field is deleted on save, so do not offer it. Today only `youtube`.
+    """
+    interactions: bool
+    """
+    The publication can say **what the audience can do** with it (`interactions`: comment, Duet, Stitch). On a network that answers `false` the field is deleted on save, so do not offer it. Today only `tiktok`.
+    """
+    commercial_content: bool
+    """
+    The publication can declare that it is **commercial content** (`commercial_content`: your brand, branded content). On a network that answers `false` the field is deleted on save, so do not offer it. Today only `tiktok`.
+    """
+    publish_settings: bool
+    """
+    What each **account** allows when publishing is read from the network: `GET /organizations/{id_organization}/accounts/{id_account}/publish_settings` (privacy options, interactions the creator switched off, longest video, whether it can post now). Offer the `visibility` values from there, not a fixed list. Today only `tiktok`.
     """
 
 
@@ -1212,7 +1224,7 @@ class Error1(TypedDict):
     """
     code: int
     """
-    PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2600-2699 comments, the ones that no longer fit in 945-948.
+    PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2500-2599 publication fields, the ones that no longer fit in 900-996 (visibility, made for kids, TikTok's interactions and commercial content) · 2600-2699 comments, the ones that no longer fit in 945-948.
     """
     data: NotRequired[dict[str, Any]]
     """
@@ -1931,6 +1943,21 @@ class PublicationAiGenerated(TypedDict):
     """
 
 
+class PublicationCommercialContent(TypedDict):
+    """
+    Whether a publication is commercial content. Both `false` is the same as omitting it.
+    """
+
+    your_brand: NotRequired[bool]
+    """
+    It promotes the creator or their own business. TikTok labels it "Promotional content".
+    """
+    branded_content: NotRequired[bool]
+    """
+    It is a paid partnership promoting a third party. TikTok labels it "Paid partnership", and it cannot be private.
+    """
+
+
 class PublicationDestination(TypedDict):
     """
     **Where inside the account** a publication goes, on the networks where choosing the account is not yet choosing the destination. Today that is `pinterest` alone, where it is the board the pin is saved to.
@@ -1959,6 +1986,25 @@ class PublicationDestination(TypedDict):
     section_name: NotRequired[str]
     """
     The section's label, for display. Decides nothing.
+    """
+
+
+class PublicationInteractions(TypedDict):
+    """
+    What the audience can do with a publication. `true` allows it; a missing key is the network's default.
+    """
+
+    comments: NotRequired[bool]
+    """
+    The audience can comment.
+    """
+    duet: NotRequired[bool]
+    """
+    The audience can make a Duet with the video. Ignored on a photo post.
+    """
+    stitch: NotRequired[bool]
+    """
+    The audience can make a Stitch with the video. Ignored on a photo post.
     """
 
 
@@ -2198,15 +2244,19 @@ class PublicationsPublicationInput(TypedDict):
 
     On an update: omit it to keep what was there, send `null` or `""` to go back to the network's default.
     """
-    visibility: NotRequired[Literal["public", "unlisted", "private"]]
+    visibility: NotRequired[Literal["public", "unlisted", "friends", "followers", "private"]]
     """
-    **Who can see the publication** when it goes out. Only on the networks that answer `visibility: true` in `GET /social_capabilities` (today `youtube`), and **deleted** on every other one.
+    **Who can see the publication** when it goes out. Only on the networks that answer `visibility: true` in `GET /social_capabilities` (today `youtube` and `tiktok`), and **deleted** on every other one.
 
     - `public`: anyone. It is what applies when the field is omitted.
-    - `unlisted`: only people with the link. It does not show on the channel or in search.
-    - `private`: only the channel owner and the people they invite from YouTube Studio.
+    - `unlisted` (YouTube only): only people with the link. It does not show on the channel or in search.
+    - `friends` (TikTok only): followers the account follows back.
+    - `followers` (TikTok only, private accounts): the account's followers.
+    - `private`: only the owner (on YouTube, also the people they invite from YouTube Studio).
 
-    YouTube's policies require this to be **the user's choice**: if your software publishes on behalf of someone, ask them. A value the network does not accept does not fail the request: the publication is still created, in state `withErrors` with `publication_errors[].code = 2500`, whose `data` carries the `allowed` values. It is checked when the publication is **created**, so a scheduled video does not fail at 3 a.m. over a value that was already wrong.
+    Both networks require this to be **the user's choice**: if your software publishes on behalf of someone, ask them. On TikTok your interface must have **no default**, and the options to offer are the ones this account allows right now, from `GET /organizations/{id_organization}/accounts/{id_account}/publish_settings`. If, by the time the publication goes out, the account no longer allows the chosen one (it went from public to private), it is not swapped for another: the publication ends in `withErrors` with `publication_errors[].code = 2505`. Omitting it on TikTok keeps the old behaviour (public if the account allows it, otherwise the first value it allows), which is fine for a script but not for a screen a person uses.
+
+    A value the network does not accept does not fail the request: the publication is still created, in state `withErrors` with `publication_errors[].code = 2500`, whose `data` carries the `allowed` values. It is checked when the publication is **created**, so a scheduled video does not fail at 3 a.m. over a value that was already wrong.
 
     If YouTube does not leave the video with the visibility that was asked for, the publication still ends up `sended` (the video is on the channel) and carries a warning in `publication_warnings` with `code = 2400`.
 
@@ -2221,6 +2271,28 @@ class PublicationsPublicationInput(TypedDict):
     It must be a JSON boolean. Anything else (`"yes"`, `"no"`, `1`) is not guessed: the publication is still created, in state `withErrors` with `publication_errors[].code = 2501`.
 
     On an update: omit it to keep what was there, send `null` or `""` to go back to `false`.
+    """
+    interactions: NotRequired[PublicationInteractions]
+    """
+    **What the audience can do with the publication**: comment and, on a video, Duet and Stitch. Only on the networks that answer `interactions: true` in `GET /social_capabilities` (today `tiktok`), and **deleted** on every other one.
+
+    `true` allows it, `false` turns it off. A missing key, or the whole field missing, leaves the network's default, which on TikTok is allowed.
+
+    TikTok's content sharing guidelines require this to be **the user's choice**, with **nothing ticked in advance**: if your software publishes on behalf of someone, show the three boxes unticked and send what they tick. Whatever the creator has switched off in their TikTok privacy settings is sent switched off, whatever this says (`interactions.*.disabled` in `GET /organizations/{id_organization}/accounts/{id_account}/publish_settings`).
+
+    A key other than these three, or a value that is not a JSON boolean, does not fail the request: the publication is still created, in state `withErrors` with `publication_errors[].code = 2502`.
+
+    On an update: omit it to keep what was there, send `null` or `""` to go back to the network's default.
+    """
+    commercial_content: NotRequired[PublicationCommercialContent]
+    """
+    Whether the publication is **commercial content**. Only on the networks that answer `commercial_content: true` in `GET /social_capabilities` (today `tiktok`), and **deleted** on every other one. Absent, or both `false`, means it is not.
+
+    TikTok's guidelines ask for a disclosure switch that is **off by default** and, when it is on, for at least one of the two boxes before the post can go out. Send the object only when the user switched it on.
+
+    A paid partnership (`branded_content: true`) **cannot be private**: with `visibility` `private` or `followers` the publication is created in state `withErrors` with `publication_errors[].code = 2504`. Any other key, or a value that is not a JSON boolean, is code 2503.
+
+    On an update: omit it to keep what was there, send `null` or `""` to remove it.
     """
     files: NotRequired[list[str]]
     """
@@ -2303,6 +2375,23 @@ class Summary(TypedDict):
     total: NotRequired[NormalizedMetrics]
     previous_total: NotRequired[NormalizedMetrics]
     by_network: NotRequired[list[ByNetworkItem2]]
+
+
+class Creator(TypedDict):
+    """
+    Who the post goes to. TikTok's guidelines ask to show the creator's nickname on the compose screen.
+    """
+
+    username: NotRequired[str]
+    nickname: NotRequired[str]
+    avatar_url: NotRequired[str]
+    """
+    Expires after about two hours: do not store it.
+    """
+
+
+class PublicationsPublishSettingsInteraction(TypedDict):
+    disabled: bool
 
 
 class SocialCredentials(TypedDict):
@@ -3443,15 +3532,29 @@ class Publication(TypedDict):
 
     **On every other network the field is deleted on save**, like `link`.
     """
-    visibility: NotRequired[Literal["public", "unlisted", "private"]]
+    visibility: NotRequired[Literal["public", "unlisted", "friends", "followers", "private"]]
     """
-    **Who can see the publication** when it goes out, on the networks that answer `visibility: true` in `GET /social_capabilities` (today `youtube`). Absent means `public`. It is set when the publication goes out.
+    **Who can see the publication** when it goes out, on the networks that answer `visibility: true` in `GET /social_capabilities` (today `youtube` and `tiktok`). Absent means `public`. It is set when the publication goes out.
+
+    `unlisted` exists only on YouTube; `friends` and `followers` only on TikTok.
 
     **On every other network the field is deleted on save**, like `reply_control`.
     """
     made_for_kids: NotRequired[bool]
     """
     Whether the video is **made for kids** (COPPA), on the networks that answer `made_for_kids: true` in `GET /social_capabilities` (today `youtube`). Absent means `false`.
+
+    **On every other network the field is deleted on save**, like `reply_control`.
+    """
+    interactions: NotRequired[PublicationInteractions]
+    """
+    **What the audience can do with the publication** (comment, Duet, Stitch), on the networks that answer `interactions: true` in `GET /social_capabilities` (today `tiktok`). `true` allows it; a missing key is the network's default (allowed).
+
+    **On every other network the field is deleted on save**, like `reply_control`.
+    """
+    commercial_content: NotRequired[PublicationCommercialContent]
+    """
+    Whether the publication is **commercial content** (`your_brand`, `branded_content`), on the networks that answer `commercial_content: true` in `GET /social_capabilities` (today `tiktok`). Absent means it is not.
 
     **On every other network the field is deleted on save**, like `reply_control`.
     """
@@ -3587,6 +3690,48 @@ class PublicationsPublicationsStatsList(TypedDict):
     total: NotRequired[int]
     """
     Publications matching the filters, for paging
+    """
+
+
+class Interactions(TypedDict):
+    """
+    One entry per interaction. `disabled: true` means the creator switched it off in their TikTok privacy settings: show it greyed out. It is sent switched off whatever the publication says.
+    """
+
+    comments: NotRequired[PublicationsPublishSettingsInteraction]
+    duet: NotRequired[PublicationsPublishSettingsInteraction]
+    stitch: NotRequired[PublicationsPublishSettingsInteraction]
+
+
+class PublicationsPublishSettings(TypedDict):
+    """
+    What the network says, right now, about publishing on one account. Values are in the publication's vocabulary: what you read here is what you send back.
+    """
+
+    social_network: SocialNetwork
+    creator: NotRequired[Creator]
+    """
+    Who the post goes to. TikTok's guidelines ask to show the creator's nickname on the compose screen.
+    """
+    visibility_options: list[Literal["public", "friends", "followers", "private"]]
+    """
+    The `visibility` values this account allows now. A public account gets `public`, `friends` and `private`; a private one gets `followers` instead of `public`. Offer these and nothing else, with no default.
+    """
+    interactions: Interactions
+    """
+    One entry per interaction. `disabled: true` means the creator switched it off in their TikTok privacy settings: show it greyed out. It is sent switched off whatever the publication says.
+    """
+    max_video_duration_sec: NotRequired[int]
+    """
+    The longest video this account can post, in seconds. A longer one ends in `withErrors` with `publication_errors[].code = 2506`, before anything is uploaded.
+    """
+    can_post: bool
+    """
+    `false` means the network will not take a post from this account now. Ask the user to try later instead of sending it: it would end in `withErrors` with `publication_errors[].code = 2507`.
+    """
+    reason: NotRequired[str]
+    """
+    When `can_post` is `false`, the network's code: `spam_risk_too_many_posts` (daily limit of the creator), `spam_risk_user_banned_from_posting`, `reached_active_user_cap`.
     """
 
 

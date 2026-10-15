@@ -33,7 +33,9 @@ from planvortex._generated.models import (
     PlanData,
     PlanUseData,
     Publication,
+    PublicationCommercialContent,
     PublicationDestination,
+    PublicationInteractions,
     Upload,
 )
 from planvortex._generated.models import (
@@ -347,18 +349,34 @@ class PublicationInput(TypedDict):
     ``catalog.social_capabilities()`` (today Threads). Omitted, the network's default: anyone. It is
     set when the publication goes out and cannot be changed afterwards; on every other network the
     field is deleted on save."""
-    visibility: NotRequired[Literal["public", "unlisted", "private"]]
+    visibility: NotRequired[Literal["public", "unlisted", "friends", "followers", "private"]]
     """**Who can see the publication** when it goes out, on the networks that answer
-    ``visibility: true`` in ``catalog.social_capabilities()`` (today YouTube). Omitted, ``public``.
-    YouTube's policies require it to be the user's choice: if you publish for someone, ask them. A
-    value the network does not take does not raise: the publication is created in ``withErrors``
-    with code 2500. On every other network the field is deleted on save."""
+    ``visibility: true`` in ``catalog.social_capabilities()`` (today YouTube and TikTok). Omitted,
+    ``public``. ``unlisted`` is YouTube's only; ``friends`` and ``followers`` are TikTok's only, and
+    which ones a TikTok account allows NOW comes from ``accounts.publish_settings()``. Both networks
+    require it to be the user's choice: if you publish for someone, ask them (on TikTok, with no
+    default). A value the network does not take does not raise: the publication is created in
+    ``withErrors`` with code 2500; one the account no longer allows when it goes out is 2505. On
+    every other network the field is deleted on save."""
     made_for_kids: NotRequired[bool]
     """Whether the video is **made for kids** (COPPA), on the networks that answer
     ``made_for_kids: true`` in ``catalog.social_capabilities()`` (today YouTube). Omitted, ``False``.
     It is the user's call, and it must be a real boolean: anything else is not guessed, and the
     publication is created in ``withErrors`` with code 2501. On every other network the field is
     deleted on save."""
+    interactions: NotRequired[PublicationInteractions]
+    """**What the audience can do** with the publication (``comments``, ``duet``, ``stitch``), on the
+    networks that answer ``interactions: true`` in ``catalog.social_capabilities()`` (today TikTok).
+    ``True`` allows it, ``False`` turns it off; a missing key is the network's default (allowed).
+    TikTok's guidelines ask for the boxes to start unticked. Whatever the creator switched off in the
+    app is sent switched off. A value that is not a boolean is code 2502. On every other network
+    the field is deleted on save."""
+    commercial_content: NotRequired[PublicationCommercialContent]
+    """Whether the publication is **commercial content** (``your_brand``, ``branded_content``), on the
+    networks that answer ``commercial_content: true`` (today TikTok). Omitted, it is not. A paid
+    partnership (``branded_content``) cannot be private: with ``visibility`` ``private`` or
+    ``followers`` it is code 2504; a value that is not a boolean is 2503. On every other network
+    the field is deleted on save."""
     name: NotRequired[str]
     """Internal name, for grouping. Never shown on the network."""
     publication_type: NotRequired[Literal["profile", "page", "group", "reels", "stories"]]

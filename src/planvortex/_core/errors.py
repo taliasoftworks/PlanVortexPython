@@ -59,6 +59,10 @@ PLANVORTEX_ERROR_RANGES: tuple[ErrorRange, ...] = (
     # Los COMENTARIOS siguen aqui porque sus 945-948 se llenaron, y van con ellos a `publication`:
     # el 2600 (esta cuenta no tiene bandeja, un perfil personal de LinkedIn) es la version por
     # cuenta del 945, y separarlos daria dos clases para el mismo «aqui no hay comentarios».
+    # Los campos de publicacion que no cabian en los 9xx (2500-2507: visibilidad, ninos, y lo que
+    # exige la auditoria de TikTok). Casi todos viajan en `publication_errors`, pero el 2508 se
+    # LANZA: `accounts.publish_settings()` en una red que no los tiene.
+    ErrorRange(2500, 2599, "publication"),
     ErrorRange(2600, 2699, "publication"),
 )
 
@@ -144,7 +148,10 @@ class PublicationError(PlanVortexError):
     say which board it goes to. One of them is not a failure: 991 is Pinterest throttling the
     application, it arrives as a 429 with ``Retry-After`` and the answer is to wait.
 
-    Also 2600-2699, the comment codes that did not fit after 945-948: 2600 is the per-account
+    Also 2500-2599, the publication fields that did not fit either (visibility, made for kids,
+    and TikTok's interactions and commercial content); only 2508 is raised, by
+    ``accounts.publish_settings()`` on a network that has none. And 2600-2699, the comment codes
+    that did not fit after 945-948: 2600 is the per-account
     version of 945, an account with no comment inbox on a network that has one (a LinkedIn
     personal profile).
     """

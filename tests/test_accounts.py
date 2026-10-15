@@ -240,6 +240,28 @@ def test_los_tableros_se_leen_con_el_id_como_cadena(cliente: ClienteDePrueba, ht
     assert query(peticiones(httpx_mock)[0]) == {}
 
 
+def test_lee_lo_que_la_cuenta_admite_al_publicar(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:
+    """TikTok: la guia de contenido pide ensenar estas opciones antes de publicar."""
+    ajustes = {
+        "social_network": "tiktok",
+        "creator": {"username": "nordwindcafe", "nickname": "Nordwind Café"},
+        "visibility_options": ["public", "friends", "private"],
+        "interactions": {
+            "comments": {"disabled": False},
+            "duet": {"disabled": False},
+            "stitch": {"disabled": True},
+        },
+        "max_video_duration_sec": 600,
+        "can_post": True,
+    }
+    httpx_mock.add_response(url=f"{ORG}/accounts/acc1/publish_settings", json={"publish_settings": ajustes})
+
+    leidos = cliente.esperar(cliente.pv.accounts.publish_settings("org1", "acc1"))
+
+    assert leidos["visibility_options"] == ["public", "friends", "private"]
+    assert leidos["interactions"]["stitch"]["disabled"] is True
+
+
 def test_una_cuenta_rota_sigue_en_la_lista(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:
     """`error_code` distinto de 0 no es un fallo de ESTA llamada: es una cuenta que hay que reconectar."""
     httpx_mock.add_response(

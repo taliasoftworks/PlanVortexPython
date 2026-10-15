@@ -360,6 +360,8 @@ def test_cada_rango_del_catalogo_cae_en_su_clase() -> None:
     assert error_class_for_code(945).__name__ == "PublicationError"
     assert error_class_for_code(2600).__name__ == "PublicationError"
     assert error_class_for_code(2699).__name__ == "PublicationError"
+    # El que lanza `accounts.publish_settings()` en una red sin ajustes de publicacion
+    assert error_class_for_code(2508).__name__ == "PublicationError"
     # Los siete de las plantillas del planificador. No hay nada que registrar para que caigan aqui:
     # entran por el rango 2100-2199, y eso es justo lo que hay que comprobar en vez de suponerlo.
     for codigo in range(2111, 2118):

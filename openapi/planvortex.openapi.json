@@ -5599,7 +5599,7 @@
           "catalog"
         ],
         "summary": "What every network supports",
-        "description": "The full matrix network → capabilities. It is the **single source of truth** about what a network can do: the catalogue publishes it, the backend checks it before acting, and your integration should filter its account pickers with it rather than keeping a list of its own.\n\n`comments` is the coarse gate — whether the network has comments at all. Which *actions* it allows on one is a finer question and lives in `GET /social_comment_actions`, because the shape here is `{[capability]: boolean}` and nesting an object inside would break it.\n\nToday ten networks answer `comments: true`: Facebook, Instagram, Threads, LinkedIn, X, YouTube, Google Business, Bluesky, Discord and Telegram. TikTok, WhatsApp, Slack and Pinterest answer `false`, for reasons of theirs and not ours — on Pinterest the API *counts* a pin's comments and offers no way to read them, so the figure shows up in the publication's statistics and there is still no inbox.\n\n**Three of the keys are about publishing, not about reading.** `destinations` says the network publishes into places inside the account and every publication has to name one — a Pinterest board, read with `GET /organizations/{id_organization}/accounts/{id_account}/destinations`. `link` says a publication carries a destination link of its own, separate from its text. Both are `false` everywhere but `pinterest` today. `reply_control` says a publication can choose who can reply to it, and is `true` only on `threads`. The three are the reason to ask this matrix instead of keeping a list of your own: a composer with its own copy of which network has which field is exactly what drifted with the character limits.\n\nA `true` here is about the **network**, not about one account of it: a Telegram channel with no linked discussion group answers 965 on its comments even though the network has them.\n\nOnly needs authentication.",
+        "description": "The full matrix network → capabilities. It is the **single source of truth** about what a network can do: the catalogue publishes it, the backend checks it before acting, and your integration should filter its account pickers with it rather than keeping a list of its own.\n\n`comments` is the coarse gate — whether the network has comments at all. Which *actions* it allows on one is a finer question and lives in `GET /social_comment_actions`, because the shape here is `{[capability]: boolean}` and nesting an object inside would break it.\n\nToday ten networks answer `comments: true`: Facebook, Instagram, Threads, LinkedIn, X, YouTube, Google Business, Bluesky, Discord and Telegram. TikTok, WhatsApp, Slack and Pinterest answer `false`, for reasons of theirs and not ours — on Pinterest the API *counts* a pin's comments and offers no way to read them, so the figure shows up in the publication's statistics and there is still no inbox.\n\n**Three of the keys are about publishing, not about reading.** `destinations` says the network publishes into places inside the account and every publication has to name one — a Pinterest board, read with `GET /organizations/{id_organization}/accounts/{id_account}/destinations`. `link` says a publication carries a destination link of its own, separate from its text. Both are `false` everywhere but `pinterest` today. `reply_control` says a publication can choose who can reply to it, and is `true` only on `threads`. The three are the reason to ask this matrix instead of keeping a list of your own: a composer with its own copy of which network has which field is exactly what drifted with the character limits.\n\n**Four more are what TikTok's content sharing guidelines ask a composer to show**, and are `true` only on `tiktok` today: `visibility` (on TikTok, with no default), `interactions`, `commercial_content`, and `publish_settings`, which says the options each account allows must be read from `GET /organizations/{id_organization}/accounts/{id_account}/publish_settings` instead of a fixed list.\n\nA `true` here is about the **network**, not about one account of it: a Telegram channel with no linked discussion group answers 965 on its comments even though the network has them.\n\nOnly needs authentication.",
         "operationId": "getSocialCapabilities",
         "x-planvortex-identity": [
           "current_user",
@@ -5629,7 +5629,10 @@
                     "link": false,
                     "reply_control": false,
                     "visibility": false,
-                    "made_for_kids": false
+                    "made_for_kids": false,
+                    "interactions": false,
+                    "commercial_content": false,
+                    "publish_settings": false
                   },
                   "google_business": {
                     "publications": false,
@@ -5642,7 +5645,10 @@
                     "link": false,
                     "reply_control": false,
                     "visibility": false,
-                    "made_for_kids": false
+                    "made_for_kids": false,
+                    "interactions": false,
+                    "commercial_content": false,
+                    "publish_settings": false
                   },
                   "pinterest": {
                     "publications": true,
@@ -5655,7 +5661,10 @@
                     "link": true,
                     "reply_control": false,
                     "visibility": false,
-                    "made_for_kids": false
+                    "made_for_kids": false,
+                    "interactions": false,
+                    "commercial_content": false,
+                    "publish_settings": false
                   },
                   "threads": {
                     "publications": true,
@@ -5668,7 +5677,10 @@
                     "link": false,
                     "reply_control": true,
                     "visibility": false,
-                    "made_for_kids": false
+                    "made_for_kids": false,
+                    "interactions": false,
+                    "commercial_content": false,
+                    "publish_settings": false
                   }
                 }
               }
@@ -11823,6 +11835,118 @@
         ]
       }
     },
+    "/organizations/{id_organization}/accounts/{id_account}/publish_settings": {
+      "get": {
+        "tags": [
+          "publications"
+        ],
+        "summary": "Read what this account allows when publishing",
+        "description": "What the network says, **right now**, about publishing on this account. Today only TikTok: the networks that answer `publish_settings: true` in `GET /social_capabilities`. Anywhere else this answers error 2508.\n\nTikTok's content sharing guidelines ask any app that posts to TikTok to show the user, before posting:\n\n- which account the post goes to (`creator.nickname`);\n- a privacy choice limited to `visibility_options`, with **no default**;\n- the interactions the creator switched off in the app (`interactions.*.disabled`), greyed out;\n- and to check the video length against `max_video_duration_sec`.\n\nRead it every time your compose screen opens: an account can go from public to private, or reach its daily limit, between one post and the next. `can_post: false` means TikTok will not take a post from this account now (`reason` carries its code): tell the user to try later instead of sending it.\n\nIf TikTok does not answer, this is error 919 with TikTok's detail in `data`, never an empty list: an empty `visibility_options` would read as \"this account cannot post at all\".",
+        "operationId": "getAccountPublishSettings",
+        "x-planvortex-identity": [
+          "current_user",
+          "current_app"
+        ],
+        "parameters": [
+          {
+            "name": "id_organization",
+            "in": "path",
+            "description": "Organization identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id_account",
+            "in": "path",
+            "description": "Connected account identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "What the account allows now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "publish_settings": {
+                      "$ref": "#/components/schemas/PublicationsPublishSettings"
+                    }
+                  },
+                  "required": [
+                    "publish_settings"
+                  ]
+                },
+                "example": {
+                  "publish_settings": {
+                    "social_network": "tiktok",
+                    "creator": {
+                      "username": "nordwindcafe",
+                      "nickname": "Nordwind Café",
+                      "avatar_url": "https://p16-sign.tiktokcdn.com/…/avatar.jpeg"
+                    },
+                    "visibility_options": [
+                      "public",
+                      "friends",
+                      "private"
+                    ],
+                    "interactions": {
+                      "comments": {
+                        "disabled": false
+                      },
+                      "duet": {
+                        "disabled": false
+                      },
+                      "stitch": {
+                        "disabled": true
+                      }
+                    },
+                    "max_video_duration_sec": 600,
+                    "can_post": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `2508` | This network has no publish settings to read. `data` carries `social_network` |\n| `919` | The network did not answer. `data` carries its detail |\n| `701` | Account not found in this organization |\n| `700` | Account not connected, missing authorization tokens |\n| `1101` | Invalid organization |",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unhandled error by the server"
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "curl",
+            "label": "curl",
+            "source": "curl \"https://api.planvortex.com/v1.0.0/organizations/$ID_ORGANIZATION/accounts/$ID_ACCOUNT/publish_settings\" \\\n  -H \"Authorization: Bearer $PLANVORTEX_TOKEN\""
+          },
+          {
+            "lang": "JavaScript",
+            "label": "Node",
+            "source": "import { PlanVortex } from \"planvortex\";\n\nconst pv = new PlanVortex({\n    clientId: process.env.PLANVORTEX_CLIENT_ID,\n    clientSecret: process.env.PLANVORTEX_CLIENT_SECRET,\n});\n\nconst result = await pv.accounts.publishSettings(idOrganization, idAccount);"
+          },
+          {
+            "lang": "Python",
+            "label": "Python",
+            "source": "from planvortex import PlanVortex\n\npv = PlanVortex()\n\nresult = pv.accounts.publish_settings(id_organization, id_account)"
+          }
+        ]
+      }
+    },
     "/organizations/{id_organization}/accounts/{id_account}/publish/{id_publication}": {
       "put": {
         "tags": [
@@ -15289,11 +15413,23 @@
           },
           "visibility": {
             "type": "boolean",
-            "description": "The publication can say **who can see it** when it goes out (`visibility`): public, unlisted or private. On a network that answers `false` the field is deleted on save, so do not offer it. Today only `youtube`."
+            "description": "The publication can say **who can see it** when it goes out (`visibility`). On a network that answers `false` the field is deleted on save, so do not offer it. Today `youtube` (public, unlisted, private) and `tiktok` (public, friends, followers, private; which ones each account allows comes from `publish_settings`)."
           },
           "made_for_kids": {
             "type": "boolean",
             "description": "The publication can say whether it is **made for kids** (`made_for_kids`, COPPA). On a network that answers `false` the field is deleted on save, so do not offer it. Today only `youtube`."
+          },
+          "interactions": {
+            "type": "boolean",
+            "description": "The publication can say **what the audience can do** with it (`interactions`: comment, Duet, Stitch). On a network that answers `false` the field is deleted on save, so do not offer it. Today only `tiktok`."
+          },
+          "commercial_content": {
+            "type": "boolean",
+            "description": "The publication can declare that it is **commercial content** (`commercial_content`: your brand, branded content). On a network that answers `false` the field is deleted on save, so do not offer it. Today only `tiktok`."
+          },
+          "publish_settings": {
+            "type": "boolean",
+            "description": "What each **account** allows when publishing is read from the network: `GET /organizations/{id_organization}/accounts/{id_account}/publish_settings` (privacy options, interactions the creator switched off, longest video, whether it can post now). Offer the `visibility` values from there, not a fixed list. Today only `tiktok`."
           }
         },
         "required": [
@@ -15307,7 +15443,10 @@
           "link",
           "reply_control",
           "visibility",
-          "made_for_kids"
+          "made_for_kids",
+          "interactions",
+          "commercial_content",
+          "publish_settings"
         ]
       },
       "CommentsWebhookChange": {
@@ -16281,7 +16420,7 @@
           },
           "code": {
             "type": "integer",
-            "description": "PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2600-2699 comments, the ones that no longer fit in 945-948."
+            "description": "PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2500-2599 publication fields, the ones that no longer fit in 900-996 (visibility, made for kids, TikTok's interactions and commercial content) · 2600-2699 comments, the ones that no longer fit in 945-948."
           },
           "data": {
             "additionalProperties": true,
@@ -17857,13 +17996,23 @@
             "enum": [
               "public",
               "unlisted",
+              "friends",
+              "followers",
               "private"
             ],
-            "description": "**Who can see the publication** when it goes out, on the networks that answer `visibility: true` in `GET /social_capabilities` (today `youtube`). Absent means `public`. It is set when the publication goes out.\n\n**On every other network the field is deleted on save**, like `reply_control`."
+            "description": "**Who can see the publication** when it goes out, on the networks that answer `visibility: true` in `GET /social_capabilities` (today `youtube` and `tiktok`). Absent means `public`. It is set when the publication goes out.\n\n`unlisted` exists only on YouTube; `friends` and `followers` only on TikTok.\n\n**On every other network the field is deleted on save**, like `reply_control`."
           },
           "made_for_kids": {
             "type": "boolean",
             "description": "Whether the video is **made for kids** (COPPA), on the networks that answer `made_for_kids: true` in `GET /social_capabilities` (today `youtube`). Absent means `false`.\n\n**On every other network the field is deleted on save**, like `reply_control`."
+          },
+          "interactions": {
+            "$ref": "#/components/schemas/PublicationInteractions",
+            "description": "**What the audience can do with the publication** (comment, Duet, Stitch), on the networks that answer `interactions: true` in `GET /social_capabilities` (today `tiktok`). `true` allows it; a missing key is the network's default (allowed).\n\n**On every other network the field is deleted on save**, like `reply_control`."
+          },
+          "commercial_content": {
+            "$ref": "#/components/schemas/PublicationCommercialContent",
+            "description": "Whether the publication is **commercial content** (`your_brand`, `branded_content`), on the networks that answer `commercial_content: true` in `GET /social_capabilities` (today `tiktok`). Absent means it is not.\n\n**On every other network the field is deleted on save**, like `reply_control`."
           },
           "publication_type": {
             "type": "string",
@@ -18023,6 +18172,20 @@
           }
         }
       },
+      "PublicationCommercialContent": {
+        "type": "object",
+        "description": "Whether a publication is commercial content. Both `false` is the same as omitting it.",
+        "properties": {
+          "your_brand": {
+            "type": "boolean",
+            "description": "It promotes the creator or their own business. TikTok labels it \"Promotional content\"."
+          },
+          "branded_content": {
+            "type": "boolean",
+            "description": "It is a paid partnership promoting a third party. TikTok labels it \"Paid partnership\", and it cannot be private."
+          }
+        }
+      },
       "PublicationDestination": {
         "type": "object",
         "description": "**Where inside the account** a publication goes, on the networks where choosing the account is not yet choosing the destination. Today that is `pinterest` alone, where it is the board the pin is saved to.\n\nAsk `destinations` in `GET /social_capabilities` instead of keeping a list of your own, and read the account's boards with `GET /organizations/{id_organization}/accounts/{id_account}/destinations`.\n\n**On Pinterest it is required.** A publication created without it is created in state `withErrors` with `publication_errors[].code = 987` and the background job will not attempt it — the same treatment as a YouTube video with no title, and for the same reason: a scheduled publication that dies at 3 a.m. over a board that was missing from the start is a failure that could have been told to the person while they were still there.\n\n**On every other network the field is deleted, not rejected.** A `destination` on a Facebook publication would be a field that does nothing, and giving it back in the response would be worse than dropping it.\n\n`name` and `section_name` are labels for display (\"Recipes > Desserts\"). The server never checks them and nothing is decided by them: what publishes is `id`.",
@@ -18042,6 +18205,24 @@
           "section_name": {
             "type": "string",
             "description": "The section's label, for display. Decides nothing."
+          }
+        }
+      },
+      "PublicationInteractions": {
+        "type": "object",
+        "description": "What the audience can do with a publication. `true` allows it; a missing key is the network's default.",
+        "properties": {
+          "comments": {
+            "type": "boolean",
+            "description": "The audience can comment."
+          },
+          "duet": {
+            "type": "boolean",
+            "description": "The audience can make a Duet with the video. Ignored on a photo post."
+          },
+          "stitch": {
+            "type": "boolean",
+            "description": "The audience can make a Stitch with the video. Ignored on a photo post."
           }
         }
       },
@@ -18317,13 +18498,23 @@
             "enum": [
               "public",
               "unlisted",
+              "friends",
+              "followers",
               "private"
             ],
-            "description": "**Who can see the publication** when it goes out. Only on the networks that answer `visibility: true` in `GET /social_capabilities` (today `youtube`), and **deleted** on every other one.\n\n- `public`: anyone. It is what applies when the field is omitted.\n- `unlisted`: only people with the link. It does not show on the channel or in search.\n- `private`: only the channel owner and the people they invite from YouTube Studio.\n\nYouTube's policies require this to be **the user's choice**: if your software publishes on behalf of someone, ask them. A value the network does not accept does not fail the request: the publication is still created, in state `withErrors` with `publication_errors[].code = 2500`, whose `data` carries the `allowed` values. It is checked when the publication is **created**, so a scheduled video does not fail at 3 a.m. over a value that was already wrong.\n\nIf YouTube does not leave the video with the visibility that was asked for, the publication still ends up `sended` (the video is on the channel) and carries a warning in `publication_warnings` with `code = 2400`.\n\nOn an update: omit it to keep what was there, send `null` or `\"\"` to go back to `public`."
+            "description": "**Who can see the publication** when it goes out. Only on the networks that answer `visibility: true` in `GET /social_capabilities` (today `youtube` and `tiktok`), and **deleted** on every other one.\n\n- `public`: anyone. It is what applies when the field is omitted.\n- `unlisted` (YouTube only): only people with the link. It does not show on the channel or in search.\n- `friends` (TikTok only): followers the account follows back.\n- `followers` (TikTok only, private accounts): the account's followers.\n- `private`: only the owner (on YouTube, also the people they invite from YouTube Studio).\n\nBoth networks require this to be **the user's choice**: if your software publishes on behalf of someone, ask them. On TikTok your interface must have **no default**, and the options to offer are the ones this account allows right now, from `GET /organizations/{id_organization}/accounts/{id_account}/publish_settings`. If, by the time the publication goes out, the account no longer allows the chosen one (it went from public to private), it is not swapped for another: the publication ends in `withErrors` with `publication_errors[].code = 2505`. Omitting it on TikTok keeps the old behaviour (public if the account allows it, otherwise the first value it allows), which is fine for a script but not for a screen a person uses.\n\nA value the network does not accept does not fail the request: the publication is still created, in state `withErrors` with `publication_errors[].code = 2500`, whose `data` carries the `allowed` values. It is checked when the publication is **created**, so a scheduled video does not fail at 3 a.m. over a value that was already wrong.\n\nIf YouTube does not leave the video with the visibility that was asked for, the publication still ends up `sended` (the video is on the channel) and carries a warning in `publication_warnings` with `code = 2400`.\n\nOn an update: omit it to keep what was there, send `null` or `\"\"` to go back to `public`."
           },
           "made_for_kids": {
             "type": "boolean",
             "description": "Whether the video is **made for kids**. Only on the networks that answer `made_for_kids: true` in `GET /social_capabilities` (today `youtube`), and **deleted** on every other one. Absent means `false`.\n\nThe law (COPPA) and YouTube's policies require a video directed at children to be uploaded with `true`, and it is the **user's** call: if your software publishes on behalf of someone, ask them. YouTube then turns off features such as comments and personalised ads on that video.\n\nIt must be a JSON boolean. Anything else (`\"yes\"`, `\"no\"`, `1`) is not guessed: the publication is still created, in state `withErrors` with `publication_errors[].code = 2501`.\n\nOn an update: omit it to keep what was there, send `null` or `\"\"` to go back to `false`."
+          },
+          "interactions": {
+            "$ref": "#/components/schemas/PublicationInteractions",
+            "description": "**What the audience can do with the publication**: comment and, on a video, Duet and Stitch. Only on the networks that answer `interactions: true` in `GET /social_capabilities` (today `tiktok`), and **deleted** on every other one.\n\n`true` allows it, `false` turns it off. A missing key, or the whole field missing, leaves the network's default, which on TikTok is allowed.\n\nTikTok's content sharing guidelines require this to be **the user's choice**, with **nothing ticked in advance**: if your software publishes on behalf of someone, show the three boxes unticked and send what they tick. Whatever the creator has switched off in their TikTok privacy settings is sent switched off, whatever this says (`interactions.*.disabled` in `GET /organizations/{id_organization}/accounts/{id_account}/publish_settings`).\n\nA key other than these three, or a value that is not a JSON boolean, does not fail the request: the publication is still created, in state `withErrors` with `publication_errors[].code = 2502`.\n\nOn an update: omit it to keep what was there, send `null` or `\"\"` to go back to the network's default."
+          },
+          "commercial_content": {
+            "$ref": "#/components/schemas/PublicationCommercialContent",
+            "description": "Whether the publication is **commercial content**. Only on the networks that answer `commercial_content: true` in `GET /social_capabilities` (today `tiktok`), and **deleted** on every other one. Absent, or both `false`, means it is not.\n\nTikTok's guidelines ask for a disclosure switch that is **off by default** and, when it is on, for at least one of the two boxes before the post can go out. Send the object only when the user switched it on.\n\nA paid partnership (`branded_content: true`) **cannot be private**: with `visibility` `private` or `followers` the publication is created in state `withErrors` with `publication_errors[].code = 2504`. Any other key, or a value that is not a JSON boolean, is code 2503.\n\nOn an update: omit it to keep what was there, send `null` or `\"\"` to remove it."
           },
           "files": {
             "type": "array",
@@ -18592,6 +18783,88 @@
             "description": "Publications matching the filters, for paging"
           }
         }
+      },
+      "PublicationsPublishSettings": {
+        "type": "object",
+        "description": "What the network says, right now, about publishing on one account. Values are in the publication's vocabulary: what you read here is what you send back.",
+        "properties": {
+          "social_network": {
+            "$ref": "#/components/schemas/SocialNetwork"
+          },
+          "creator": {
+            "type": "object",
+            "description": "Who the post goes to. TikTok's guidelines ask to show the creator's nickname on the compose screen.",
+            "properties": {
+              "username": {
+                "type": "string"
+              },
+              "nickname": {
+                "type": "string"
+              },
+              "avatar_url": {
+                "type": "string",
+                "description": "Expires after about two hours: do not store it."
+              }
+            }
+          },
+          "visibility_options": {
+            "type": "array",
+            "description": "The `visibility` values this account allows now. A public account gets `public`, `friends` and `private`; a private one gets `followers` instead of `public`. Offer these and nothing else, with no default.",
+            "items": {
+              "type": "string",
+              "enum": [
+                "public",
+                "friends",
+                "followers",
+                "private"
+              ]
+            }
+          },
+          "interactions": {
+            "type": "object",
+            "description": "One entry per interaction. `disabled: true` means the creator switched it off in their TikTok privacy settings: show it greyed out. It is sent switched off whatever the publication says.",
+            "properties": {
+              "comments": {
+                "$ref": "#/components/schemas/PublicationsPublishSettingsInteraction"
+              },
+              "duet": {
+                "$ref": "#/components/schemas/PublicationsPublishSettingsInteraction"
+              },
+              "stitch": {
+                "$ref": "#/components/schemas/PublicationsPublishSettingsInteraction"
+              }
+            }
+          },
+          "max_video_duration_sec": {
+            "type": "integer",
+            "description": "The longest video this account can post, in seconds. A longer one ends in `withErrors` with `publication_errors[].code = 2506`, before anything is uploaded."
+          },
+          "can_post": {
+            "type": "boolean",
+            "description": "`false` means the network will not take a post from this account now. Ask the user to try later instead of sending it: it would end in `withErrors` with `publication_errors[].code = 2507`."
+          },
+          "reason": {
+            "type": "string",
+            "description": "When `can_post` is `false`, the network's code: `spam_risk_too_many_posts` (daily limit of the creator), `spam_risk_user_banned_from_posting`, `reached_active_user_cap`."
+          }
+        },
+        "required": [
+          "social_network",
+          "visibility_options",
+          "interactions",
+          "can_post"
+        ]
+      },
+      "PublicationsPublishSettingsInteraction": {
+        "type": "object",
+        "properties": {
+          "disabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "disabled"
+        ]
       },
       "SocialCredentials": {
         "type": "object",
