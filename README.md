@@ -377,6 +377,17 @@ Five runnable scripts, each one the whole of its path and with a test of its own
 `comments.py` only reads unless you set `PLANVORTEX_ALLOW_REPLY=1`: replying is public, immediate,
 and reaches a person.
 
+## Guides
+
+Longer write-ups on planvortex.com:
+
+- [Publishing to social media from Python without building one integration per network](https://planvortex.com/en/resources/publish-social-media-python)
+- [Meta access token expired? Why it lasts 60 days and how to refresh it](https://planvortex.com/en/resources/meta-access-token-expiry)
+- [Character limits across social APIs: .length lies, and it lies both ways](https://planvortex.com/en/resources/social-media-character-limits)
+- [How much does it cost to post on X with the API in 2026](https://planvortex.com/en/resources/x-api-pricing-2026)
+- [Is the LinkedIn API free? Pricing and posting access in 2026](https://planvortex.com/en/resources/linkedin-api-pricing-access)
+- [All articles](https://planvortex.com/en/resources)
+
 ## Links
 
 - [Reference](https://taliasoftworks.github.io/PlanVortexPython/)
