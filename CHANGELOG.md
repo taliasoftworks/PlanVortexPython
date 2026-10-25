@@ -4,6 +4,14 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.1] - 2026-10-25
+
+### Changed
+
+- The README has a **Guides** section with the longer write-ups on planvortex.com: publishing to
+  social media from Python, why a Meta access token lasts 60 days and how to refresh it, character
+  limits across social APIs, what posting on X costs, and LinkedIn API access. No code changed.
+
 ## [0.16.0] - 2026-10-15
 
 ### Added
