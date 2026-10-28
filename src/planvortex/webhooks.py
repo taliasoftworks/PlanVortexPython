@@ -81,6 +81,7 @@ WEBHOOK_EVENTS: tuple[str, ...] = (
     "messaging_postbacks",
     "messaging_seen",
     "messaging_error",
+    "message_echoes",
     "comments",
     "integration_error",
     "ai_plan_generated",
@@ -134,6 +135,24 @@ class MessageChange(AccountWebhookChangeBase):
     messageObj: NotRequired[Message]
     id_contact: NotRequired[str]
     """The contact on the other side. A comment has none, which is why it is here and not there."""
+
+
+class MessageEchoChange(AccountWebhookChangeBase):
+    """WhatsApp, when the number is also used in the **WhatsApp Business app** on a phone: the
+    business replied from the app.
+
+    ``messageObj`` is one of **our** messages — ``contact_id`` is the person it was sent to and
+    ``from_contact_id`` is absent — and it arrives populated, like in :class:`MessageChange`.
+
+    It is a separate event on purpose, and :func:`is_message_change` does **not** include it: a bot
+    that answers every incoming message must not answer the business itself. Store it in the thread
+    and that is all. It does not open WhatsApp's 24-hour window.
+    """
+
+    field: Literal["message_echoes"]
+    messageObj: NotRequired[Message]
+    id_contact: NotRequired[str]
+    """The contact the business wrote to."""
 
 
 class CommentChange(AccountWebhookChangeBase):
@@ -229,6 +248,7 @@ class UnknownWebhookChange(TypedDict):
 WebhookChange: TypeAlias = (
     AccountStateChange
     | MessageChange
+    | MessageEchoChange
     | CommentChange
     | IntegrationErrorChange
     | AiPlanChange
@@ -255,6 +275,12 @@ def is_account_state_change(change: WebhookChange) -> TypeGuard[AccountStateChan
 def is_message_change(change: WebhookChange) -> TypeGuard[MessageChange]:
     """Something happened in messaging. Includes the read receipt and the network's refusal."""
     return change["field"] in _MESSAGE_EVENTS
+
+
+def is_message_echo_change(change: WebhookChange) -> TypeGuard[MessageEchoChange]:
+    """The business replied from the WhatsApp Business app on a phone. Not an incoming message: do
+    not reply to it. :func:`is_message_change` does not include it."""
+    return change["field"] == "message_echoes"
 
 
 def is_comment_change(change: WebhookChange) -> TypeGuard[CommentChange]:
@@ -517,6 +543,7 @@ __all__ = [
     "CommentChange",
     "IntegrationErrorChange",
     "MessageChange",
+    "MessageEchoChange",
     "RawWebhookBody",
     "UnknownWebhookChange",
     "WebhookAlgorithm",
@@ -530,6 +557,7 @@ __all__ = [
     "is_comment_change",
     "is_integration_error_change",
     "is_message_change",
+    "is_message_echo_change",
     "parse_webhook_body",
     "verify_webhook_signature",
 ]

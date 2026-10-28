@@ -32,6 +32,7 @@ from planvortex.webhooks import (
     CommentChange,
     IntegrationErrorChange,
     MessageChange,
+    MessageEchoChange,
     UnknownWebhookChange,
     WebhookBodyError,
     WebhookChange,
@@ -42,6 +43,7 @@ from planvortex.webhooks import (
     is_comment_change,
     is_integration_error_change,
     is_message_change,
+    is_message_echo_change,
     parse_webhook_body,
     verify_webhook_signature,
 )
@@ -328,6 +330,9 @@ def _cambio(field: str, **extra: Any) -> WebhookChange:
         ("messaging_postbacks", is_message_change),
         ("messaging_seen", is_message_change),
         ("messaging_error", is_message_change),
+        # El eco de WhatsApp (lo que el negocio contesta desde la app) es suyo y NO es un mensaje
+        # que contestar: un bot que filtra por is_message_change no tiene que verlo
+        ("message_echoes", is_message_echo_change),
         ("comments", is_comment_change),
         ("integration_error", is_integration_error_change),
         ("ai_plan_generated", is_ai_plan_change),
@@ -339,6 +344,7 @@ def test_cada_evento_lo_reconoce_su_predicado_y_solo_el_suyo(field: str, predica
     todos = (
         is_account_state_change,
         is_message_change,
+        is_message_echo_change,
         is_comment_change,
         is_integration_error_change,
         is_ai_plan_change,
@@ -517,12 +523,12 @@ def test_lo_que_el_spec_declara_obligatorio_lo_es_en_los_tres(tipo: Any) -> None
     assert set(CUENTA_SPEC["required"]) <= set(tipo.__required_keys__)
 
 
-def test_cada_field_del_spec_cae_en_uno_de_los_tres_tipos() -> None:
+def test_cada_field_del_spec_cae_en_uno_de_los_cuatro_tipos() -> None:
     """El reparto por `field`: ni un evento sin tipo, ni un tipo con un `field` que el spec no
     declara — que es como se colaria un evento inventado con toda la pinta de ser real.
     """
     repartidos: list[str] = []
-    for tipo in (AccountStateChange, MessageChange, CommentChange):
+    for tipo in (AccountStateChange, MessageChange, MessageEchoChange, CommentChange):
         repartidos.extend(get_args(tipo.__annotations__["field"]))
 
     assert sorted(repartidos) == sorted(CUENTA_SPEC["properties"]["field"]["enum"])
