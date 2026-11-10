@@ -4,6 +4,34 @@ All notable changes to this package are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.18.0] - 2026-11-10
+
+### Added
+
+- **`pv.messages.download_file()` and `pv.comments.download_file()`.** The files that arrive from
+  the network (a photo, a voice note or a document in a private message; a photo, a GIF or a sticker
+  in a comment) are not stored by PlanVortex: `files_urls` says where each one is, and these two ask
+  PlanVortex to fetch it from the network right then. They return a `DownloadedFile` with the
+  `data` bytes, the real `content_type`, the `file_name` when there is one and the `disposition`.
+  Every WhatsApp file needs them (none has a `url`, photos and videos included), as do Telegram
+  files, LinkedIn images and Bluesky videos. Both exist in the async and the sync client.
+- **`files_urls` on comments**: a comment that is only a photo is no longer an empty row. Facebook,
+  Threads, LinkedIn, X, Bluesky, Discord and Telegram give them, and on Google Business they are the
+  photos and videos of a review; on Instagram and YouTube the list is always empty.
+
+### Fixed
+
+- **Errors 1515 and 1516 are `MessagingError`.** They are the files: 1515 is the network no longer
+  having one (on a comment too), 1516 a message with no file at that position.
+
+- **Errors 1513 and 1514 are `MessagingError`.** They are the WhatsApp message templates: 1513 is a
+  template PlanVortex refuses before sending it to WhatsApp because WhatsApp would reject its format
+  (`data.field` and `data.reason` say which rule, such as `missing_examples`), and 1514 is WhatsApp
+  refusing it when it is created (`data.code`, `data.subcode` and `data.message` are WhatsApp’s). Both
+  were above the top of the messaging range and arrived as the base error.
+
 ## [0.17.0] - 2026-10-28
 
 ### Added

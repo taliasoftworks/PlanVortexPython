@@ -362,6 +362,17 @@ def test_cada_rango_del_catalogo_cae_en_su_clase() -> None:
     assert error_class_for_code(2699).__name__ == "PublicationError"
     # El que lanza `accounts.publish_settings()` en una red sin ajustes de publicacion
     assert error_class_for_code(2508).__name__ == "PublicationError"
+    # Las dos de las plantillas de WhatsApp: 1513 (el formato que Meta rechazaria sin decir por
+    # que) y 1514 (Meta la rechaza al crearla). Nacieron por encima del techo de 1512.
+    assert error_class_for_code(1513).__name__ == "MessagingError"
+    assert error_class_for_code(1514).__name__ == "MessagingError"
+    # 1515 y 1516 son los archivos que llegan de la red (fase 43 del servidor): 1515 = la red ya no
+    # lo tiene, tambien en un comentario; 1516 = ese mensaje o esa posicion no existen. 2602, el
+    # comentario sin archivo en esa posicion, cae en los 2600 de comentarios.
+    assert error_class_for_code(1515).__name__ == "MessagingError"
+    assert error_class_for_code(1516).__name__ == "MessagingError"
+    assert error_class_for_code(1517) is not error_class_for_code(1516)
+    assert error_class_for_code(2602).__name__ == "PublicationError"
     # Los siete de las plantillas del planificador. No hay nada que registrar para que caigan aqui:
     # entran por el rango 2100-2199, y eso es justo lo que hay que comprobar en vez de suponerlo.
     for codigo in range(2111, 2118):

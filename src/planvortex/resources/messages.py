@@ -28,7 +28,8 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 
 from planvortex._core.pagination import Page, PageParams
-from planvortex.resources.base import AsyncResource, require_id
+from planvortex._core.transport import DownloadedFile
+from planvortex.resources.base import AsyncResource, file_index, require_id
 from planvortex.types import (
     Conversation,
     ConversationTotals,
@@ -339,6 +340,33 @@ class AsyncMessagesResource(AsyncResource):
         await self._delete(
             f"{self._account_path(id_organization, id_account)}/message_templates",
             {"template_id": template_id, "template_name": template_name},
+            timeout=timeout,
+        )
+
+    async def download_file(
+        self,
+        id_organization: str,
+        id_account: str,
+        id_message: str,
+        index: int,
+        *,
+        timeout: float | None = None,
+    ) -> DownloadedFile:
+        """One file of a message that arrived from the network (``message_options["files_urls"][index]``):
+        a photo, a video, a voice note, a document or a sticker. PlanVortex does not store it: it asks
+        the network for it right now and streams it back without keeping a copy.
+
+        On WhatsApp this is the ONLY way to open a file: none has a ``url``, because WhatsApp only
+        hands them over with the account's token. On Instagram and Messenger it is needed when Meta's
+        CDN ``url`` has expired. WhatsApp lets go of a file 7 days after it arrived: from then on it
+        is error 1515. A 1516 means the message is not from that account or has no file there.
+
+        A ``disposition`` of ``"attachment"`` is a document somebody outside sent: don't render it
+        inside your own pages.
+        """
+        mensaje = require_id(id_message, "id_message")
+        return await self._download_file(
+            f"{self._account_path(id_organization, id_account)}/messages/{mensaje}/files/{file_index(index)}",
             timeout=timeout,
         )
 

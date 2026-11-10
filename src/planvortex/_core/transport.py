@@ -117,8 +117,10 @@ class HttpRequest:
     #: Forces the request to be retryable even though it is a POST. Only for POSTs that create
     #: nothing — today, ``POST /oauth/token``.
     idempotent: bool | None = None
-    #: ``"none"`` skips body parsing. By default JSON is attempted.
-    parse: Literal["json", "none"] = "json"
+    #: ``"none"`` skips body parsing and ``"binary"`` returns the raw ``bytes``, which is what a file
+    #: needs. By default JSON is attempted. An error is ALWAYS read as JSON whatever this says: the
+    #: body of a 4xx is the API's error envelope.
+    parse: Literal["json", "none", "binary"] = "json"
     #: Puts a streamed body back where it started before a second attempt. Only an upload sets it:
     #: ``httpx2`` reads an open file from its current position, so a repeat over the same handle
     #: would send **zero bytes** and the server would answer a file error that says nothing about
@@ -140,6 +142,25 @@ class HttpResponse:
     headers: httpx2.Headers
     #: ``x-request-id``, when the deployment sets it.
     request_id: str | None
+
+
+@dataclass(frozen=True)
+class DownloadedFile:
+    """A file that arrived from the network, fetched through PlanVortex.
+
+    A photo in a private message, a sticker in a comment: PlanVortex does not store them. It asks the
+    network for the file at that moment and streams it back without keeping a copy.
+    """
+
+    #: The bytes, exactly as the network gave them.
+    data: bytes
+    #: The file's real ``Content-Type``. This is the one to trust, not the ``mime_type`` noted down.
+    content_type: str
+    #: The document's file name, when the network gives one.
+    file_name: str | None
+    #: ``"inline"`` for images, videos and audio; ``"attachment"`` for everything else. A document
+    #: was sent by somebody outside the business: don't render it inside your own pages.
+    disposition: Literal["inline", "attachment"]
 
 
 def parse_retry_after(header: str | None, *, now: datetime | None = None) -> float | None:

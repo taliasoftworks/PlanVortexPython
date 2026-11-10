@@ -50,7 +50,11 @@ PLANVORTEX_ERROR_RANGES: tuple[ErrorRange, ...] = (
     # 1308 es el tope de APPS del plan, que nacio al quitar el candado de precio de la API.
     ErrorRange(1300, 1308, "plan_limit"),
     ErrorRange(1400, 1408, "plan_limit"),
-    ErrorRange(1500, 1512, "messaging"),
+    # 1513 y 1514 son las plantillas de WhatsApp: el formato que Meta rechazaria sin decir por que,
+    # y Meta rechazandola al crearla. Nacieron por encima del techo, la cuarta vez que pasa. 1515 y
+    # 1516 son los archivos que llegan de la red: 1515 = la red ya no lo tiene (tambien en un
+    # comentario), 1516 = ese mensaje o esa posicion no existen.
+    ErrorRange(1500, 1516, "messaging"),
     ErrorRange(1600, 1601, "contact"),
     ErrorRange(1900, 1906, "payment"),
     ErrorRange(2000, 2099, "product"),
@@ -170,7 +174,7 @@ class PlanLimitError(PlanVortexError):
 
 
 class MessagingError(PlanVortexError):
-    """1500-1512 — conversations, messages and templates. Requires a paid plan."""
+    """1500-1516 — conversations, messages, templates and their files. Requires a paid plan."""
 
 
 class ContactError(PlanVortexError):

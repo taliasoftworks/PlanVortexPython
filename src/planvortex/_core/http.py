@@ -179,7 +179,10 @@ class AsyncHttpClient:
 
             if response.is_success:
                 vacia = request.parse == "none" or response.status_code == 204
-                datos = None if vacia else _parse_body(response)
+                if request.parse == "binary":
+                    datos: Any = response.content
+                else:
+                    datos = None if vacia else _parse_body(response)
                 return HttpResponse(datos, response.status_code, response.headers, request_id)
 
             retry_after = parse_retry_after(response.headers.get("retry-after"))

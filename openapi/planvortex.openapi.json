@@ -107,7 +107,7 @@
           "accounts"
         ],
         "summary": "Get the connection links of every connectable network",
-        "description": "The authorization URL of each network, so the user can connect an account to this organization.\n\n**A network that cannot produce a link simply does not appear.** That is a legitimate answer, not a failure: it is what happens with `discord` in an organization that has not saved its own bot credentials yet (see `PUT /organizations/{id_organization}/social_credentials/{social_network}`).\n\n**An app cannot call this.** Connecting a social account is an OAuth flow with a person in front of it, so this endpoint only accepts a user token or a temporal connect token; with app credentials it answers error 519. The way an integration does it is to issue a temporal connect token with `GET /organizations/{id_organization}/temporal_connect_token` and hand it to its end user.\n\n**Read `authorization`, not `link`.** Almost every network is `redirect` and you send the person to `link`. Two are not, and neither of them fails visibly if you treat it as one:\n\n• **WhatsApp is not a URL at all.** Its sign-up is Meta's Embedded Signup, a popup you raise with the Facebook JavaScript SDK, so its `link` is an empty string and everything you need to open that popup travels in `authorization`. A client that loops over the list and redirects to `link` sends its user to its own page.\n• **Telegram has a link and still is not a redirect.** It opens a chat with the PlanVortex bot, and nobody comes back from it: the account is born minutes later, from the bot being added to a channel, and it is announced over the WebSocket. Open it in another tab and keep listening; redirect to it and there is nobody left to tell.\n\n**With a temporal token issued with `account_selection=integrator`** the list has a single entry: the session's network, with the session's `state` inside its link. Any other link would go back through the hosted flow, which that token cannot use (error 554). Once the person has come back from the network the session is no longer waiting for a link, and this answers 551.",
+        "description": "The authorization URL of each network, so the user can connect an account to this organization.\n\n**A network that cannot produce a link simply does not appear.** That is a legitimate answer, not a failure: it is what happens with `discord` in an organization that has not saved its own bot credentials yet (see `PUT /organizations/{id_organization}/social_credentials/{social_network}`).\n\n**On the free plan `whatsapp` does not appear either**, unless the organization already has an active WhatsApp account, which has to stay reconnectable. Its chat and its templates need a paid plan, so enabling a new account answers error 516. Asking for it by name gets you an empty list, not an error.\n\n**An app cannot call this.** Connecting a social account is an OAuth flow with a person in front of it, so this endpoint only accepts a user token or a temporal connect token; with app credentials it answers error 519. The way an integration does it is to issue a temporal connect token with `GET /organizations/{id_organization}/temporal_connect_token` and hand it to its end user.\n\n**Read `authorization`, not `link`.** Almost every network is `redirect` and you send the person to `link`. Two are not, and neither of them fails visibly if you treat it as one:\n\n• **WhatsApp is not a URL at all.** Its sign-up is Meta's Embedded Signup, a popup you raise with the Facebook JavaScript SDK, so its `link` is an empty string and everything you need to open that popup travels in `authorization`. A client that loops over the list and redirects to `link` sends its user to its own page.\n• **Telegram has a link and still is not a redirect.** It opens a chat with the PlanVortex bot, and nobody comes back from it: the account is born minutes later, from the bot being added to a channel, and it is announced over the WebSocket. Open it in another tab and keep listening; redirect to it and there is nobody left to tell.\n\n**With a temporal token issued with `account_selection=integrator`** the list has a single entry: the session's network, with the session's `state` inside its link. Any other link would go back through the hosted flow, which that token cannot use (error 554). Once the person has come back from the network the session is no longer waiting for a link, and this answers 551.",
         "operationId": "getConnectLinks",
         "x-planvortex-identity": [
           "current_user",
@@ -872,7 +872,7 @@
           "accounts"
         ],
         "summary": "Re-enable a disconnected account",
-        "description": "Brings back an account that was removed, without going through the authorization again — as long as its stored token still works.\n\nIt takes a **slot of the plan**, so it fails with error 706 when the organization is already at its account limit. It also turns the network's webhooks back on, on any plan but the free one.\n\n**On `telegram` you normally never call this.** That network's accounts are born active — there is no authorization return in which to choose them, so PlanVortex takes the slot when the bot is added to the channel. The one case left is a channel that arrived while the plan was full: it stays off until a slot frees up, and this is what turns it on.\n\n**On `slack` this is also what puts the PlanVortex app inside the channel**, with `conversations.join`. It works on a **public** channel and it cannot work on a private one: Slack has no API for joining one. The account is enabled all the same and the connection looks healthy, and then the first publication fails with error 980 — so a private channel has to be told to the person **before** they pick it, together with the `/invite @PlanVortex` they have to run in that channel. Whether the app is inside travels in `extra_data.is_member`, and it can turn `false` later, the day somebody removes the app from an already connected channel.",
+        "description": "Brings back an account that was removed, without going through the authorization again — as long as its stored token still works.\n\nIt takes a **slot of the plan**, so it fails with error 706 when the organization is already at its account limit. It also turns the network's webhooks back on, on any plan but the free one. On the free plan a `whatsapp` account that is not active cannot be enabled (error 516), because its chat and its templates need a paid plan. One that is already active can still be reconnected.\n\n**On `telegram` you normally never call this.** That network's accounts are born active — there is no authorization return in which to choose them, so PlanVortex takes the slot when the bot is added to the channel. The one case left is a channel that arrived while the plan was full: it stays off until a slot frees up, and this is what turns it on.\n\n**On `slack` this is also what puts the PlanVortex app inside the channel**, with `conversations.join`. It works on a **public** channel and it cannot work on a private one: Slack has no API for joining one. The account is enabled all the same and the connection looks healthy, and then the first publication fails with error 980 — so a private channel has to be told to the person **before** they pick it, together with the `/invite @PlanVortex` they have to run in that channel. Whether the app is inside travels in `extra_data.is_member`, and it can turn `false` later, the day somebody removes the app from an already connected channel.",
         "operationId": "enableAccount",
         "x-planvortex-identity": [
           "current_user",
@@ -918,7 +918,7 @@
             }
           },
           "400": {
-            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `700` | The account has no usable token: it has to be connected again |\n| `706` | The organization has no account slots left in its plan |\n| `519` | This endpoint does not accept app credentials |\n| `544` | This temporal connect token was issued for a different social network |",
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `700` | The account has no usable token: it has to be connected again |\n| `706` | The organization has no account slots left in its plan |\n| `516` | The plan is free and this network needs a paid plan (today, `whatsapp`) |\n| `519` | This endpoint does not accept app credentials |\n| `544` | This temporal connect token was issued for a different social network |",
             "content": {
               "application/json": {
                 "schema": {
@@ -1321,7 +1321,7 @@
             }
           },
           "400": {
-            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `514` | This endpoint needs app credentials |\n| `551` | Connect session not found, expired, or issued by another app |\n| `552` | The session is not waiting for a confirmation: the person has not come back yet, or it was already confirmed. `data.status` says which |\n| `553` | Some account is not part of this session. `data.accounts` lists them |\n| `706` | The new accounts do not fit in the plan. `data` carries `limit`, `used` and `requested`, and none was enabled |\n| `1101` | Invalid organization |",
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `514` | This endpoint needs app credentials |\n| `551` | Connect session not found, expired, or issued by another app |\n| `552` | The session is not waiting for a confirmation: the person has not come back yet, or it was already confirmed. `data.status` says which |\n| `553` | Some account is not part of this session. `data.accounts` lists them |\n| `706` | The new accounts do not fit in the plan. `data` carries `limit`, `used` and `requested`, and none was enabled |\n| `1101` | Invalid organization |\n| `516` | The plan is free and one of the accounts belongs to a network that needs a paid plan (today, `whatsapp`) |",
             "content": {
               "application/json": {
                 "schema": {
@@ -5274,6 +5274,71 @@
         ]
       }
     },
+    "/organizations/{id_organization}/comments/{id_comment}/files/{index}": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "One file of a comment, fetched from the network",
+        "description": "Files in a comment (a photo, a GIF, a sticker, a video) **are not stored by PlanVortex**: they stay on the network, and the comment's `files_urls` says where each one is. This endpoint asks the network for the file now and streams it back without keeping a copy. `index` is the file's position in `files_urls`.\n\nYou need it when a file has no `url`, or when its `url` stopped loading:\n\n• **LinkedIn** gives only the image's id, never a link.\n• **Telegram**'s download link carries the bot's token, so it never leaves PlanVortex. A bot can only download up to 20 MB: past that the answer is **1515** with `data.reason: \"too_big\"`, and the file is only visible in Telegram.\n• **Bluesky** videos are an HLS playlist that browsers other than Safari do not play; this returns the video file itself.\n• **Facebook, Threads and Discord** links expire; this reads the comment again and returns the file behind a fresh link.\n• **X** links do not expire, and reading a post again costs money, so X is not re-read: if its `url` no longer loads, the post was deleted and the answer is **1515**.\n\n**1515** means the network no longer has the file (`data.social_network`), and **2602** that the comment has no file at that position. A comment of another organization is **1102**.\n\nImages, videos and audio come back `inline`. Anything else comes back as an `attachment`: someone outside the business posted it, so don't render it inside your own pages.\n\nRequires the `comments:read` permission (`client_organization_comments:read` for apps) and a paid plan.",
+        "operationId": "getCommentFile",
+        "x-planvortex-identity": [
+          "current_user",
+          "current_app"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CommentsidOrganization"
+          },
+          {
+            "$ref": "#/components/parameters/CommentsidComment"
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "description": "Position of the file in the comment's `files_urls`, from 0.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file, with the network's `Content-Type`.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/CommentsCommentError"
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "curl",
+            "label": "curl",
+            "source": "curl \"https://api.planvortex.com/v1.0.0/organizations/$ID_ORGANIZATION/comments/$ID_COMMENT/files/1\" \\\n  -H \"Authorization: Bearer $PLANVORTEX_TOKEN\""
+          },
+          {
+            "lang": "JavaScript",
+            "label": "Node",
+            "source": "import { PlanVortex } from \"planvortex\";\n\nconst pv = new PlanVortex({\n    clientId: process.env.PLANVORTEX_CLIENT_ID,\n    clientSecret: process.env.PLANVORTEX_CLIENT_SECRET,\n});\n\nconst result = await pv.comments.downloadFile(idOrganization, idComment, 1);"
+          },
+          {
+            "lang": "Python",
+            "label": "Python",
+            "source": "from planvortex import PlanVortex\n\npv = PlanVortex()\n\nresult = pv.comments.download_file(id_organization, id_comment, 1)"
+          }
+        ]
+      }
+    },
     "/organizations/{id_organization}/comments/{id_comment}/replies": {
       "get": {
         "tags": [
@@ -7959,7 +8024,7 @@
           "message templates"
         ],
         "summary": "List the account's message templates",
-        "description": "The templates the **network** has approved for this account. They are read live from the network, not from our database, so a template approved a minute ago shows up here.\n\nThe shape of a template is the network's own: PlanVortex does not normalise it.\n\n**WhatsApp only.** No other network implements message templates: asking any of them returns HTTP 500 with `code: 500` (an unhandled server error), not the 1502 you would expect. Check `messages` in `GET /social_capabilities` and that the account is WhatsApp before calling.",
+        "description": "The templates the **network** has approved for this account. They are read live from the network, not from our database, so a template approved a minute ago shows up here.\n\nThe shape of a template is the network's own: PlanVortex does not normalise it.\n\n**A rejected template says why.** WhatsApp templates carry `rejected_reason` (`INVALID_FORMAT`, `PROMOTIONAL`, `TAG_CONTENT_MISMATCH`...) next to their `status`, as WhatsApp sends it.\n\n**`health` says whether the account can start conversations at all.** A template is only needed outside the 24-hour window, which is exactly what a failed payment method or an unverified business blocks, and neither of them fails when you create or approve a template: the message is simply never delivered. `health` is WhatsApp's own status for the phone number, reduced to `can_send_message` (`AVAILABLE`, `LIMITED`, `BLOCKED`), the `issues` behind it with WhatsApp's code (141006 = payment method, 141010 = business not verified) and `notes`. When it can't be read the field is absent, which means unknown, not healthy.\n\n**WhatsApp only.** No other network implements message templates: asking any of them returns HTTP 500 with `code: 500` (an unhandled server error), not the 1502 you would expect. Check `messages` in `GET /social_capabilities` and that the account is WhatsApp before calling.",
         "operationId": "getMessageTemplates",
         "x-planvortex-identity": [
           "current_user",
@@ -7990,7 +8055,7 @@
                   "properties": {
                     "templates": {
                       "type": "array",
-                      "description": "Templates as the network returns them.",
+                      "description": "Templates as the network returns them. For WhatsApp: `id`, `name`, `status`, `category`, `language`, `components` and, when rejected, `rejected_reason`.",
                       "items": {
                         "type": "object",
                         "additionalProperties": true
@@ -7998,6 +8063,59 @@
                     },
                     "total": {
                       "type": "integer"
+                    },
+                    "health": {
+                      "type": "object",
+                      "description": "Whether the account can start conversations. WhatsApp only, and absent when it couldn't be read.",
+                      "properties": {
+                        "can_send_message": {
+                          "type": "string",
+                          "enum": [
+                            "AVAILABLE",
+                            "LIMITED",
+                            "BLOCKED"
+                          ]
+                        },
+                        "issues": {
+                          "type": "array",
+                          "description": "What blocks or limits it. Calling (SIP) errors are left out: they don't affect messaging.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "code": {
+                                "type": "integer",
+                                "description": "WhatsApp's code: 141006 = payment method, 141010 = business not verified."
+                              },
+                              "entity_type": {
+                                "type": "string",
+                                "description": "Where the problem is: `PHONE_NUMBER`, `WABA`, `BUSINESS` or `APP`."
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "solution": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "entity_type"
+                            ]
+                          }
+                        },
+                        "notes": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Warnings that are not errors, such as a display name still pending approval."
+                        }
+                      },
+                      "required": [
+                        "can_send_message",
+                        "issues",
+                        "notes"
+                      ]
                     }
                   },
                   "required": [
@@ -8035,7 +8153,7 @@
           "message templates"
         ],
         "summary": "Create a message template",
-        "description": "Sends a template to the network for approval. The body travels to the network as it is, so its fields are the network's (for WhatsApp: `name`, `language`, `category`, `components`).\n\n**Approval is not immediate.** The template comes back in a pending state and only becomes usable when the network approves it, which takes minutes or hours and can be refused.\n\n**WhatsApp only.** No other network implements message templates: asking any of them returns HTTP 500 with `code: 500` (an unhandled server error), not the 1502 you would expect. Check `messages` in `GET /social_capabilities` and that the account is WhatsApp before calling.",
+        "description": "Sends a template to the network for approval. The body travels to the network as it is, so its fields are the network's (for WhatsApp: `name`, `language`, `category`, `components`).\n\n**Approval is not immediate.** The template comes back in a pending state and only becomes usable when the network approves it, which takes minutes or hours and can be refused.\n\n**WhatsApp templates are checked before they leave.** WhatsApp rejects a badly formatted template in the same second with `INVALID_FORMAT` and no explanation, so PlanVortex checks the rules it documents first and answers **1513** with `data.field` and `data.reason`: `invalid_name` (lowercase letters, numbers and underscores only), `missing_language`, `missing_body`, `body_too_long` (1,024 characters), `malformed_variable`, `variables_not_sequential`, `variable_at_edge` (the text can't start or end with a variable), `adjacent_variables` and `missing_examples`. **A body with variables needs one example per variable** in `example.body_text`, as in the example below.\n\nIf WhatsApp refuses the template when it is created (a language it doesn't have, a name already in use), the answer is **1514** with WhatsApp's own `code`, `subcode` and `message` in `data`.\n\n**WhatsApp only.** No other network implements message templates: asking any of them returns HTTP 500 with `code: 500` (an unhandled server error), not the 1502 you would expect. Check `messages` in `GET /social_capabilities` and that the account is WhatsApp before calling.",
         "operationId": "createMessageTemplate",
         "x-planvortex-identity": [
           "current_user",
@@ -8069,7 +8187,14 @@
                     "components": [
                       {
                         "type": "BODY",
-                        "text": "Hi {{1}}, your order is ready to pick up."
+                        "text": "Hi {{1}}, your order is ready to pick up.",
+                        "example": {
+                          "body_text": [
+                            [
+                              "Ana"
+                            ]
+                          ]
+                        }
                       }
                     ]
                   }
@@ -8106,17 +8231,17 @@
           {
             "lang": "curl",
             "label": "curl",
-            "source": "curl -X POST \"https://api.planvortex.com/v1.0.0/organizations/$ID_ORGANIZATION/accounts/$ID_ACCOUNT/message_templates\" \\\n  -H \"Authorization: Bearer $PLANVORTEX_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"order_ready\",\n    \"language\": \"es\",\n    \"category\": \"UTILITY\",\n    \"components\": [\n      {\n        \"type\": \"BODY\",\n        \"text\": \"Hi {{1}}, your order is ready to pick up.\"\n      }\n    ]\n  }'"
+            "source": "curl -X POST \"https://api.planvortex.com/v1.0.0/organizations/$ID_ORGANIZATION/accounts/$ID_ACCOUNT/message_templates\" \\\n  -H \"Authorization: Bearer $PLANVORTEX_TOKEN\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"order_ready\",\n    \"language\": \"es\",\n    \"category\": \"UTILITY\",\n    \"components\": [\n      {\n        \"type\": \"BODY\",\n        \"text\": \"Hi {{1}}, your order is ready to pick up.\",\n        \"example\": {\n          \"body_text\": [\n            [\n              \"Ana\"\n            ]\n          ]\n        }\n      }\n    ]\n  }'"
           },
           {
             "lang": "JavaScript",
             "label": "Node",
-            "source": "import { PlanVortex } from \"planvortex\";\n\nconst pv = new PlanVortex({\n    clientId: process.env.PLANVORTEX_CLIENT_ID,\n    clientSecret: process.env.PLANVORTEX_CLIENT_SECRET,\n});\n\nconst result = await pv.messages.createTemplate(idOrganization, idAccount, {\n    name: \"order_ready\",\n    language: \"es\",\n    category: \"UTILITY\",\n    components: [\n        {\n            type: \"BODY\",\n            text: \"Hi {{1}}, your order is ready to pick up.\",\n        },\n    ],\n});"
+            "source": "import { PlanVortex } from \"planvortex\";\n\nconst pv = new PlanVortex({\n    clientId: process.env.PLANVORTEX_CLIENT_ID,\n    clientSecret: process.env.PLANVORTEX_CLIENT_SECRET,\n});\n\nconst result = await pv.messages.createTemplate(idOrganization, idAccount, {\n    name: \"order_ready\",\n    language: \"es\",\n    category: \"UTILITY\",\n    components: [\n        {\n            type: \"BODY\",\n            text: \"Hi {{1}}, your order is ready to pick up.\",\n            example: {\n                body_text: [\n                    [\n                        \"Ana\",\n                    ],\n                ],\n            },\n        },\n    ],\n});"
           },
           {
             "lang": "Python",
             "label": "Python",
-            "source": "from planvortex import PlanVortex\n\npv = PlanVortex()\n\nresult = pv.messages.create_template(\n    id_organization,\n    id_account,\n    {\n        \"name\": \"order_ready\",\n        \"language\": \"es\",\n        \"category\": \"UTILITY\",\n        \"components\": [\n            {\n                \"type\": \"BODY\",\n                \"text\": \"Hi {{1}}, your order is ready to pick up.\",\n            },\n        ],\n    },\n)"
+            "source": "from planvortex import PlanVortex\n\npv = PlanVortex()\n\nresult = pv.messages.create_template(\n    id_organization,\n    id_account,\n    {\n        \"name\": \"order_ready\",\n        \"language\": \"es\",\n        \"category\": \"UTILITY\",\n        \"components\": [\n            {\n                \"type\": \"BODY\",\n                \"text\": \"Hi {{1}}, your order is ready to pick up.\",\n                \"example\": {\n                    \"body_text\": [\n                        [\n                            \"Ana\",\n                        ],\n                    ],\n                },\n            },\n        ],\n    },\n)"
           }
         ]
       },
@@ -8188,6 +8313,81 @@
             "lang": "Python",
             "label": "Python",
             "source": "from planvortex import PlanVortex\n\npv = PlanVortex()\n\npv.messages.delete_template(id_organization, id_account, template_id, template_name)"
+          }
+        ]
+      }
+    },
+    "/organizations/{id_organization}/accounts/{id_account}/messages/{id_message}/files/{index}": {
+      "get": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "One file of a message, fetched from the network",
+        "description": "Files that arrive in a message (a photo, a video, a voice note, a document, a sticker) **are not stored by PlanVortex**: they stay on the network, and `message_options.files_urls` says where each one is.\n\n• **With `url`** (Instagram and Messenger): Meta's own CDN link. It works until Meta expires it.\n• **Without `url`** (every WhatsApp file): WhatsApp only hands a file over with the account's token, through a link that lasts five minutes, so there is no link to give you.\n\nEither way, this endpoint asks the network for the file now and streams it back without keeping a copy. `index` is the file's position in `files_urls`. `message_options.files` holds only the files **you** sent from PlanVortex, which are uploads.\n\n**The network decides how long a file lives.** WhatsApp lets go of a file 7 days after it arrived, and Meta drops one when the message or the story is deleted. After that the answer is **1515**, with `data.social_network`; on a number that also runs the WhatsApp Business app, the file is still there. **1516** means the message is not from this account, or has no file at that position.\n\nImages, videos and audio come back `inline`. Anything else (a PDF, a spreadsheet, an HTML file, an SVG) comes back as an `attachment`: someone outside the business sent it, so don't render it inside your own pages.",
+        "operationId": "getMessageFile",
+        "x-planvortex-identity": [
+          "current_user",
+          "current_app"
+        ],
+        "x-planvortex-plan": "paid",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/MessagesidOrganization"
+          },
+          {
+            "$ref": "#/components/parameters/MessagesidAccount"
+          },
+          {
+            "name": "id_message",
+            "in": "path",
+            "required": true,
+            "description": "The message's `_id`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "index",
+            "in": "path",
+            "required": true,
+            "description": "Position of the file in `message_options.files_urls`, from 0.",
+            "schema": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file, with the network's `Content-Type`.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/MessagesError"
+          }
+        },
+        "x-codeSamples": [
+          {
+            "lang": "curl",
+            "label": "curl",
+            "source": "curl \"https://api.planvortex.com/v1.0.0/organizations/$ID_ORGANIZATION/accounts/$ID_ACCOUNT/messages/$ID_MESSAGE/files/1\" \\\n  -H \"Authorization: Bearer $PLANVORTEX_TOKEN\""
+          },
+          {
+            "lang": "JavaScript",
+            "label": "Node",
+            "source": "import { PlanVortex } from \"planvortex\";\n\nconst pv = new PlanVortex({\n    clientId: process.env.PLANVORTEX_CLIENT_ID,\n    clientSecret: process.env.PLANVORTEX_CLIENT_SECRET,\n});\n\nconst result = await pv.messages.downloadFile(idOrganization, idAccount, idMessage, 1);"
+          },
+          {
+            "lang": "Python",
+            "label": "Python",
+            "source": "from planvortex import PlanVortex\n\npv = PlanVortex()\n\nresult = pv.messages.download_file(id_organization, id_account, id_message, 1)"
           }
         ]
       }
@@ -8944,7 +9144,7 @@
           "orgnaizations"
         ],
         "summary": "Issue a temporal connect token for an end user",
-        "description": "Returns a URL that lets **a person** connect a social account to this organization, without that person having a PlanVortex account and without your `client_secret` ever leaving your server.\n\nIt exists because **an app cannot connect accounts**: `connect_links` and `account-connect` refuse app credentials with error 519, since authorizing Instagram is an OAuth flow with a human in front of it. The shape of the integration is therefore:\n\n1. Your server asks for this token — **this endpoint is the one that requires app credentials**, and a user token is refused. So is a temporal connect token: it cannot renew itself, which is what keeps its life a real limit rather than the first link of a chain.\n2. You send your end user to the `url` that comes back, by redirect or in an iframe. The bare\n   `token` comes back too, so a server-side client can authenticate with it directly instead of\n   parsing it out of that URL.\n3. With that token the browser completes `connect_links` and `account-connect`.\n\nThe token lasts **fifteen minutes**, is tied to **this** organization — using it against another answers error 1101 — and carries only two permissions: create accounts and read the organization. It is the piece designed for a browser, and the only credential of ours that belongs there.\n\n**It connects once.** As soon as an `account-connect` succeeds, the token stops being able to connect anything else and answers error 543; the `enable` calls that finish that same connection keep working until it expires. Issue a new one per connection — they are free and immediate.\n\n**If you pass `social_network`, the token is bound to that network** and will not connect any other (error 544). Leave it out to let the person pick.\n\n**Or show the account picker yourself** with `account_selection=integrator`. By default PlanVortex shows the screen where the person picks which accounts to enable, and only then sends them to your `redirect_uri`. In this mode that screen is yours:\n\n1. The `url` that comes back is **the network's own authorization page**, so the person goes there straight from your app. Keep the `connect_session` id next to your user's session.\n2. When they finish, the network sends them through PlanVortex, which renders nothing, to `redirect_uri?connect_session=…&social_network=…`. Check that the id is the one you started.\n3. Read the accounts with `GET /organizations/{id_organization}/connect_sessions/{id_session}`, show your picker, and confirm with `POST /organizations/{id_organization}/connect_sessions/{id_session}/confirm`.\n\nThis mode needs `redirect_uri` and `social_network` (error 549): your app also picks the network. `telegram` cannot use it (error 550), because its link opens a chat that never comes back to the browser. On `whatsapp` the `url` is still a PlanVortex page with one button, because Meta's popup only opens on our domain; the picker after it is yours.\n\nPlanVortex's domain does show in the address bar on the way back: networks only return to the URLs registered in their own portals.\n\nIf you send `redirect_uri` it has to be one of the app's `redirect_urls`, or the call answers error 532.",
+        "description": "Returns a URL that lets **a person** connect a social account to this organization, without that person having a PlanVortex account and without your `client_secret` ever leaving your server.\n\nIt exists because **an app cannot connect accounts**: `connect_links` and `account-connect` refuse app credentials with error 519, since authorizing Instagram is an OAuth flow with a human in front of it. The shape of the integration is therefore:\n\n1. Your server asks for this token — **this endpoint is the one that requires app credentials**, and a user token is refused. So is a temporal connect token: it cannot renew itself, which is what keeps its life a real limit rather than the first link of a chain.\n2. You send your end user to the `url` that comes back, by redirect or in an iframe. The bare\n   `token` comes back too, so a server-side client can authenticate with it directly instead of\n   parsing it out of that URL.\n3. With that token the browser completes `connect_links` and `account-connect`.\n\nThe token lasts **fifteen minutes**, is tied to **this** organization — using it against another answers error 1101 — and carries only two permissions: create accounts and read the organization. It is the piece designed for a browser, and the only credential of ours that belongs there.\n\n**It connects once.** As soon as an `account-connect` succeeds, the token stops being able to connect anything else and answers error 543; the `enable` calls that finish that same connection keep working until it expires. Issue a new one per connection — they are free and immediate.\n\n**If you pass `social_network`, the token is bound to that network** and will not connect any other (error 544). Leave it out to let the person pick. On the free plan, asking for `whatsapp` answers error 516 unless the organization already has an active WhatsApp account to reconnect: its chat and its templates need a paid plan.\n\n**Or show the account picker yourself** with `account_selection=integrator`. By default PlanVortex shows the screen where the person picks which accounts to enable, and only then sends them to your `redirect_uri`. In this mode that screen is yours:\n\n1. The `url` that comes back is **the network's own authorization page**, so the person goes there straight from your app. Keep the `connect_session` id next to your user's session.\n2. When they finish, the network sends them through PlanVortex, which renders nothing, to `redirect_uri?connect_session=…&social_network=…`. Check that the id is the one you started.\n3. Read the accounts with `GET /organizations/{id_organization}/connect_sessions/{id_session}`, show your picker, and confirm with `POST /organizations/{id_organization}/connect_sessions/{id_session}/confirm`.\n\nThis mode needs `redirect_uri` and `social_network` (error 549): your app also picks the network. `telegram` cannot use it (error 550), because its link opens a chat that never comes back to the browser. On `whatsapp` the `url` is still a PlanVortex page with one button, because Meta's popup only opens on our domain; the picker after it is yours.\n\nPlanVortex's domain does show in the address bar on the way back: networks only return to the URLs registered in their own portals.\n\nIf you send `redirect_uri` it has to be one of the app's `redirect_urls`, or the call answers error 532.",
         "operationId": "createTemporalConnectToken",
         "x-planvortex-identity": [
           "current_app"
@@ -9028,7 +9228,7 @@
             }
           },
           "400": {
-            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `514` | This endpoint needs app credentials: neither a user token nor a temporal connect token can issue one |\n| `532` | `redirect_uri` is not one of the app's registered `redirect_urls` |\n| `549` | `account_selection` is not `planvortex` or `integrator`, or it is `integrator` without `redirect_uri` or `social_network`. `data` says which |\n| `550` | `account_selection=integrator` on a network with no return to the browser (`telegram`) |\n| `702` | `social_network` is not one of the networks PlanVortex supports |\n| `1101` | Invalid organization |",
+            "description": "The request failed. The body carries the PlanVortex error code in `code`:\n\n| Code | Meaning |\n| --- | --- |\n| `514` | This endpoint needs app credentials: neither a user token nor a temporal connect token can issue one |\n| `516` | The plan is free, `social_network` needs a paid plan (today, `whatsapp`) and the organization has no active account of it to reconnect |\n| `532` | `redirect_uri` is not one of the app's registered `redirect_urls` |\n| `549` | `account_selection` is not `planvortex` or `integrator`, or it is `integrator` without `redirect_uri` or `social_network`. `data` says which |\n| `550` | `account_selection=integrator` on a network with no return to the browser (`telegram`) |\n| `702` | `social_network` is not one of the networks PlanVortex supports |\n| `1101` | Invalid organization |",
             "content": {
               "application/json": {
                 "schema": {
@@ -15184,7 +15384,14 @@
           },
           "text": {
             "type": "string",
-            "description": "**May legitimately be empty.** A stars-only review carries no text at all, so render `rating` alongside it and never assume a blank comment is a loading failure."
+            "description": "**May legitimately be empty.** A stars-only review carries no text at all, and a comment can be only a photo or a sticker (see `files_urls`), so render `rating` and the files alongside it and never assume a blank comment is a loading failure."
+          },
+          "files_urls": {
+            "type": "array",
+            "description": "The comment's files: a photo, a GIF, a sticker, a video. **PlanVortex does not store them** (see `SocialFileUrl`): open `url` when there is one, and when there is not, or it stops loading, fetch the file with `GET /organizations/{id_organization}/comments/{id_comment}/files/{index}`.\n\nFacebook, Threads, LinkedIn, X, Bluesky, Discord and Telegram give a comment's files, and on Google Business they are the photos and videos of a review. Instagram and YouTube do not expose them in their APIs, so there the list is always empty. A comment that is only a photo has an empty `text` and one file here.",
+            "items": {
+              "$ref": "#/components/schemas/SocialFileUrl"
+            }
           },
           "rating": {
             "type": "integer",
@@ -16421,7 +16628,7 @@
           },
           "code": {
             "type": "integer",
-            "description": "PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2500-2599 publication fields, the ones that no longer fit in 900-996 (visibility, made for kids, TikTok's interactions and commercial content) · 2600-2699 comments, the ones that no longer fit in 945-948."
+            "description": "PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1309 client plan · 1400-1408 organization plan · 1500-1516 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2500-2599 publication fields, the ones that no longer fit in 900-996 (visibility, made for kids, TikTok's interactions and commercial content) · 2600-2699 comments, the ones that no longer fit in 945-948."
           },
           "data": {
             "additionalProperties": true,
@@ -17045,17 +17252,9 @@
           },
           "files_urls": {
             "type": "array",
-            "description": "Files already hosted somewhere else. Filled in by PlanVortex when a message arrives from the network.",
+            "description": "Files that arrived with the message from the network. PlanVortex does not store them: they live on the network (see `SocialFileUrl`). On WhatsApp every file is here, photos and videos included, and none has a `url`.",
             "items": {
-              "type": "object",
-              "properties": {
-                "url": {
-                  "type": "string"
-                },
-                "mime_type": {
-                  "type": "string"
-                }
-              }
+              "$ref": "#/components/schemas/SocialFileUrl"
             }
           },
           "template_name": {
@@ -18903,6 +19102,31 @@
             "description": "Whether a bot token is stored. Never the token."
           }
         }
+      },
+      "SocialFileUrl": {
+        "type": "object",
+        "description": "A file that arrived from the network: a photo, a video, a voice note, a document or a sticker in a private message or a comment. **PlanVortex does not store it**: it stays on the network, and this says where to find it.\n\n• **With `url`**: the network's own link, which your page can load directly. On Instagram, Messenger, Facebook, Threads and Discord it **expires**; on X and Bluesky it does not.\n• **Without `url`**: the network only hands the file over with a token that never leaves PlanVortex (WhatsApp, and Telegram, whose download link carries the bot's token), or gives only an identifier (LinkedIn, a Bluesky video). Fetch it through the API.\n\nEither way, when `url` is missing or stops loading, fetch the file with `GET .../messages/{id_message}/files/{index}` or `GET .../comments/{id_comment}/files/{index}`, where `index` is its position in the list. PlanVortex asks the network for it at that moment and streams it back without keeping a copy.",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The network's direct link, when there is one a browser can open. It may expire. Never present on WhatsApp, Telegram, LinkedIn or a Bluesky video."
+          },
+          "mime_type": {
+            "type": "string",
+            "description": "Always present, so you can decide how to show it. When the network does not say, it is the most likely type: the file fetched through the API comes with its real `Content-Type`."
+          },
+          "name": {
+            "type": "string",
+            "description": "The document's file name, when the network gives one."
+          },
+          "external_id": {
+            "type": "string",
+            "description": "The file's id on the network (WhatsApp's media id, Telegram's `file_id`, a Bluesky CID, a LinkedIn image URN). Treat it as opaque."
+          }
+        },
+        "required": [
+          "mime_type"
+        ]
       },
       "SocialIdentifier": {
         "type": "object",

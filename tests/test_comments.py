@@ -209,3 +209,19 @@ def test_las_acciones_salen_del_catalogo_y_se_cachean(
     assert linkedin == {"reply": True, "hide": False, "delete_own": True, "delete_others": False}
     assert whatsapp is None
     assert len(peticiones(httpx_mock)) == 1
+
+
+def test_el_archivo_de_un_comentario_llega_en_bytes(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:
+    # La foto o el sticker de un comentario, pedido a la red: PlanVortex no lo guarda (fase 43)
+    httpx_mock.add_response(
+        url=f"{ORG}/comments/c1/files/0",
+        content=b"\xff\xd8\xff",
+        headers={"content-type": "image/jpeg", "content-disposition": "inline"},
+    )
+
+    archivo = cliente.esperar(cliente.pv.comments.download_file("org1", "c1", 0))
+
+    assert ruta(unica(httpx_mock)) == "/organizations/org1/comments/c1/files/0"
+    assert archivo.data == b"\xff\xd8\xff"
+    assert archivo.content_type == "image/jpeg"
+    assert archivo.disposition == "inline"

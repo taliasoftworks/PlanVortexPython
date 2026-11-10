@@ -1224,7 +1224,7 @@ class Error1(TypedDict):
     """
     code: int
     """
-    PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1308 client plan · 1400-1408 organization plan · 1500-1512 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2500-2599 publication fields, the ones that no longer fit in 900-996 (visibility, made for kids, TikTok's interactions and commercial content) · 2600-2699 comments, the ones that no longer fit in 945-948.
+    PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1309 client plan · 1400-1408 organization plan · 1500-1516 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2500-2599 publication fields, the ones that no longer fit in 900-996 (visibility, made for kids, TikTok's interactions and commercial content) · 2600-2699 comments, the ones that no longer fit in 945-948.
     """
     data: NotRequired[dict[str, Any]]
     """
@@ -1443,11 +1443,6 @@ class IntegrationsWooCommerceConnectRequest(TypedDict):
     """
     Starts with `cs_`. Stored encrypted and never returned by any endpoint.
     """
-
-
-class FilesUrl(TypedDict):
-    url: NotRequired[str]
-    mime_type: NotRequired[str]
 
 
 MessageType: TypeAlias = Literal[
@@ -2421,6 +2416,34 @@ class SocialCredentials(TypedDict):
     """
 
 
+class SocialFileUrl(TypedDict):
+    """
+    A file that arrived from the network: a photo, a video, a voice note, a document or a sticker in a private message or a comment. **PlanVortex does not store it**: it stays on the network, and this says where to find it.
+
+    • **With `url`**: the network's own link, which your page can load directly. On Instagram, Messenger, Facebook, Threads and Discord it **expires**; on X and Bluesky it does not.
+    • **Without `url`**: the network only hands the file over with a token that never leaves PlanVortex (WhatsApp, and Telegram, whose download link carries the bot's token), or gives only an identifier (LinkedIn, a Bluesky video). Fetch it through the API.
+
+    Either way, when `url` is missing or stops loading, fetch the file with `GET .../messages/{id_message}/files/{index}` or `GET .../comments/{id_comment}/files/{index}`, where `index` is its position in the list. PlanVortex asks the network for it at that moment and streams it back without keeping a copy.
+    """
+
+    url: NotRequired[str]
+    """
+    The network's direct link, when there is one a browser can open. It may expire. Never present on WhatsApp, Telegram, LinkedIn or a Bluesky video.
+    """
+    mime_type: str
+    """
+    Always present, so you can decide how to show it. When the network does not say, it is the most likely type: the file fetched through the API comes with its real `Content-Type`.
+    """
+    name: NotRequired[str]
+    """
+    The document's file name, when the network gives one.
+    """
+    external_id: NotRequired[str]
+    """
+    The file's id on the network (WhatsApp's media id, Telegram's `file_id`, a Bluesky CID, a LinkedIn image URN). Treat it as opaque.
+    """
+
+
 class SocialIdentifier(TypedDict):
     """
     The same person, on one channel.
@@ -3329,9 +3352,9 @@ class MessageOptions(TypedDict):
     """
     The uploads attached to the message. **Populated** wherever the message itself is: the messages list and webhook deliveries carry whole uploads, everything else carries their identifiers. Handle both.
     """
-    files_urls: list[FilesUrl]
+    files_urls: list[SocialFileUrl]
     """
-    Files already hosted somewhere else. Filled in by PlanVortex when a message arrives from the network.
+    Files that arrived with the message from the network. PlanVortex does not store them: they live on the network (see `SocialFileUrl`). On WhatsApp every file is here, photos and videos included, and none has a `url`.
     """
     template_name: NotRequired[str]
     """
@@ -4016,7 +4039,13 @@ class CommentsComment(TypedDict):
     author: CommentsCommentAuthor
     text: str
     """
-    **May legitimately be empty.** A stars-only review carries no text at all, so render `rating` alongside it and never assume a blank comment is a loading failure.
+    **May legitimately be empty.** A stars-only review carries no text at all, and a comment can be only a photo or a sticker (see `files_urls`), so render `rating` and the files alongside it and never assume a blank comment is a loading failure.
+    """
+    files_urls: NotRequired[list[SocialFileUrl]]
+    """
+    The comment's files: a photo, a GIF, a sticker, a video. **PlanVortex does not store them** (see `SocialFileUrl`): open `url` when there is one, and when there is not, or it stops loading, fetch the file with `GET /organizations/{id_organization}/comments/{id_comment}/files/{index}`.
+
+    Facebook, Threads, LinkedIn, X, Bluesky, Discord and Telegram give a comment's files, and on Google Business they are the photos and videos of a review. Instagram and YouTube do not expose them in their APIs, so there the list is always empty. A comment that is only a photo has an empty `text` and one file here.
     """
     rating: NotRequired[int]
     """

@@ -35,8 +35,10 @@ THIS FILE IS THE SOURCE OF ``resources_sync/base.py``.
 
 from __future__ import annotations
 
+import re
 from collections.abc import AsyncIterator, Mapping
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
+from urllib.parse import unquote
 
 from planvortex._core.pagination import (
     DEFAULT_PAGE_SIZE,
@@ -48,7 +50,7 @@ from planvortex._core.pagination import (
     unwrap_one,
 )
 from planvortex._core.query import QueryValue
-from planvortex._core.transport import HttpRequest, HttpResponse
+from planvortex._core.transport import DownloadedFile, HttpRequest, HttpResponse
 
 Query = Mapping[str, QueryValue]
 
@@ -75,6 +77,24 @@ class AsyncResource:
         """The request, and the parsed body out of the transport. The only untyped step."""
         response = await self._client.request(request)
         return response.data
+
+    async def _download_file(self, path: str, *, timeout: float | None = None) -> DownloadedFile:
+        """A file, as bytes and with what its headers say. Used by the two file routes of the API,
+        the messages one and the comments one."""
+        response = await self._client.request(
+            HttpRequest(method="GET", path=path, parse="binary", timeout=timeout)
+        )
+        disposicion = response.headers.get("content-disposition") or ""
+        tipo = (response.headers.get("content-type") or "application/octet-stream").split(";")[0].strip()
+        en_linea: Literal["inline", "attachment"] = (
+            "inline" if disposicion.lower().startswith("inline") else "attachment"
+        )
+        return DownloadedFile(
+            data=response.data or b"",
+            content_type=tipo,
+            file_name=disposition_file_name(disposicion),
+            disposition=en_linea,
+        )
 
     async def _get(self, path: str, query: Query | None = None, *, timeout: float | None = None) -> Any:
         datos: Any = await self._request(HttpRequest(method="GET", path=path, query=query, timeout=timeout))
@@ -205,6 +225,27 @@ class AsyncResource:
             salto += len(page.data)
 
         raise too_many_pages(MAX_PAGES)
+
+
+def disposition_file_name(header: str) -> str | None:
+    """The name in ``Content-Disposition``: the UTF-8 one (``filename*``) first, the ASCII one if not."""
+    codificado = re.search(r"filename\*=UTF-8''([^;]+)", header, re.IGNORECASE)
+    if codificado:
+        return unquote(codificado.group(1))
+    simple = re.search(r'filename="([^"]*)"', header, re.IGNORECASE)
+    return simple.group(1) if simple else None
+
+
+def file_index(index: object) -> int:
+    """The position of a file in ``files_urls``: an integer from 0.
+
+    Checked here and not by the server because a ``1.5`` or a ``True`` would land in the URL as
+    ``/files/1.5`` or ``/files/True``, and the error that came back would not say the argument was
+    the problem.
+    """
+    if isinstance(index, bool) or not isinstance(index, int) or index < 0:
+        raise TypeError(f"index has to be an integer from 0, not {index!r}.")
+    return index
 
 
 def require_id(value: object, name: str) -> str:

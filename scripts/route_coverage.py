@@ -60,6 +60,8 @@ VERBOS: dict[str, str] = {
     "_put_one": "PUT",
     "_delete": "DELETE",
     "_delete_one": "DELETE",
+    # Un archivo que llega de la red (mensajes y comentarios): un GET que devuelve bytes, no JSON
+    "_download_file": "GET",
 }
 
 # El comodin con el que se reemplaza cualquier trozo interpolado de una ruta. Es tambien lo que se

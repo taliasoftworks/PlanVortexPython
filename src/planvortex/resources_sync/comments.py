@@ -11,8 +11,9 @@ from __future__ import annotations
 from collections.abc import Iterator, Sequence
 
 from planvortex._core.pagination import Page, PageParams
+from planvortex._core.transport import DownloadedFile
 from planvortex._shapes import CommentReplyResult, CommentUpdate
-from planvortex.resources_sync.base import Query, RequestSender, Resource, require_id
+from planvortex.resources_sync.base import Query, RequestSender, Resource, file_index, require_id
 from planvortex.resources_sync.catalog import CatalogResource
 from planvortex.types import Comment, CommentActions, CommentThread
 
@@ -232,6 +233,25 @@ class CommentsResource(Resource):
     ) -> Comment:
         """Mark read or unread. A shortcut for :meth:`update` for what is done all the time."""
         return self.update(id_organization, id_comment, {"read": read}, timeout=timeout)
+
+    def download_file(
+        self, id_organization: str, id_comment: str, index: int, *, timeout: float | None = None
+    ) -> DownloadedFile:
+        """One file of the comment (the photo, GIF, sticker or video at ``files_urls[index]``), fetched
+        from the network right now: PlanVortex does not store it and streams it back without a copy.
+
+        It is needed when the file has no ``url`` (LinkedIn gives only the image's id; Telegram's link
+        carries the bot's token; a Bluesky video is an HLS playlist) or when the ``url`` stopped
+        loading (Facebook, Threads and Discord expire it). If the network no longer has it, error
+        1515; if the comment has no file at that position, 2602. A Telegram bot cannot download more
+        than 20 MB: past that it is a 1515 with ``data["reason"] == "too_big"``.
+
+        A ``disposition`` of ``"attachment"`` is a document somebody outside posted: don't render it
+        inside your own pages.
+        """
+        return self._download_file(
+            f"{self._path(id_organization, id_comment)}/files/{file_index(index)}", timeout=timeout
+        )
 
     def remove(self, id_organization: str, id_comment: str, *, timeout: float | None = None) -> None:
         """Delete the comment **on the social network**.

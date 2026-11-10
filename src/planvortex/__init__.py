@@ -100,6 +100,7 @@ from planvortex._core.errors import (
 from planvortex._core.pagination import DEFAULT_PAGE_SIZE, MAX_PAGES, Page
 from planvortex._core.transport import (
     DEFAULT_TIMEOUT_SECONDS,
+    DownloadedFile,
     HttpHooks,
     HttpRequest,
     HttpResponse,
@@ -146,6 +147,7 @@ __all__ = [
     "AsyncPlanVortex",
     "AuthError",
     "ContactError",
+    "DownloadedFile",
     "ErrorRange",
     "FileError",
     "HttpHooks",

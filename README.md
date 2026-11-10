@@ -184,6 +184,21 @@ if (pv.comments.actions_for("linkedin") or {}).get("hide"):
     ...
 ```
 
+A photo, a voice note or a document in a private message, and a photo or a sticker in a comment,
+**are not stored by PlanVortex**: they stay on the network, and `files_urls` says where each one is.
+When an entry has a `url`, load it directly. When it has none (every WhatsApp and Telegram file, a
+LinkedIn image, a Bluesky video) or the `url` stopped loading, ask PlanVortex for it:
+
+```python
+file = pv.messages.download_file(org_id, account_id, message["_id"], 0)
+# or: pv.comments.download_file(org_id, comment["_id"], 0)
+print(file.content_type, file.file_name, len(file.data))
+```
+
+WhatsApp lets go of a file 7 days after it arrived; from then on the answer is error 1515. A
+`disposition` of `"attachment"` is a document somebody outside the business sent: don't render it
+inside your own pages.
+
 ## AI plans, and what they are generated from
 
 A plan is a **week** of drafts written by a model: you queue it, a job generates it, and what comes
@@ -255,7 +270,7 @@ memorising numbers:
 | 1100-1111 | `organization` | `OrganizationError` |
 | 1200-1207 | `role` | `PlanVortexError` |
 | 1300-1308, 1400-1408 | `plan_limit` | `PlanLimitError` |
-| 1500-1512 | `messaging` | `MessagingError` |
+| 1500-1516 | `messaging` | `MessagingError` |
 | 1600-1601 | `contact` | `ContactError` |
 | 1900-1906 | `payment` | `PlanVortexError` |
 | 2000-2099 | `product` | `ProductError` |

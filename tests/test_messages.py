@@ -13,6 +13,8 @@ Lo que se fija aqui:
 
 from __future__ import annotations
 
+from typing import Any
+
 from pytest_httpx2 import HTTPXMock
 
 from tests.conftest import BASE_URL, ClienteDePrueba
@@ -193,3 +195,83 @@ def test_las_plantillas_se_listan_se_crean_y_se_borran(
     # Las dos claves en la QUERY, no en el cuerpo: es un DELETE.
     assert query(borrar) == {"template_id": ["t1"], "template_name": ["horario"]}
     assert cuerpo(borrar) is None
+
+
+# Los archivos que llegan por mensaje privado NO los guarda PlanVortex (fase 43 del servidor): la
+# ruta los pide a la red y los reenvia. Se fija que llegan en bytes, con el tipo y el nombre de las
+# cabeceras, y que un error sigue siendo el error tipado aunque la llamada pidiera bytes.
+ARCHIVO = f"{CUENTA}/messages/msg1/files/1"
+
+
+def test_un_archivo_llega_en_bytes_con_su_tipo_y_su_nombre(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    httpx_mock.add_response(
+        url=ARCHIVO,
+        content=b"%PDF-1.4\n",
+        headers={
+            "content-type": "application/pdf",
+            "content-disposition": (
+                "attachment; filename=\"presupuesto a_o.pdf\"; filename*=UTF-8''presupuesto%20a%C3%B1o.pdf"
+            ),
+        },
+    )
+
+    archivo = cliente.esperar(cliente.pv.messages.download_file("org1", "acc1", "msg1", 1))
+
+    assert ruta(unica(httpx_mock)) == "/organizations/org1/accounts/acc1/messages/msg1/files/1"
+    assert archivo.data == b"%PDF-1.4\n"
+    assert archivo.content_type == "application/pdf"
+    assert archivo.file_name == "presupuesto año.pdf"
+    assert archivo.disposition == "attachment"
+
+
+def test_una_nota_de_voz_va_en_linea_y_sin_parametros(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    httpx_mock.add_response(
+        url=ARCHIVO,
+        content=b"OggS",
+        headers={"content-type": "audio/ogg; codecs=opus", "content-disposition": "inline"},
+    )
+
+    archivo = cliente.esperar(cliente.pv.messages.download_file("org1", "acc1", "msg1", 1))
+
+    assert archivo.content_type == "audio/ogg"
+    assert archivo.file_name is None
+    assert archivo.disposition == "inline"
+
+
+def test_un_archivo_que_whatsapp_ya_solto_es_un_1515_tipado(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    httpx_mock.add_response(
+        url=ARCHIVO,
+        status_code=400,
+        json={
+            "code": 1515,
+            "message": "The network no longer has this file",
+            "data": {"social_network": "whatsapp"},
+        },
+    )
+
+    try:
+        cliente.esperar(cliente.pv.messages.download_file("org1", "acc1", "msg1", 1))
+    except Exception as error:
+        assert type(error).__name__ == "MessagingError"
+        assert getattr(error, "code", None) == 1515
+    else:
+        raise AssertionError("tenia que lanzar el 1515")
+
+
+def test_una_posicion_que_no_es_un_entero_no_sale_a_la_red(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    malos: tuple[Any, ...] = (1.5, -1, True, "1")
+    for malo in malos:
+        try:
+            cliente.esperar(cliente.pv.messages.download_file("org1", "acc1", "msg1", malo))
+        except TypeError:
+            continue
+        raise AssertionError(f"{malo!r} tenia que dar TypeError")
+    assert peticiones(httpx_mock) == []
