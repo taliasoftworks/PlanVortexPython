@@ -6,6 +6,33 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.19.0] - 2026-11-13
+
+### Added
+
+- **`statistics` in `catalog.social_capabilities()`.** `True` when PlanVortex reads any metric
+  of that network: every network but `whatsapp` today. Use it to decide which accounts to offer on
+  a statistics screen instead of finding out from an empty series, or ask the server directly with
+  `accounts.list(org, capability="statistics")`.
+- The regenerated models also carry `Message.reactions`, the emoji reactions a message has on
+  WhatsApp, Instagram, Messenger and Bluesky (typing only: the field already came back from the API).
+- **`user_id` on `SocialIdentifier` (WhatsApp).** The person's business-scoped user id at Meta
+  (BSUID), such as `ES.13491208655302741918`. Since 2026 Meta may leave the phone number out for
+  people who use a WhatsApp username and have not dealt with that business number by phone in the
+  last 30 days. For them the WhatsApp `external_identifier` **is the BSUID, not a phone number**: it
+  has a country code and a dot in front, so don't show it or dial it as one. You can still write to
+  them, and when their number arrives later the same contact gets it, with the same `_id` and
+  messages.
+- The regenerated models also carry two things the API added to the spec: the `playable` query
+  parameter on the file downloads (`download_file()` does not take it yet) and the per-account
+  `accounts` list in the `unread_messages` response (`unread_count()` still returns the total).
+
+### Fixed
+
+- **Error 1517 is a `MessagingError`.** It is an audio or a video that could not be converted with
+  `playable`; the original file is still there without the parameter. It was above the top of the
+  messaging range and arrived as the base error.
+
 ## [0.18.0] - 2026-11-10
 
 ### Added

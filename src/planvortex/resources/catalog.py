@@ -69,7 +69,8 @@ class AsyncCatalogResource(AsyncResource):
         return redes
 
     async def social_capabilities(self, *, timeout: float | None = None) -> dict[str, SocialCapabilities]:
-        """The network → what it can do matrix: publish, messages, products, webhooks, menu, comments.
+        """The network → what it can do matrix: publish, messages, products, webhooks, menu, comments
+        and statistics (``statistics``, today every network but WhatsApp).
 
         It is what stops an account being offered on a screen its network does not support —
         WhatsApp in the composer, LinkedIn in the chat.

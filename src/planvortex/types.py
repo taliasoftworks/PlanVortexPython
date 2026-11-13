@@ -716,7 +716,14 @@ ContactExtraData: TypeAlias = _models.ContactExtraData
 """A contact's own fields: the address block and the six free properties."""
 
 SocialIdentifier: TypeAlias = _models.SocialIdentifier
-"""The same contact, on one channel. Either a social network or ``email``."""
+"""The same contact, on one channel. Either a social network or ``email``.
+
+**On WhatsApp there may be no phone number.** Since 2026 Meta leaves the number out for people who
+use a WhatsApp username and have not dealt with that business number by phone in the last 30 days.
+What always arrives is ``user_id``, their BSUID (``ES.13491208655302741918``), and without a phone it
+is also the ``external_identifier``. It has a country code and a dot in front, so it never looks
+like a phone number: don't show it or dial it as one. You can still write to them.
+"""
 
 SocialIdentifierInput: TypeAlias = _models.ContactsSocialIdentifierInput
 """The same, as it is SENT: here ``_id`` is optional and the server assigns one.

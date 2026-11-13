@@ -1035,6 +1035,10 @@ class CommentsSocialCapabilities(TypedDict):
     """
     What each **account** allows when publishing is read from the network: `GET /organizations/{id_organization}/accounts/{id_account}/publish_settings` (privacy options, interactions the creator switched off, longest video, whether it can post now). Offer the `visibility` values from there, not a fixed list. Today only `tiktok`.
     """
+    statistics: bool
+    """
+    PlanVortex reads **statistics** for this network: account metrics (`GET /organizations/{id_organization}/accounts/{id_account}/metrics`, whose names come from `.../metric_list`) and, on the networks that publish, the metrics of each publication. It is `true` exactly when the network declares at least one account metric, so it never promises a statistics screen that would stay empty. Today every network but `whatsapp`, which does not publish and has none.
+    """
 
 
 ContactChannel: TypeAlias = Literal[
@@ -1096,7 +1100,7 @@ class ContactsSocialIdentifierInput(TypedDict):
     """
     external_identifier: NotRequired[str]
     """
-    The contact id on that channel — the phone number on WhatsApp, the PSID on Messenger. Optional in the model, but a contact without it cannot be written to, and it is what deduplicates on create.
+    The contact id on that channel — the phone number on WhatsApp, the PSID on Messenger. Optional in the model, but a contact without it cannot be written to, and it is what deduplicates on create. On WhatsApp, for someone whose number you don't have, the `user_id` (BSUID) of a contact the API already returned also works: PlanVortex then writes to them through it.
     """
     social_network: ContactChannel
 
@@ -1224,7 +1228,7 @@ class Error1(TypedDict):
     """
     code: int
     """
-    PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1309 client plan · 1400-1408 organization plan · 1500-1516 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2500-2599 publication fields, the ones that no longer fit in 900-996 (visibility, made for kids, TikTok's interactions and commercial content) · 2600-2699 comments, the ones that no longer fit in 945-948.
+    PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1309 client plan · 1400-1408 organization plan · 1500-1517 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2500-2599 publication fields, the ones that no longer fit in 900-996 (visibility, made for kids, TikTok's interactions and commercial content) · 2600-2699 comments, the ones that no longer fit in 945-948.
     """
     data: NotRequired[dict[str, Any]]
     """
@@ -1445,6 +1449,21 @@ class IntegrationsWooCommerceConnectRequest(TypedDict):
     """
 
 
+class Reaction(TypedDict):
+    emoji: str
+    """
+    The emoji, as the network sends it.
+    """
+    by: Literal["contact", "account"]
+    """
+    Who reacted: the `contact`, or the `account` itself (the business, from the network's own app or inbox).
+    """
+    date: str
+    """
+    When the reaction was added.
+    """
+
+
 MessageType: TypeAlias = Literal[
     "simple_message",
     "file_message",
@@ -1461,7 +1480,7 @@ MessageType: TypeAlias = Literal[
 """
 What kind of message this is. `simple_message` and `file_message` work everywhere; the rest are network-specific shapes.
 
-`unsupported_message` only ever **arrives**: a WhatsApp message that cannot be shown through the API (a voice note, a document, a sticker, or a type WhatsApp does not let the API read). It carries no files, keeps the caption as `text` when there is one, and may carry the network's reason in `message_errors`. If the number is also in the WhatsApp Business app, the message can be read there. Sending one is refused.
+`unsupported_message` only ever **arrives**: a message the network does not let the API show. On WhatsApp it is a type the API cannot read, with WhatsApp's reason in `message_errors`; if the number is also in the WhatsApp Business app, the message can be read there. On Instagram and Messenger it is something that is not a file, such as an audio shared from Instagram's own library, which arrives as an empty template. It carries no files and keeps the caption as `text` when there is one. Sending one is refused.
 """
 
 
@@ -2452,12 +2471,16 @@ class SocialIdentifier(TypedDict):
     _id: str
     external_identifier: NotRequired[str]
     """
-    Identifier of the contact on that channel.
+    Identifier of the contact on that channel. On WhatsApp it is the phone number, digits only, **except** for someone who uses a WhatsApp username and has not shared their number with that business number: then it is their `user_id` (the BSUID, e.g. `ES.13491208655302741918`). It has a country code and a dot in front, so it never looks like a phone number. Don't show it or dial it as one.
     """
     social_network: ContactChannel
     last_send_date: NotRequired[str]
     """
     Last message received from the contact. On WhatsApp it is what opens the 24-hour window in which a free-form message is allowed.
+    """
+    user_id: NotRequired[str]
+    """
+    **WhatsApp only.** The person's business-scoped user id at Meta (BSUID), e.g. `ES.13491208655302741918`. Meta sends it with every message, and since 2026 it may leave the phone number out for people who use a username and have not dealt with that business number by phone in the last 30 days. When there is no phone number it is also the `external_identifier`, and PlanVortex writes to the contact through it. Treat it as opaque: it is scoped to Meta's business portfolio, and it changes when the person changes their number (PlanVortex updates the contact when that happens).
     """
 
 
@@ -4219,6 +4242,12 @@ class Message(TypedDict):
     deleted_date: NotRequired[str]
     """
     When the contact **deleted** this message for everyone (WhatsApp allows it for two days). The message stays in the thread with no `text` and no files.
+    """
+    reactions: NotRequired[list[Reaction]]
+    """
+    The emoji reactions this message has on the network: WhatsApp, Instagram, Messenger and Bluesky. On WhatsApp, Instagram and Messenger each side has at most one reaction per message, and a new one replaces the old; on Bluesky one person can add several. Empty when there are none.
+
+    A reaction is not a new message and **no webhook event is sent** for it: the message itself changes, and the next read returns it with its `reactions`. A reaction to a message PlanVortex never received (sent before the account was connected) is not recorded. On Bluesky, which has no webhook, a new reaction is picked up within a few minutes, and a removed one the next time the conversation is read.
     """
     creation_date: str
 

@@ -270,7 +270,7 @@ memorising numbers:
 | 1100-1111 | `organization` | `OrganizationError` |
 | 1200-1207 | `role` | `PlanVortexError` |
 | 1300-1308, 1400-1408 | `plan_limit` | `PlanLimitError` |
-| 1500-1516 | `messaging` | `MessagingError` |
+| 1500-1517 | `messaging` | `MessagingError` |
 | 1600-1601 | `contact` | `ContactError` |
 | 1900-1906 | `payment` | `PlanVortexError` |
 | 2000-2099 | `product` | `ProductError` |

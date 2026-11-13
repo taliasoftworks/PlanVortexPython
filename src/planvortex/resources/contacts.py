@@ -14,6 +14,9 @@ WHAT TO KNOW BEFORE CALLING ANYTHING HERE:
   is there so nobody has to remember.
 - **Deleting a contact deletes its messages too**, and deleting the organization's deletes them all.
   There is no bin.
+- **On WhatsApp a contact may have no phone number.** Someone who uses a username may never give
+  you theirs: their ``external_identifier`` is then their BSUID (``ES.1349...``, the same value as
+  ``user_id``), which must not be shown as a phone number. See ``SocialIdentifier``.
 - **It needs a paid plan** (error 516).
 
 THIS FILE IS THE SOURCE OF ``resources_sync/contacts.py``.

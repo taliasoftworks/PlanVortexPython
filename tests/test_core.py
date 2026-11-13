@@ -371,7 +371,10 @@ def test_cada_rango_del_catalogo_cae_en_su_clase() -> None:
     # comentario sin archivo en esa posicion, cae en los 2600 de comentarios.
     assert error_class_for_code(1515).__name__ == "MessagingError"
     assert error_class_for_code(1516).__name__ == "MessagingError"
-    assert error_class_for_code(1517) is not error_class_for_code(1516)
+    # 1517: un audio o un video que no se pudo convertir para el navegador (`playable`). Sigue
+    # siendo del mensaje o del comentario, y el original se baja igual sin el parametro.
+    assert error_class_for_code(1517).__name__ == "MessagingError"
+    assert error_class_for_code(1518) is not error_class_for_code(1517)
     assert error_class_for_code(2602).__name__ == "PublicationError"
     # Los siete de las plantillas del planificador. No hay nada que registrar para que caigan aqui:
     # entran por el rango 2100-2199, y eso es justo lo que hay que comprobar en vez de suponerlo.

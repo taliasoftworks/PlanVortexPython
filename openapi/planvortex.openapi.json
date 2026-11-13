@@ -273,7 +273,7 @@
           {
             "name": "capability",
             "in": "query",
-            "description": "Only accounts whose network can do this. It is the same matrix `GET /social_capabilities` publishes, applied server-side: the way to ask for 'the accounts I can publish with' without keeping your own table of which network does what.\n\n`comments` also looks at each account, not only at its network: a LinkedIn **personal profile** is left out, because only LinkedIn pages have a comment inbox. `total` counts the same way.",
+            "description": "Only accounts whose network can do this. It is the same matrix `GET /social_capabilities` publishes, applied server-side: the way to ask for 'the accounts I can publish with' without keeping your own table of which network does what.\n\n`comments` also looks at each account, not only at its network: a LinkedIn **personal profile** is left out, because only LinkedIn pages have a comment inbox. `total` counts the same way.\n\n`statistics` leaves out the networks PlanVortex reads no metric from (today `whatsapp`): the accounts worth offering on a statistics screen.",
             "required": false,
             "explode": true,
             "schema": {
@@ -284,7 +284,8 @@
                 "products",
                 "webhooks",
                 "persistent_menu",
-                "comments"
+                "comments",
+                "statistics"
               ]
             }
           }
@@ -5280,7 +5281,7 @@
           "comments"
         ],
         "summary": "One file of a comment, fetched from the network",
-        "description": "Files in a comment (a photo, a GIF, a sticker, a video) **are not stored by PlanVortex**: they stay on the network, and the comment's `files_urls` says where each one is. This endpoint asks the network for the file now and streams it back without keeping a copy. `index` is the file's position in `files_urls`.\n\nYou need it when a file has no `url`, or when its `url` stopped loading:\n\n• **LinkedIn** gives only the image's id, never a link.\n• **Telegram**'s download link carries the bot's token, so it never leaves PlanVortex. A bot can only download up to 20 MB: past that the answer is **1515** with `data.reason: \"too_big\"`, and the file is only visible in Telegram.\n• **Bluesky** videos are an HLS playlist that browsers other than Safari do not play; this returns the video file itself.\n• **Facebook, Threads and Discord** links expire; this reads the comment again and returns the file behind a fresh link.\n• **X** links do not expire, and reading a post again costs money, so X is not re-read: if its `url` no longer loads, the post was deleted and the answer is **1515**.\n\n**1515** means the network no longer has the file (`data.social_network`), and **2602** that the comment has no file at that position. A comment of another organization is **1102**.\n\nImages, videos and audio come back `inline`. Anything else comes back as an `attachment`: someone outside the business posted it, so don't render it inside your own pages.\n\nRequires the `comments:read` permission (`client_organization_comments:read` for apps) and a paid plan.",
+        "description": "Files in a comment (a photo, a GIF, a sticker, a video) **are not stored by PlanVortex**: they stay on the network, and the comment's `files_urls` says where each one is. This endpoint asks the network for the file now and streams it back without keeping a copy. `index` is the file's position in `files_urls`.\n\nYou need it when a file has no `url`, or when its `url` stopped loading:\n\n• **LinkedIn** gives only the image's id, never a link.\n• **Telegram**'s download link carries the bot's token, so it never leaves PlanVortex. A bot can only download up to 20 MB: past that the answer is **1515** with `data.reason: \"too_big\"` and `data.max_mb: 20`, and the file is only visible in Telegram. Tell the user that, not that the file is gone: it is still there.\n• **Bluesky** videos are an HLS playlist that browsers other than Safari do not play; this returns the video file itself.\n• **Facebook, Threads and Discord** links expire; this reads the comment again and returns the file behind a fresh link.\n• **X** links do not expire, and reading a post again costs money, so X is not re-read: if its `url` no longer loads, the post was deleted and the answer is **1515**.\n\n**1515** means the network no longer has the file (`data.social_network`), and **2602** that the comment has no file at that position. A comment of another organization is **1102**.\n\nImages, videos and audio come back `inline`. Anything else comes back as an `attachment`: someone outside the business posted it, so don't render it inside your own pages.\n\n**Playing it in a browser.** Not every audio or video format plays in every browser: Safari does not play the Ogg/Opus of a Telegram voice note, for instance. Add `playable=1` and an audio or a video comes back converted to a format every browser plays (`audio/mp4` or `video/mp4`). **1517** means it could not be converted; the original is still there without the parameter, and the original is what a download should give.\n\nRequires the `comments:read` permission (`client_organization_comments:read` for apps) and a paid plan.",
         "operationId": "getCommentFile",
         "x-planvortex-identity": [
           "current_user",
@@ -5302,11 +5303,24 @@
               "type": "integer",
               "minimum": 0
             }
+          },
+          {
+            "name": "playable",
+            "in": "query",
+            "required": false,
+            "description": "`1` (or `true`) returns an audio or a video in a format every browser plays: audio as AAC in an M4A (`audio/mp4`), video as H.264 with AAC in an MP4 (`video/mp4`). Ask for it only when your player can't open the original. Images and documents come back unchanged. **1517** means it could not be converted (`data.reason`: `too_big` past 64 MB, or `unreadable`); the original is still there without this parameter. Offer the original for download, not the converted copy.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1",
+                "true"
+              ]
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "The file, with the network's `Content-Type`.",
+            "description": "The file, with the network's `Content-Type`. With `playable`, an audio comes back as `audio/mp4` and a video as `video/mp4`.",
             "content": {
               "*/*": {
                 "schema": {
@@ -5664,7 +5678,7 @@
           "catalog"
         ],
         "summary": "What every network supports",
-        "description": "The full matrix network → capabilities. It is the **single source of truth** about what a network can do: the catalogue publishes it, the backend checks it before acting, and your integration should filter its account pickers with it rather than keeping a list of its own.\n\n`comments` is the coarse gate — whether the network has comments at all. Which *actions* it allows on one is a finer question and lives in `GET /social_comment_actions`, because the shape here is `{[capability]: boolean}` and nesting an object inside would break it.\n\nToday ten networks answer `comments: true`: Facebook, Instagram, Threads, LinkedIn, X, YouTube, Google Business, Bluesky, Discord and Telegram. TikTok, WhatsApp, Slack and Pinterest answer `false`, for reasons of theirs and not ours — on Pinterest the API *counts* a pin's comments and offers no way to read them, so the figure shows up in the publication's statistics and there is still no inbox.\n\n**Three of the keys are about publishing, not about reading.** `destinations` says the network publishes into places inside the account and every publication has to name one — a Pinterest board, read with `GET /organizations/{id_organization}/accounts/{id_account}/destinations`. `link` says a publication carries a destination link of its own, separate from its text. Both are `false` everywhere but `pinterest` today. `reply_control` says a publication can choose who can reply to it, and is `true` only on `threads`. The three are the reason to ask this matrix instead of keeping a list of your own: a composer with its own copy of which network has which field is exactly what drifted with the character limits.\n\n**Four more are what TikTok's content sharing guidelines ask a composer to show**, and are `true` only on `tiktok` today: `visibility` (on TikTok, with no default), `interactions`, `commercial_content`, and `publish_settings`, which says the options each account allows must be read from `GET /organizations/{id_organization}/accounts/{id_account}/publish_settings` instead of a fixed list.\n\nA `true` here is about the **network**, not about one account of it: a Telegram channel with no linked discussion group answers 965 on its comments even though the network has them.\n\nOnly needs authentication.",
+        "description": "The full matrix network → capabilities. It is the **single source of truth** about what a network can do: the catalogue publishes it, the backend checks it before acting, and your integration should filter its account pickers with it rather than keeping a list of its own.\n\n`comments` is the coarse gate — whether the network has comments at all. Which *actions* it allows on one is a finer question and lives in `GET /social_comment_actions`, because the shape here is `{[capability]: boolean}` and nesting an object inside would break it.\n\nToday ten networks answer `comments: true`: Facebook, Instagram, Threads, LinkedIn, X, YouTube, Google Business, Bluesky, Discord and Telegram. TikTok, WhatsApp, Slack and Pinterest answer `false`, for reasons of theirs and not ours — on Pinterest the API *counts* a pin's comments and offers no way to read them, so the figure shows up in the publication's statistics and there is still no inbox.\n\n**Three of the keys are about publishing, not about reading.** `destinations` says the network publishes into places inside the account and every publication has to name one — a Pinterest board, read with `GET /organizations/{id_organization}/accounts/{id_account}/destinations`. `link` says a publication carries a destination link of its own, separate from its text. Both are `false` everywhere but `pinterest` today. `reply_control` says a publication can choose who can reply to it, and is `true` only on `threads`. The three are the reason to ask this matrix instead of keeping a list of your own: a composer with its own copy of which network has which field is exactly what drifted with the character limits.\n\n**Four more are what TikTok's content sharing guidelines ask a composer to show**, and are `true` only on `tiktok` today: `visibility` (on TikTok, with no default), `interactions`, `commercial_content`, and `publish_settings`, which says the options each account allows must be read from `GET /organizations/{id_organization}/accounts/{id_account}/publish_settings` instead of a fixed list.\n\n**`statistics` says whether PlanVortex reads any metric of that network.** It is `true` on every network but `whatsapp`, which does not publish and has no metrics to read. Use it to decide which accounts to offer on a statistics screen (or filter the account list with `capability=statistics`) instead of finding out from an empty series.\n\nA `true` here is about the **network**, not about one account of it: a Telegram channel with no linked discussion group answers 965 on its comments even though the network has them.\n\nOnly needs authentication.",
         "operationId": "getSocialCapabilities",
         "x-planvortex-identity": [
           "current_user",
@@ -5697,7 +5711,8 @@
                     "made_for_kids": false,
                     "interactions": false,
                     "commercial_content": false,
-                    "publish_settings": false
+                    "publish_settings": false,
+                    "statistics": true
                   },
                   "google_business": {
                     "publications": false,
@@ -5713,7 +5728,8 @@
                     "made_for_kids": false,
                     "interactions": false,
                     "commercial_content": false,
-                    "publish_settings": false
+                    "publish_settings": false,
+                    "statistics": true
                   },
                   "pinterest": {
                     "publications": true,
@@ -5729,7 +5745,8 @@
                     "made_for_kids": false,
                     "interactions": false,
                     "commercial_content": false,
-                    "publish_settings": false
+                    "publish_settings": false,
+                    "statistics": true
                   },
                   "threads": {
                     "publications": true,
@@ -5745,7 +5762,25 @@
                     "made_for_kids": false,
                     "interactions": false,
                     "commercial_content": false,
-                    "publish_settings": false
+                    "publish_settings": false,
+                    "statistics": true
+                  },
+                  "whatsapp": {
+                    "publications": false,
+                    "messages": true,
+                    "products": false,
+                    "webhooks": true,
+                    "persistent_menu": false,
+                    "comments": false,
+                    "destinations": false,
+                    "link": false,
+                    "reply_control": false,
+                    "visibility": false,
+                    "made_for_kids": false,
+                    "interactions": false,
+                    "commercial_content": false,
+                    "publish_settings": false,
+                    "statistics": false
                   }
                 }
               }
@@ -5858,7 +5893,7 @@
           "contacts"
         ],
         "summary": "List the contacts of an organization",
-        "description": "Newest first. `search` is a full-text search over the name, and `extra_data` filters by your own fields — which is what makes it possible to ask for \"the contacts of this campaign\" without keeping a second database.",
+        "description": "Newest first. `search` is a full-text search over the name, and `extra_data` filters by your own fields — which is what makes it possible to ask for \"the contacts of this campaign\" without keeping a second database.\n\n**A WhatsApp contact may have no phone number.** Since 2026 Meta leaves the number out for people who use a WhatsApp username and have not dealt with that business number by phone in the last 30 days. Such a contact's WhatsApp `external_identifier` is their `user_id` (the BSUID, e.g. `ES.13491208655302741918`), not a phone number, so don't show it or dial it as one. You can still write to them: PlanVortex sends through the BSUID. When their number arrives later, the same contact gets it as `external_identifier` and keeps its `_id` and its messages.",
         "operationId": "getContacts",
         "x-planvortex-identity": [
           "current_user",
@@ -6275,7 +6310,7 @@
           "dashboard"
         ],
         "summary": "The whole home screen in one call",
-        "description": "Composes every block of the home screen in a single round trip: operational health, publications, publication metrics, account metrics, plan use, AI plans, the best AI plans and unread messages.\n\n**A block the caller cannot read is omitted, not refused.** The endpoint only demands the minimum permission — reading the organization — and then checks each block on its own: somebody who can only see publications still gets their home instead of a 403. `available_blocks` says which blocks were allowed, so an absent block for lack of permission and an absent block for lack of data can be drawn differently.\n\nThe messages block is also omitted when the client's plan has no messaging.",
+        "description": "Composes every block of the home screen in a single round trip: operational health, publications, publication metrics, account metrics, plan use, AI plans, the best AI plans and unread messages.\n\n**A block the caller cannot read is omitted, not refused.** The endpoint lets in anyone who can read at least one block (the organization, publications, publication stats, account stats, accounts, messages or AI plans) and then checks each block on its own: somebody who can only see publications gets their home with that block, not a 403. A caller who can read none of them gets `520`. `available_blocks` says which blocks were allowed, so an absent block for lack of permission and an absent block for lack of data can be drawn differently.\n\nThe messages block is also omitted when the client's plan has no messaging.",
         "operationId": "getDashboard",
         "x-planvortex-identity": [
           "current_user",
@@ -7554,7 +7589,7 @@
           "messages"
         ],
         "summary": "Unread messages in the organization",
-        "description": "How many incoming messages are still unread across every account of the organization. It is the number for a badge, and it costs one query: do not compute it by walking the conversations.",
+        "description": "How many incoming messages are still unread across every account of the organization, in total and per account. `total` is the number for a badge; `accounts` says which account holds them, so an inbox can mark the right one instead of making the user open each. It costs one query: do not compute it by walking the conversations.",
         "operationId": "getUnreadMessages",
         "x-planvortex-identity": [
           "current_user",
@@ -7575,11 +7610,47 @@
                   "type": "object",
                   "properties": {
                     "total": {
-                      "type": "integer"
+                      "type": "integer",
+                      "description": "Unread incoming messages across every account. Always the sum of `accounts`."
+                    },
+                    "accounts": {
+                      "type": "array",
+                      "description": "The same count per account. Only accounts with something unread are listed, most unread first; an account that is missing has none.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id_account": {
+                            "type": "string",
+                            "description": "The account's `_id`."
+                          },
+                          "total": {
+                            "type": "integer",
+                            "minimum": 1
+                          }
+                        },
+                        "required": [
+                          "id_account",
+                          "total"
+                        ]
+                      }
                     }
                   },
                   "required": [
-                    "total"
+                    "total",
+                    "accounts"
+                  ]
+                },
+                "example": {
+                  "total": 5,
+                  "accounts": [
+                    {
+                      "id_account": "6650f1c2a8b4e1d2c3f4a5b6",
+                      "total": 3
+                    },
+                    {
+                      "id_account": "6650f1c2a8b4e1d2c3f4a5b7",
+                      "total": 2
+                    }
                   ]
                 }
               }
@@ -8323,7 +8394,7 @@
           "messages"
         ],
         "summary": "One file of a message, fetched from the network",
-        "description": "Files that arrive in a message (a photo, a video, a voice note, a document, a sticker) **are not stored by PlanVortex**: they stay on the network, and `message_options.files_urls` says where each one is.\n\n• **With `url`** (Instagram and Messenger): Meta's own CDN link. It works until Meta expires it.\n• **Without `url`** (every WhatsApp file): WhatsApp only hands a file over with the account's token, through a link that lasts five minutes, so there is no link to give you.\n\nEither way, this endpoint asks the network for the file now and streams it back without keeping a copy. `index` is the file's position in `files_urls`. `message_options.files` holds only the files **you** sent from PlanVortex, which are uploads.\n\n**The network decides how long a file lives.** WhatsApp lets go of a file 7 days after it arrived, and Meta drops one when the message or the story is deleted. After that the answer is **1515**, with `data.social_network`; on a number that also runs the WhatsApp Business app, the file is still there. **1516** means the message is not from this account, or has no file at that position.\n\nImages, videos and audio come back `inline`. Anything else (a PDF, a spreadsheet, an HTML file, an SVG) comes back as an `attachment`: someone outside the business sent it, so don't render it inside your own pages.",
+        "description": "Files that arrive in a message (a photo, a video, a voice note, a document, a sticker) **are not stored by PlanVortex**: they stay on the network, and `message_options.files_urls` says where each one is.\n\n• **With `url`** (Instagram and Messenger): Meta's own CDN link. It works until Meta expires it.\n• **Without `url`** (every WhatsApp file): WhatsApp only hands a file over with the account's token, through a link that lasts five minutes, so there is no link to give you.\n\nEither way, this endpoint asks the network for the file now and streams it back without keeping a copy. `index` is the file's position in `files_urls`. `message_options.files` holds only the files **you** sent from PlanVortex, which are uploads.\n\n**The network decides how long a file lives.** WhatsApp lets go of a file 7 days after it arrived, and Meta drops one when the message or the story is deleted. After that the answer is **1515**, with `data.social_network`; on a number that also runs the WhatsApp Business app, the file is still there. **1516** means the message is not from this account, or has no file at that position.\n\nImages, videos and audio come back `inline`. Anything else (a PDF, a spreadsheet, an HTML file, an SVG) comes back as an `attachment`: someone outside the business sent it, so don't render it inside your own pages.\n\n**Playing it in a browser.** Not every format WhatsApp accepts plays in a browser: an AMR voice note or a 3GPP video plays in none, and Safari does not play the Ogg/Opus of an ordinary voice note. Add `playable=1` and an audio or a video comes back converted to a format every browser plays (`audio/mp4` or `video/mp4`). **1517** means it could not be converted; the original is still there without the parameter, and the original is what a download should give.",
         "operationId": "getMessageFile",
         "x-planvortex-identity": [
           "current_user",
@@ -8355,11 +8426,24 @@
               "type": "integer",
               "minimum": 0
             }
+          },
+          {
+            "name": "playable",
+            "in": "query",
+            "required": false,
+            "description": "`1` (or `true`) returns an audio or a video in a format every browser plays: audio as AAC in an M4A (`audio/mp4`), video as H.264 with AAC in an MP4 (`video/mp4`). Ask for it only when your player can't open the original. Images and documents come back unchanged. **1517** means it could not be converted (`data.reason`: `too_big` past 64 MB, or `unreadable`); the original is still there without this parameter. Offer the original for download, not the converted copy.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1",
+                "true"
+              ]
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "The file, with the network's `Content-Type`.",
+            "description": "The file, with the network's `Content-Type`. With `playable`, an audio comes back as `audio/mp4` and a video as `video/mp4`.",
             "content": {
               "*/*": {
                 "schema": {
@@ -12869,7 +12953,7 @@
           "webhooks"
         ],
         "summary": "A change happened (notification to your app)",
-        "description": "PlanVortex `POST`s to the `webhook_url` of your client app when something happens. **The body is an array of changes**, and each one carries `field` telling you what it is — switch on it and ignore what you do not handle, because the list grows with the product.\n\nThree shapes travel in that array. A change on an **account** (`WebhookChange`) always carries `id_account`, `id_organization` and `social_network`. A change on an **integration** (`IntegrationWebhookChange`) and the end of an **AI plan** (`AiPlanWebhookChange`) carry none of those, because they hang off the organization and not off any account.\n\nThe events delivered today are `new_account`, `change_state_account`, `messages`, `messaging_postbacks`, `messaging_seen`, `messaging_error`, `message_echoes`, `comments`, `integration_error`, `ai_plan_generated` and `ai_plan_failed`.\n\n### Comments\n\n`field: \"comments\"` is the one for this section, and the comment itself travels in **`commentObj`** — a property of its own, never in `messageObj`. That is deliberate: a comment is not a message, it has no contact and it hangs off a publication. A consumer that only understands messages sees `commentObj` as absent and ignores the change, which is exactly what should happen.\n\n**Which networks arrive this way:** Facebook and Instagram, because Meta pushes them. YouTube, LinkedIn and Google Business have no comment webhook, so those are polled by a background job and appear in the inbox within a few hours rather than instantly. X is polled too, and only when the organization turns it on, because reading replies there is billed per unit.\n\n**Meta repeats deliveries.** The same comment can arrive more than once; the backend is idempotent about it and so should you be — deduplicate on `commentObj.external_id`.\n\n### AI plans\n\n`ai_plan_generated` and `ai_plan_failed` say that a plan has **finished**: it was generated, or it gave up. Instead of polling the plan every few seconds, wait for one of these and then read it once with `GET /clients/{id_client}/organizations/{id_organization}/ai_plans/{id_ai_plan}`. The change carries ids and numbers only, never the prompt or the generated text, so the publications are in that `GET`.\n\nA plan that hits a transient error goes back to the queue and is retried. That is not an end and sends nothing, so each plan sends **one** of these two events, never a `failed` followed by a `generated`. A plan generated with notices (`warnings` above zero) is still `ai_plan_generated`: it is usable, and the notices are in the plan.\n\nThe event goes to **every** app of the client that has a `webhook_url`, not only to the one that created the plan. And it is not retried: if your endpoint was down when the plan finished, the `GET` still tells you how it ended, so on startup read the plans you were waiting for.\n\n### WhatsApp replies sent from the phone\n\nA WhatsApp number can work in the **WhatsApp Business app** on a phone and in PlanVortex at the same time. What the business sends from the app arrives as `field: \"message_echoes\"`, with the message in `messageObj` as one of **ours**: `contact_id` is the person it was sent to and `from_contact_id` is absent. Store it in the thread; do not answer it. It does not open WhatsApp's 24-hour window.\n\nWhen a contact edits or deletes a message, no event is sent: the message itself changes, and the next read returns it with `edit_date` or `deleted_date`.\n\n### Verifying the signature\n\nEvery delivery carries the body signed with your app's secret, twice:\n\n- `x-hub-signature`: `sha1=<hmac>`\n- `x-hub-signature-256`: `sha256=<hmac>`\n\nCompute the HMAC over the **raw** request body — not over a re-serialized copy of the parsed JSON — and compare in constant time. Prefer the sha256 header.\n\nDelivery is best effort: PlanVortex does not retry a webhook that fails.",
+        "description": "PlanVortex `POST`s to the `webhook_url` of your client app when something happens. **The body is an array of changes**, and each one carries `field` telling you what it is — switch on it and ignore what you do not handle, because the list grows with the product.\n\nThree shapes travel in that array. A change on an **account** (`WebhookChange`) always carries `id_account`, `id_organization` and `social_network`. A change on an **integration** (`IntegrationWebhookChange`) and the end of an **AI plan** (`AiPlanWebhookChange`) carry none of those, because they hang off the organization and not off any account.\n\nThe events delivered today are `new_account`, `change_state_account`, `messages`, `messaging_postbacks`, `messaging_seen`, `messaging_error`, `message_echoes`, `comments`, `integration_error`, `ai_plan_generated` and `ai_plan_failed`.\n\n### Comments\n\n`field: \"comments\"` is the one for this section, and the comment itself travels in **`commentObj`** — a property of its own, never in `messageObj`. That is deliberate: a comment is not a message, it has no contact and it hangs off a publication. A consumer that only understands messages sees `commentObj` as absent and ignores the change, which is exactly what should happen.\n\n**Which networks arrive this way:** Facebook and Instagram, because Meta pushes them. YouTube, LinkedIn and Google Business have no comment webhook, so those are polled by a background job and appear in the inbox within a few hours rather than instantly. X is polled too, and only when the organization turns it on, because reading replies there is billed per unit.\n\n**Meta repeats deliveries.** The same comment can arrive more than once; the backend is idempotent about it and so should you be — deduplicate on `commentObj.external_id`.\n\n### AI plans\n\n`ai_plan_generated` and `ai_plan_failed` say that a plan has **finished**: it was generated, or it gave up. Instead of polling the plan every few seconds, wait for one of these and then read it once with `GET /clients/{id_client}/organizations/{id_organization}/ai_plans/{id_ai_plan}`. The change carries ids and numbers only, never the prompt or the generated text, so the publications are in that `GET`.\n\nA plan that hits a transient error goes back to the queue and is retried. That is not an end and sends nothing, so each plan sends **one** of these two events, never a `failed` followed by a `generated`. A plan generated with notices (`warnings` above zero) is still `ai_plan_generated`: it is usable, and the notices are in the plan.\n\nThe event goes to **every** app of the client that has a `webhook_url`, not only to the one that created the plan. And it is not retried: if your endpoint was down when the plan finished, the `GET` still tells you how it ended, so on startup read the plans you were waiting for.\n\n### WhatsApp replies sent from the phone\n\nA WhatsApp number can work in the **WhatsApp Business app** on a phone and in PlanVortex at the same time. What the business sends from the app arrives as `field: \"message_echoes\"`, with the message in `messageObj` as one of **ours**: `contact_id` is the person it was sent to and `from_contact_id` is absent. Store it in the thread; do not answer it. It does not open WhatsApp's 24-hour window.\n\nWhen a contact edits or deletes a message, or anyone reacts to one, no event is sent: the message itself changes, and the next read returns it with `edit_date`, `deleted_date` or its `reactions`.\n\n### Verifying the signature\n\nEvery delivery carries the body signed with your app's secret, twice:\n\n- `x-hub-signature`: `sha1=<hmac>`\n- `x-hub-signature-256`: `sha256=<hmac>`\n\nCompute the HMAC over the **raw** request body — not over a re-serialized copy of the parsed JSON — and compare in constant time. Prefer the sha256 header.\n\nDelivery is best effort: PlanVortex does not retry a webhook that fails.",
         "operationId": "onCommentsWebhook",
         "requestBody": {
           "required": true,
@@ -15637,6 +15721,10 @@
           "publish_settings": {
             "type": "boolean",
             "description": "What each **account** allows when publishing is read from the network: `GET /organizations/{id_organization}/accounts/{id_account}/publish_settings` (privacy options, interactions the creator switched off, longest video, whether it can post now). Offer the `visibility` values from there, not a fixed list. Today only `tiktok`."
+          },
+          "statistics": {
+            "type": "boolean",
+            "description": "PlanVortex reads **statistics** for this network: account metrics (`GET /organizations/{id_organization}/accounts/{id_account}/metrics`, whose names come from `.../metric_list`) and, on the networks that publish, the metrics of each publication. It is `true` exactly when the network declares at least one account metric, so it never promises a statistics screen that would stay empty. Today every network but `whatsapp`, which does not publish and has none."
           }
         },
         "required": [
@@ -15653,7 +15741,8 @@
           "made_for_kids",
           "interactions",
           "commercial_content",
-          "publish_settings"
+          "publish_settings",
+          "statistics"
         ]
       },
       "CommentsWebhookChange": {
@@ -15925,7 +16014,7 @@
           },
           "external_identifier": {
             "type": "string",
-            "description": "The contact id on that channel — the phone number on WhatsApp, the PSID on Messenger. Optional in the model, but a contact without it cannot be written to, and it is what deduplicates on create."
+            "description": "The contact id on that channel — the phone number on WhatsApp, the PSID on Messenger. Optional in the model, but a contact without it cannot be written to, and it is what deduplicates on create. On WhatsApp, for someone whose number you don't have, the `user_id` (BSUID) of a contact the API already returned also works: PlanVortex then writes to them through it."
           },
           "social_network": {
             "$ref": "#/components/schemas/ContactChannel"
@@ -16628,7 +16717,7 @@
           },
           "code": {
             "type": "integer",
-            "description": "PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1309 client plan · 1400-1408 organization plan · 1500-1516 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2500-2599 publication fields, the ones that no longer fit in 900-996 (visibility, made for kids, TikTok's interactions and commercial content) · 2600-2699 comments, the ones that no longer fit in 945-948."
+            "description": "PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1309 client plan · 1400-1408 organization plan · 1500-1517 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2500-2599 publication fields, the ones that no longer fit in 900-996 (visibility, made for kids, TikTok's interactions and commercial content) · 2600-2699 comments, the ones that no longer fit in 945-948."
           },
           "data": {
             "additionalProperties": true,
@@ -17217,6 +17306,38 @@
             "format": "date-time",
             "description": "When the contact **deleted** this message for everyone (WhatsApp allows it for two days). The message stays in the thread with no `text` and no files."
           },
+          "reactions": {
+            "type": "array",
+            "description": "The emoji reactions this message has on the network: WhatsApp, Instagram, Messenger and Bluesky. On WhatsApp, Instagram and Messenger each side has at most one reaction per message, and a new one replaces the old; on Bluesky one person can add several. Empty when there are none.\n\nA reaction is not a new message and **no webhook event is sent** for it: the message itself changes, and the next read returns it with its `reactions`. A reaction to a message PlanVortex never received (sent before the account was connected) is not recorded. On Bluesky, which has no webhook, a new reaction is picked up within a few minutes, and a removed one the next time the conversation is read.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "emoji": {
+                  "type": "string",
+                  "description": "The emoji, as the network sends it.",
+                  "example": "👍"
+                },
+                "by": {
+                  "type": "string",
+                  "enum": [
+                    "contact",
+                    "account"
+                  ],
+                  "description": "Who reacted: the `contact`, or the `account` itself (the business, from the network's own app or inbox)."
+                },
+                "date": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "When the reaction was added."
+                }
+              },
+              "required": [
+                "emoji",
+                "by",
+                "date"
+              ]
+            }
+          },
           "creation_date": {
             "type": "string",
             "format": "date-time"
@@ -17305,7 +17426,7 @@
       },
       "MessageType": {
         "type": "string",
-        "description": "What kind of message this is. `simple_message` and `file_message` work everywhere; the rest are network-specific shapes.\n\n`unsupported_message` only ever **arrives**: a WhatsApp message that cannot be shown through the API (a voice note, a document, a sticker, or a type WhatsApp does not let the API read). It carries no files, keeps the caption as `text` when there is one, and may carry the network's reason in `message_errors`. If the number is also in the WhatsApp Business app, the message can be read there. Sending one is refused.",
+        "description": "What kind of message this is. `simple_message` and `file_message` work everywhere; the rest are network-specific shapes.\n\n`unsupported_message` only ever **arrives**: a message the network does not let the API show. On WhatsApp it is a type the API cannot read, with WhatsApp's reason in `message_errors`; if the number is also in the WhatsApp Business app, the message can be read there. On Instagram and Messenger it is something that is not a file, such as an audio shared from Instagram's own library, which arrives as an empty template. It carries no files and keeps the caption as `text` when there is one. Sending one is refused.",
         "enum": [
           "simple_message",
           "file_message",
@@ -19137,7 +19258,7 @@
           },
           "external_identifier": {
             "type": "string",
-            "description": "Identifier of the contact on that channel."
+            "description": "Identifier of the contact on that channel. On WhatsApp it is the phone number, digits only, **except** for someone who uses a WhatsApp username and has not shared their number with that business number: then it is their `user_id` (the BSUID, e.g. `ES.13491208655302741918`). It has a country code and a dot in front, so it never looks like a phone number. Don't show it or dial it as one."
           },
           "social_network": {
             "$ref": "#/components/schemas/ContactChannel"
@@ -19146,6 +19267,10 @@
             "type": "string",
             "format": "date-time",
             "description": "Last message received from the contact. On WhatsApp it is what opens the 24-hour window in which a free-form message is allowed."
+          },
+          "user_id": {
+            "type": "string",
+            "description": "**WhatsApp only.** The person's business-scoped user id at Meta (BSUID), e.g. `ES.13491208655302741918`. Meta sends it with every message, and since 2026 it may leave the phone number out for people who use a username and have not dealt with that business number by phone in the last 30 days. When there is no phone number it is also the `external_identifier`, and PlanVortex writes to the contact through it. Treat it as opaque: it is scoped to Meta's business portfolio, and it changes when the person changes their number (PlanVortex updates the contact when that happens)."
           }
         },
         "required": [

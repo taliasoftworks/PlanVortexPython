@@ -253,6 +253,21 @@ def test_el_canal_de_un_contacto_es_una_red_o_el_correo() -> None:
     assert "telegram" not in types.CONTACT_CHANNELS
 
 
+def test_el_identificador_de_un_contacto_trae_el_bsuid_de_whatsapp_opcional() -> None:
+    """WhatsApp sin telefono: quien usa nombre de usuario puede no darnos su numero, y entonces el
+    contacto se identifica por su BSUID (`user_id`), que es tambien su `external_identifier`.
+    Opcional, porque solo existe en WhatsApp.
+    """
+    assert "user_id" in types.SocialIdentifier.__optional_keys__
+    sin_telefono: types.SocialIdentifier = {
+        "_id": "con1",
+        "social_network": "whatsapp",
+        "external_identifier": "ES.13491208655302741918",
+        "user_id": "ES.13491208655302741918",
+    }
+    assert sin_telefono["user_id"] == sin_telefono["external_identifier"]
+
+
 # --------------------------------------------------------------- la superficie de `types.py`
 
 
