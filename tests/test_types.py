@@ -11,7 +11,17 @@ solo se probara con la poblada pasaria igual escribiendo `resource["id_account"]
 
 from __future__ import annotations
 
-from typing import Any, TypeGuard, cast, get_type_hints
+import sys
+from typing import Any, TypeGuard, cast
+
+# El mismo corte que `_generated/models.py`: en 3.10 los modelos usan el `NotRequired` de
+# `typing_extensions`, y el `get_type_hints` de `typing` de 3.10 no lo reconoce, asi que lo deja
+# envolviendo el tipo (`NotRequired[X] is X` da falso). El de `typing_extensions` lo quita en todas
+# las versiones. Desde el 02-10-2026 la CI de 3.10 estuvo en rojo por esto.
+if sys.version_info >= (3, 11):
+    from typing import get_type_hints
+else:
+    from typing_extensions import get_type_hints
 
 from planvortex.types import (
     COMMENT_NETWORKS,
