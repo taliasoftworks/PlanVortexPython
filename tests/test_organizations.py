@@ -92,6 +92,26 @@ def test_use_es_un_atajo_de_get_con_get_use(cliente: ClienteDePrueba, httpx_mock
     assert ruta(unica(httpx_mock)) == "/organizations/org1"
 
 
+def test_use_trae_own_use_lo_de_esta_organizacion_sola(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    """`actual_use` es la bolsa que comparte; `own_use`, lo suyo. Los dos viajan si vienen."""
+    httpx_mock.add_response(
+        url=f"{ORG}?getUse=true",
+        json={
+            "organization": {
+                **ORGANIZACION,
+                "actual_use": {"accounts": 3},
+                "own_use": {"accounts": 1},
+            }
+        },
+    )
+
+    uso = cliente.esperar(cliente.pv.organizations.use("org1"))
+
+    assert uso == {"actual_use": {"accounts": 3}, "own_use": {"accounts": 1}}
+
+
 def test_use_no_inventa_las_dos_cifras_cuando_no_vienen(
     cliente: ClienteDePrueba, httpx_mock: HTTPXMock
 ) -> None:

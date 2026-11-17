@@ -121,13 +121,19 @@ class ConnectToken(TypedDict):
 class OrganizationUse(TypedDict):
     """What an organization spends and what it has already handed down to its children.
 
-    Both are missing when the server was not asked for them, which is why they are optional here:
-    the two figures come from an aggregation over every organization underneath, so they only travel
-    with ``get_use=True``.
+    All of them are missing when the server was not asked for them, which is why they are optional
+    here: the figures come from an aggregation over every organization underneath, so they only
+    travel with ``get_use=True``.
+
+    Mind which one you paint. ``actual_use`` is what the whole POOL this organization draws from is
+    using (itself plus the folders without a plan that spend from it), the figure the server checks
+    before letting one more account in, so every organization in a pool shows the same one.
+    ``own_use`` is this organization on its own; a server older than November 2026 does not send it.
     """
 
     actual_use: NotRequired[PlanUseData]
     actual_asigned: NotRequired[PlanData]
+    own_use: NotRequired[PlanUseData]
 
 
 # =================================================================================================

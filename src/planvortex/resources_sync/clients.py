@@ -29,8 +29,8 @@ class ClientsResource(Resource):
     ) -> Page[Client]:
         """The clients the caller can see. With app credentials, its own.
 
-        ``get_use`` also brings ``actual_use`` and ``actual_asigned``. It costs an aggregation: do
-        not ask for it out of habit.
+        ``get_use`` also brings ``actual_use``, ``pool_use`` and ``actual_asigned``. It costs an
+        aggregation: do not ask for it out of habit.
         """
         pagina: Page[Client] = self._list(
             "/clients", "clients", _list_query(limit, offset, get_use), timeout=timeout

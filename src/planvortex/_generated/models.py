@@ -946,9 +946,12 @@ class CommentsCommentAuthor(TypedDict):
     """
     name: NotRequired[str]
     """
-    Display name. Always present for a review, including anonymous ones, which get a placeholder rather than an empty string.
+    Display name. Always present for a review, including anonymous ones, which get a placeholder rather than an empty string. On LinkedIn it is read from LinkedIn on every request and is not stored by PlanVortex: it is absent when LinkedIn does not return the member's profile, and LinkedIn only lets you cache it for 24 hours (see the LinkedIn section above).
     """
     profile_pic: NotRequired[str]
+    """
+    Link to the author's picture, when the network gives one. On LinkedIn it is read on every request like `name`, it is a signed link that expires after a few weeks, and LinkedIn's servers refuse most downloads that do not come from a browser: show it in an `<img>`, do not copy it.
+    """
     is_own: bool
     """
     Whether the connected account wrote it. This is what separates "delete mine" from "delete theirs", and what keeps your own replies out of the inbox.
@@ -3476,7 +3479,11 @@ class Organization(TypedDict):
     """
     actual_use: NotRequired[PlanUseData]
     """
-    Current consumption. **Only present with `getUse=true`.** `twitter_credits` and `ai_credits` are what has been spent in the current calendar month; the rest is what exists right now.
+    What the plan this organization draws from is using, which is the figure the server checks before letting one more account or integration in: the owner of that plan (this organization if it has a plan of its own, otherwise its nearest parent with one, otherwise the client's shared pool) plus the folders without a plan below it. Organizations sharing a pool therefore show the same `actual_use`; what each one uses on its own is `own_use`. **Only present with `getUse=true`.** `twitter_credits` and `ai_credits` are what has been spent in the current calendar month; the rest is what exists right now.
+    """
+    own_use: NotRequired[PlanUseData]
+    """
+    What THIS organization uses on its own, without the folders it shares a plan with. **Only present with `getUse=true`.** `actual_use` is the consumption of the whole pool this organization draws from (the same figure the server checks before letting one more account in), so every organization without a plan of its own shows the same `actual_use`; `own_use` is what hangs from this one. Adding up the `own_use` of the organizations that share a pool gives that pool's `actual_use`. On an organization with a plan of its own and no folders below it, both are the same.
     """
     actual_asigned: NotRequired[PlanData]
     """
@@ -3998,9 +4005,13 @@ class ClientsClient(TypedDict):
     """
     Current consumption across every organization of the client. **Only present with `getUse=true`.** `twitter_credits` and `ai_credits` are what has been spent this calendar month.
     """
+    pool_use: NotRequired[PlanUseData]
+    """
+    What the client's shared pool is using: the root organizations without a plan of their own and the folders below them, which is the `actual_use` each of them shows. **Only present with `getUse=true`.** Together with `actual_asigned` and the plan it splits the plan in three: used by the shared pool, free in the shared pool, and handed out to organizations with a plan of their own. `apps` is not here: apps belong to the client, not to an organization.
+    """
     actual_asigned: NotRequired[PlanData]
     """
-    What is already handed out to the client's root organizations, which is what is left to assign. **Only present with `getUse=true`.**
+    What is already handed out to organizations with a plan of their own (root organizations, or organizations under a folder), which is not available to the shared pool any more. **Only present with `getUse=true`.**
     """
 
 
@@ -4213,6 +4224,19 @@ class Message(TypedDict):
     Set when the **contact** wrote to us.
     """
     read: bool
+    """
+    On a message from the contact, whether someone has read it in PlanVortex. On one of ours it is **not** a read receipt (messages sent from the WhatsApp Business app, or imported from the network, are stored as read): use `delivery_status`.
+    """
+    delivery_status: NotRequired[Literal["sent", "delivered", "read", "failed"]]
+    """
+    Only on messages **we** sent (`contact_id`): how far the message got, like the ticks in WhatsApp. `sent` means the network accepted it, `delivered` that it reached the contact's device, `read` that the contact saw it, and `failed` that the network rejected it (`message_errors` says why).
+
+    It only moves forward, and each network reports what it can. WhatsApp and Messenger report all three steps, Instagram reports `sent` and `read` (it does not report delivery), and Bluesky only `sent`. A read receipt also covers the earlier messages to that contact, the same as opening the chat.
+
+    Absent when PlanVortex does not know: messages from the contact, messages sent before 15 November 2026 and messages imported from the network's history.
+
+    No webhook event is sent for `delivered`: read the field on the message. A `read` arrives as `messaging_seen`.
+    """
     text: NotRequired[str]
     """
     Absent on the messages that carry no text of their own, such as a `messaging_seen` acknowledgement.

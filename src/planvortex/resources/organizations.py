@@ -37,8 +37,8 @@ class AsyncOrganizationsResource(AsyncResource):
     ) -> Organization:
         """One organization's record.
 
-        ``get_use`` also brings ``actual_use`` and ``actual_asigned``, which cost an aggregation over
-        everything underneath: do not ask for them out of habit.
+        ``get_use`` also brings ``actual_use``, ``own_use`` and ``actual_asigned``, which cost an
+        aggregation over everything underneath: do not ask for them out of habit.
         """
         organizacion: Organization = await self._one(
             self._path(id_organization),
@@ -139,9 +139,12 @@ class AsyncOrganizationsResource(AsyncResource):
     async def use(self, id_organization: str, *, timeout: float | None = None) -> OrganizationUse:
         """This organization's consumption and what it has already handed down to its children.
 
-        It is a shortcut for ``get(id, get_use=True)`` that returns only the two figures, which is
+        It is a shortcut for ``get(id, get_use=True)`` that returns only those figures, which is
         what you want when painting a "3 of 5 accounts" bar. For the client-wide numbers and the
         rest of the dashboard there is ``pv.dashboard``.
+
+        ``actual_use`` is the pool this organization draws from, the same figure for every
+        organization in it; what this one uses on its own is ``own_use``.
         """
         organizacion = await self.get(id_organization, get_use=True, timeout=timeout)
         uso: OrganizationUse = {}
@@ -149,6 +152,8 @@ class AsyncOrganizationsResource(AsyncResource):
             uso["actual_use"] = organizacion["actual_use"]
         if "actual_asigned" in organizacion:
             uso["actual_asigned"] = organizacion["actual_asigned"]
+        if "own_use" in organizacion:
+            uso["own_use"] = organizacion["own_use"]
         return uso
 
     async def create_connect_token(

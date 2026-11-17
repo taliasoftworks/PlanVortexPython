@@ -6,9 +6,12 @@ audited it and it was easy to read the wrong field: ``client["actual_plan"]`` is
 inside it, in ``actual_plan["plan_data"]``. Looking at ``plan_identifier`` to work out the limits is
 the classic mistake: a ``custom`` plan carries its own.
 
-And THE CONSUMPTION DOES NOT TRAVEL UNLESS ASKED FOR: ``actual_use`` and ``actual_asigned`` only
-appear with ``get_use=True``, because counting them is an aggregation over every organization of the
-client.
+And THE CONSUMPTION DOES NOT TRAVEL UNLESS ASKED FOR: ``actual_use``, ``pool_use`` and
+``actual_asigned`` only appear with ``get_use=True``, because counting them is an aggregation over
+every organization of the client. Between them they split the plan: ``actual_use`` is what EVERY
+organization uses (what is billed), ``pool_use`` what the shared pool uses (the organizations without
+a plan of their own that draw straight from the client) and ``actual_asigned`` what is handed out to
+the ones with a plan of their own. What is free in the pool is the plan minus the last two.
 
 THIS FILE IS THE SOURCE OF ``resources_sync/clients.py``.
 """
@@ -36,8 +39,8 @@ class AsyncClientsResource(AsyncResource):
     ) -> Page[Client]:
         """The clients the caller can see. With app credentials, its own.
 
-        ``get_use`` also brings ``actual_use`` and ``actual_asigned``. It costs an aggregation: do
-        not ask for it out of habit.
+        ``get_use`` also brings ``actual_use``, ``pool_use`` and ``actual_asigned``. It costs an
+        aggregation: do not ask for it out of habit.
         """
         pagina: Page[Client] = await self._list(
             "/clients", "clients", _list_query(limit, offset, get_use), timeout=timeout

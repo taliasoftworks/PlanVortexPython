@@ -6,6 +6,40 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.20.0] - 2026-11-17
+
+### Added
+
+- **`own_use` on an organization** (with `get_use=True`, in `organizations.get()`, `children()` and
+  `clients.organizations()`): what that organization uses on its own, without the folders it shares
+  a plan with. `actual_use` is still the figure of the whole pool it draws from, the one the server
+  checks before letting one more account in, so every organization in a pool shows the same
+  `actual_use`. Adding up the `own_use` of the organizations in a pool gives its `actual_use`.
+  `organizations.use()` now returns it too (`OrganizationUse.own_use`). Absent from a server older
+  than November 2026.
+- **`pool_use` on a client** (with `get_use=True`): what the client's shared pool is using, that
+  is, the organizations without a plan of their own that draw straight from the client. With
+  `actual_asigned` and `actual_plan["plan_data"]` it splits the plan in three: used by the shared
+  pool, free in the shared pool (`plan_data` minus `actual_asigned` minus `pool_use`) and handed out
+  to organizations with a plan of their own.
+- The regenerated models also carry `Message.delivery_status` (`"sent"`, `"delivered"`, `"read"`
+  or `"failed"`), how far a message we sent got, like the ticks in WhatsApp (typing only: the field
+  already came back from the API).
+
+### Changed
+
+- **A client's `actual_use` now counts every organization of the client**, which is the figure
+  billing charges for. It used to count only the shared pool, so it did not match the accounts on
+  the invoice as soon as an organization had a plan of its own. What it counted before is now
+  `pool_use`. This is a server change: an organization's `actual_use` keeps its meaning.
+- Users in a client's or an organization's consumption are now counted as people: someone with a
+  role in three organizations used to count three times.
+- On the free plan `google_business` joins `whatsapp` as a network that needs a paid plan: it is
+  left out of the connect links, a temporal connect token asked for it answers error 516 and so
+  does enabling a new account, because reviews are behind a paid plan. An organization that
+  already has an active one can still reconnect it. This is a server change; only the
+  descriptions of the regenerated types say so.
+
 ## [0.19.0] - 2026-11-13
 
 ### Added
