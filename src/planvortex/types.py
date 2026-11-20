@@ -487,6 +487,13 @@ authorizes and each **page** they manage. Both publish and have statistics, but 
 comment inbox: LinkedIn does not let any app read the comments on a personal profile, so every
 ``comments`` call on one raises error 2600. Tell them apart with ``extra_data["is_personal_profile"]``;
 absent means a page (those connected before profiles existed).
+
+On TikTok comments need a second authorization of the same account (TikTok API for Business,
+personal and Business accounts alike), turned on from the PlanVortex dashboard. Until then the
+account publishes and has statistics, and every ``comments`` call raises error 2600.
+``extra_data["tiktok_business"]`` says whether they are on (``comments``) and carries
+``error_code`` 2804 when they have to be turned on again, without touching the account's own
+``error_code``.
 """
 
 AccountMetrics: TypeAlias = _models.AccountsMetricModel
@@ -778,6 +785,15 @@ without ``group_by`` you get ``{total}`` and with it you get ``{stats, group}``.
 Careful with ``group_value``: it is the NUMBER that Mongo's ``$dayOfYear``, ``$month`` or ``$year``
 produce — 240, 8, 2026 — and not a date. With ``group_by="day"``, two years of the same range fall
 on the same value.
+"""
+
+ConversationRead: TypeAlias = _models.MessagesConversationRead
+"""What marking a conversation as read ON THE NETWORK returns (``messages.mark_conversation_read``).
+
+``network_read`` says whether the network has it as read when the call ends: the contact sees the
+blue ticks (WhatsApp) or "Seen" (Messenger, Instagram). It is ``False`` when the network has no
+read receipts, when it refused (calling again retries) or, on WhatsApp, when the latest message is
+more than 30 days old. It is read in PlanVortex either way.
 """
 
 Product: TypeAlias = _models.ProductsProduct
@@ -1337,6 +1353,7 @@ __all__ = [
     "ContactExtraData",
     "ContactUpdate",
     "Conversation",
+    "ConversationRead",
     "ConversationTotals",
     "Dashboard",
     "DashboardAiPlanRef",

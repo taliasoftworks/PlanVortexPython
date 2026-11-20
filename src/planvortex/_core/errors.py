@@ -69,6 +69,10 @@ PLANVORTEX_ERROR_RANGES: tuple[ErrorRange, ...] = (
     # LANZA: `accounts.publish_settings()` en una red que no los tiene.
     ErrorRange(2500, 2599, "publication"),
     ErrorRange(2600, 2699, "publication"),
+    # Los comentarios de TikTok, que van por otra API (TikTok API for Business) con su propia
+    # credencial: 2804 = hay que volver a activarlos, 2805 = TikTok frena a la app (temporal),
+    # 2809 = TikTok mantiene oculto el comentario. Son comentarios, asi que la misma familia.
+    ErrorRange(2800, 2899, "publication"),
 )
 
 # El `code` que lleva un error que NO trae codigo del servidor: un fallo de red, un timeout, un 502
@@ -158,7 +162,10 @@ class PublicationError(PlanVortexError):
     ``accounts.publish_settings()`` on a network that has none. And 2600-2699, the comment codes
     that did not fit after 945-948: 2600 is the per-account
     version of 945, an account with no comment inbox on a network that has one (a LinkedIn
-    personal profile).
+    personal profile, or a TikTok account whose comments were not turned on). And 2800-2899, TikTok's
+    comments, which go through a credential of their own: 2804 means they have to be turned on again
+    in the dashboard, 2805 that TikTok is throttling the app, and 2809 that TikTok keeps a comment
+    hidden.
     """
 
 

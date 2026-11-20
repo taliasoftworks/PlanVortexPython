@@ -6,6 +6,44 @@ All notable changes to this package are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.21.0] - 2026-11-20
+
+### Added
+
+- **`messages.mark_conversation_read()`**: marks a conversation as read in PlanVortex **and on the
+  network, so the contact sees it** (blue ticks on WhatsApp, "Seen" on Messenger and Instagram, read
+  in the Bluesky app). It returns `{"success": True, "network_read": bool}`, typed as
+  `ConversationRead`: `network_read` is `False` when the network has no read receipts, when it
+  refused (calling again retries) or on WhatsApp when the contact's latest message is more than 30
+  days old. Calling it again is free once the network has it. Needs `messages:read` and a paid
+  plan, like reading.
+- **TikTok comments.** `"tiktok"` is now in `CommentNetwork` and `COMMENT_NETWORKS`, so the whole
+  `comments` resource works on a TikTok account, and `comments.actions_for("tiktok")` answers
+  `{"reply": True, "hide": True, "delete_own": True, "delete_others": False}` (somebody else's
+  comment can be hidden, not deleted). Comments are turned on **per account, from the PlanVortex
+  dashboard**: it is a second authorization of the same account on TikTok (personal and Business
+  accounts alike), and the API cannot complete it because TikTok sends that authorization back
+  to the dashboard. Until
+  then the account raises error 2600, and `accounts.list(..., capability="comments")` leaves it
+  out. The new `extra_data["tiktok_business"]` of an account says whether they are on
+  (`comments`) and carries `error_code` 2804 when they have to be turned on again (publishing is
+  not affected). A TikTok comment's `external_id` is `{video_id}/{comment_id}`; treat it as
+  opaque.
+
+### Changed
+
+- **Reading a conversation with `messages.list()` no longer tells the contact anything**, and it
+  never did: it marks the thread read in PlanVortex only. That is now said in the docs, next to the
+  new method. What changed on the server is that **replying with `messages.send()` marks the
+  contact's messages as read on the network** just before sending; if that fails, the message is
+  sent anyway.
+- **Hiding or showing one of your own comments raises error 2603** on every network, before
+  anything is sent: hiding is for what others write, and your own is deleted instead. On TikTok,
+  showing a comment that TikTok's moderation keeps hidden raises 2809 instead of reporting a
+  success.
+- **Error codes 2800-2899 (TikTok comments) raise `PublicationError`**, like the other comment
+  errors, instead of the base `PlanVortexError`.
+
 ## [0.20.0] - 2026-11-17
 
 ### Added

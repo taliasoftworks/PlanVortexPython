@@ -13,13 +13,18 @@ WHAT TO KNOW BEFORE CALLING ANYTHING HERE:
 - **The two reads paginate differently.** The inbox goes by numeric ``offset``; the thread, by the
   OPAQUE ``next_cursor`` the previous call returned, handed back as ``offset``.
 - **Not every network allows the same things.** Before painting a button,
-  :meth:`AsyncCommentsResource.actions`: Instagram, X and Bluesky do not let you delete somebody
-  else's, LinkedIn has no "hide" (neither do Discord and Telegram), and Google Business only lets
+  :meth:`AsyncCommentsResource.actions`: Instagram, X, Bluesky and TikTok do not let you delete
+  somebody else's, LinkedIn has no "hide" (neither do Discord and Telegram), and Google Business only lets
   you delete **your own reply**.
 - **Nor every ACCOUNT.** A LinkedIn personal profile publishes but has no inbox: LinkedIn does not
   let any app read the comments on a profile, only on a page. Everything here raises error 2600 on
   one. Check ``account.get("extra_data", {}).get("is_personal_profile")`` first, or list the accounts with
   ``capability="comments"``, which already leaves them out.
+- **On TikTok comments are turned on per account, in the PlanVortex dashboard.** It is a second
+  authorization of the account (personal or Business) that TikTok sends back to the dashboard,
+  so the API cannot do it. Until then that account raises error 2600 (and ``capability="comments"``
+  leaves it out); ``account["extra_data"]["tiktok_business"]["comments"]`` says whether they are
+  on. A TikTok comment's ``external_id`` is ``{video_id}/{comment_id}``: treat it as opaque.
 - **On Telegram the inbox starts the day the channel was connected.** The Bot API cannot read the
   past: a bot only learns what happens while it is inside, so nothing written before the connection
   exists here and never will. Say so in your interface — an inbox that opens empty on a busy channel

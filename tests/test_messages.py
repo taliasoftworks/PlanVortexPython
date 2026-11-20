@@ -161,6 +161,22 @@ def test_el_contador_de_mensajes_sin_leer(cliente: ClienteDePrueba, httpx_mock: 
     assert cliente.esperar(cliente.pv.messages.unread_count("org1")) == 3
 
 
+def test_marcar_leida_en_la_red_es_un_post_sin_cuerpo_a_read(
+    cliente: ClienteDePrueba, httpx_mock: HTTPXMock
+) -> None:
+    httpx_mock.add_response(
+        url=f"{CUENTA}/messages/con1/read", method="POST", json={"success": True, "network_read": False}
+    )
+
+    resultado = cliente.esperar(cliente.pv.messages.mark_conversation_read("org1", "acc1", "con1"))
+
+    # `False` es una respuesta, no un error: la red no tiene «visto» o falló, y en PlanVortex queda leída
+    assert resultado == {"success": True, "network_read": False}
+    peticion = unica(httpx_mock)
+    assert ruta(peticion) == "/organizations/org1/accounts/acc1/messages/con1/read"
+    assert peticion.content == b""
+
+
 def test_borrar_los_mensajes_de_una_cuenta(cliente: ClienteDePrueba, httpx_mock: HTTPXMock) -> None:
     httpx_mock.add_response(url=f"{CUENTA}/messages", method="DELETE", json={"success": True})
 

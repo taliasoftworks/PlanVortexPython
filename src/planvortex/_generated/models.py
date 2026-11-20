@@ -18,6 +18,34 @@ else:  # pragma: no cover - la rama la elige el interprete, no un test
     from typing_extensions import NotRequired, TypedDict
 
 
+class TiktokBusiness(TypedDict):
+    """
+    `tiktok` only, and only once somebody has turned comments on for this account in the PlanVortex dashboard. Absent means comments were never turned on: the account publishes, and every comment endpoint answers `2600`. It cannot be turned on through the API, because TikTok sends that authorization back to the dashboard and nowhere else.
+    """
+
+    username: NotRequired[str]
+    """
+    The TikTok @username that authorized, already checked against this account's. Comments are only turned on for the same account that publishes.
+    """
+    display_name: NotRequired[str]
+    connected_at: NotRequired[str]
+    """
+    When comments were turned on.
+    """
+    comments: NotRequired[bool]
+    """
+    `true` when the comment inbox works for this account. Read it together with `error_code`.
+    """
+    messages: NotRequired[bool]
+    """
+    TikTok direct messages. Always `false` today.
+    """
+    error_code: NotRequired[int]
+    """
+    Absent or `0` when it works. `2804` when TikTok no longer accepts the authorization behind comments: they have to be turned on again in the dashboard. It never touches the account's own `error_code`, so publishing keeps working.
+    """
+
+
 class ExtraData(TypedDict):
     """
     What only makes sense on this account's network. Only the keys documented here are part of the contract: anything else in the object can change without notice.
@@ -26,6 +54,10 @@ class ExtraData(TypedDict):
     is_personal_profile: NotRequired[bool]
     """
     `linkedin` only. `true` on the personal profile of whoever authorized, `false` on a page. A profile publishes and has statistics but no comment inbox (error `2600`). Pages connected before personal profiles existed do not carry it, so treat absent as a page.
+    """
+    tiktok_business: NotRequired[TiktokBusiness]
+    """
+    `tiktok` only, and only once somebody has turned comments on for this account in the PlanVortex dashboard. Absent means comments were never turned on: the account publishes, and every comment endpoint answers `2600`. It cannot be turned on through the API, because TikTok sends that authorization back to the dashboard and nowhere else.
     """
 
 
@@ -964,6 +996,7 @@ CommentsCommentNetworkName: TypeAlias = Literal[
     "twitter",
     "linkedin",
     "youtube",
+    "tiktok",
     "google_business",
     "bluesky",
     "discord",
@@ -1231,7 +1264,7 @@ class Error1(TypedDict):
     """
     code: int
     """
-    PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1309 client plan · 1400-1408 organization plan · 1500-1517 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2500-2599 publication fields, the ones that no longer fit in 900-996 (visibility, made for kids, TikTok's interactions and commercial content) · 2600-2699 comments, the ones that no longer fit in 945-948.
+    PlanVortex error code. Ranges: 500-554 auth, tokens, client apps and connect sessions · 601-612 user · 700-716 social accounts · 800-810 files · 900-996 publications · 1000-1003 general · 1100-1111 organizations · 1200-1207 roles · 1300-1309 client plan · 1400-1408 organization plan · 1500-1517 messaging · 1600-1601 contacts · 1900-1906 payments · 2000-2099 products · 2100-2199 AI plans · 2200-2299 integrations · 2500-2599 publication fields, the ones that no longer fit in 900-996 (visibility, made for kids, TikTok's interactions and commercial content) · 2600-2699 comments, the ones that no longer fit in 945-948 · 2700-2799 Discord · 2800-2899 TikTok comments, the ones that go through TikTok API for Business.
     """
     data: NotRequired[dict[str, Any]]
     """
@@ -1485,6 +1518,14 @@ What kind of message this is. `simple_message` and `file_message` work everywher
 
 `unsupported_message` only ever **arrives**: a message the network does not let the API show. On WhatsApp it is a type the API cannot read, with WhatsApp's reason in `message_errors`; if the number is also in the WhatsApp Business app, the message can be read there. On Instagram and Messenger it is something that is not a file, such as an audio shared from Instagram's own library, which arrives as an empty template. It carries no files and keeps the caption as `text` when there is one. Sending one is refused.
 """
+
+
+class MessagesConversationRead(TypedDict):
+    success: Literal[True]
+    network_read: bool
+    """
+    Whether the contact now sees the conversation as read on the network. `false` when the network has no read receipts, refused the request (call again to retry), or the latest WhatsApp message is older than 30 days.
+    """
 
 
 class MessagesConversationTotals1(TypedDict):
@@ -2591,6 +2632,8 @@ class Account(TypedDict):
     On `discord`, on `telegram` and on `slack` an account is a **channel**, not a profile: publishing to two Discord channels of the same server — or to two Telegram channels of the same brand, or to `#anuncios` and `#general` of the same Slack workspace — costs two accounts of the plan.
 
     On `linkedin` one authorization brings two kinds of account: the **personal profile** of whoever authorizes and each **page** they manage. Both publish and both have statistics, but only pages have a comment inbox: LinkedIn does not let any app read the comments on a member's posts, so on a profile every comment endpoint returns error `2600`. `extra_data.is_personal_profile` tells them apart.
+
+    On `tiktok` comments need a second authorization of the same account (TikTok API for Business, personal and Business accounts alike), turned on from the PlanVortex dashboard. Until then the account publishes and has statistics, and every comment endpoint returns error `2600`. `extra_data.tiktok_business` says whether comments are on.
 
     `error_code` other than `0` means the connection is broken — an expired token, a permission taken away — and the account has to be connected again. On `telegram` nothing expires, because there is no account token: what breaks the connection is the bot being removed from the channel or losing its permission to post there (error 968). On `slack` the bot token does not expire either: what breaks it is the app being removed from the channel (error 980) or the channel being archived or deleted (error 985).
     """
@@ -4064,6 +4107,7 @@ class CommentsComment(TypedDict):
 
     • A Google Business reply has no id of its own — it is a *field* of the review — so PlanVortex fabricates a stable one, `{reviewId}/reply`.
     • A Telegram comment lives in a **different chat** from the post it answers (the channel's linked discussion group), so it needs two ids at once and travels as `{thread}/{message}`: replying wants the first, deleting wants the second.
+    • A TikTok comment travels as `{video_id}/{comment_id}`, because TikTok asks for the video to hide a comment or to reply to it.
     """
     parent_external_id: NotRequired[str]
     """
@@ -4106,6 +4150,8 @@ class CommentsComment(TypedDict):
     hidden: bool
     """
     Hidden on the network. A hidden comment is never swept as deleted: on YouTube, hiding one makes the API stop returning it forever, and without that exception hiding would be indistinguishable from deleting.
+
+    On TikTok every new comment is hidden for a few minutes while TikTok reviews it. That state is not reported here: during a comment's first ten minutes this keeps the value it already had.
     """
     deleted: bool
     """

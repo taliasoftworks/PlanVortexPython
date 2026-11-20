@@ -360,6 +360,8 @@ def test_cada_rango_del_catalogo_cae_en_su_clase() -> None:
     assert error_class_for_code(945).__name__ == "PublicationError"
     assert error_class_for_code(2600).__name__ == "PublicationError"
     assert error_class_for_code(2699).__name__ == "PublicationError"
+    # Los comentarios de TikTok, con su credencial aparte (fase 42 del servidor)
+    assert error_class_for_code(2804).__name__ == "PublicationError"
     # El que lanza `accounts.publish_settings()` en una red sin ajustes de publicacion
     assert error_class_for_code(2508).__name__ == "PublicationError"
     # Las dos de las plantillas de WhatsApp: 1513 (el formato que Meta rechazaria sin decir por

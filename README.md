@@ -184,6 +184,11 @@ if (pv.comments.actions_for("linkedin") or {}).get("hide"):
     ...
 ```
 
+TikTok comments are turned on **per account, in the PlanVortex dashboard**: it is a second
+authorization of the account (personal or Business) that TikTok sends back to the dashboard, so
+the API cannot do it. Until then that account raises error 2600, and
+`account["extra_data"]["tiktok_business"]["comments"]` says whether they are on.
+
 A photo, a voice note or a document in a private message, and a photo or a sticker in a comment,
 **are not stored by PlanVortex**: they stay on the network, and `files_urls` says where each one is.
 When an entry has a `url`, load it directly. When it has none (every WhatsApp and Telegram file, a
@@ -198,6 +203,16 @@ print(file.content_type, file.file_name, len(file.data))
 WhatsApp lets go of a file 7 days after it arrived; from then on the answer is error 1515. A
 `disposition` of `"attachment"` is a document somebody outside the business sent: don't render it
 inside your own pages.
+
+Reading a conversation with `pv.messages.list()` marks it read **in PlanVortex only**: the contact
+still sees their messages as unread. When a person has actually seen the conversation, tell the
+network too, and the contact gets the blue ticks on WhatsApp or "Seen" on Messenger and Instagram.
+Replying with `pv.messages.send()` does it on its own.
+
+```python
+result = pv.messages.mark_conversation_read(org_id, account_id, contact_id)
+result["network_read"]  # False: no read receipts on that network, it refused, or it is too old
+```
 
 ## AI plans, and what they are generated from
 
@@ -265,7 +280,7 @@ memorising numbers:
 | 601-612 | `user` | `UserError` |
 | 700-716 | `account` | `AccountError` |
 | 800-810 | `file` | `FileError` |
-| 900-996, 2500-2599, 2600-2699 | `publication` | `PublicationError` |
+| 900-996, 2500-2599, 2600-2699, 2800-2899 | `publication` | `PublicationError` |
 | 1000-1003 | `general` | `PlanVortexError` |
 | 1100-1111 | `organization` | `OrganizationError` |
 | 1200-1207 | `role` | `PlanVortexError` |

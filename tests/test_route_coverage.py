@@ -45,7 +45,7 @@ RECURSOS = (
 
 
 def test_no_queda_ninguna_ruta_del_alcance_sin_metodo() -> None:
-    """125 de 125. Si esto falla, el mensaje dice exactamente cual falta.
+    """126 de 126. Si esto falla, el mensaje dice exactamente cual falta.
 
     La 114 y la 115 son `archive` y `unarchive` de un plan de IA: son DOS rutas y no un cuerpo con
     un booleano, asi que el alcance crece de dos en dos cuando aparece una pareja de estas. La 116 es
@@ -56,11 +56,13 @@ def test_no_queda_ninguna_ruta_del_alcance_sin_metodo() -> None:
     la 122, leer y confirmar una sesion de conexion: el selector de cuentas del integrador. La 123,
     lo que una cuenta de TikTok admite al publicar (`GET .../accounts/{id}/publish_settings`). La
     124 y la 125, los ARCHIVOS que llegan de la red, de un mensaje y de un comentario, que PlanVortex
-    no guarda y pide a la red al abrirlos (`messages.download_file` y `comments.download_file`).
+    no guarda y pide a la red al abrirlos (`messages.download_file` y `comments.download_file`). La
+    126, marcar una conversacion leida EN LA RED (`messages.mark_conversation_read`): leer con `list`
+    ya no se lo dice al contacto.
     """
     sin_cubrir, _, total = route_coverage.informe()
 
-    assert total == 125, "el alcance ha cambiado de tamano: mira si el spec ha crecido"
+    assert total == 126, "el alcance ha cambiado de tamano: mira si el spec ha crecido"
     assert not sin_cubrir, "rutas del spec que ningun recurso construye:\n" + "\n".join(
         str(operacion) for operacion in sin_cubrir
     )

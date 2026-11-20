@@ -306,6 +306,34 @@ def test_pinterest_publica_y_no_comenta() -> None:
     assert "google_business" not in PUBLISHABLE_NETWORKS
 
 
+def test_tiktok_tiene_comentarios_cuenta_a_cuenta() -> None:
+    """Fase 42 del servidor: la RED tiene comentarios, cada cuenta los tiene si los activa en el panel.
+
+    La red entra en ``COMMENT_NETWORKS``; lo que dice si una cuenta concreta los tiene es
+    ``extra_data["tiktok_business"]``, y tiene que poder leerse sin ``cast``.
+    """
+    assert "tiktok" in COMMENT_NETWORKS
+    assert "tiktok" in PUBLISHABLE_NETWORKS
+    cuenta: Account = {
+        "_id": "66d04a6a427f4c43b9d97f54",
+        "id_organization": "66d04a6a427f4c43b9d97f00",
+        "id_client": "66d04a6a427f4c43b9d97f01",
+        "name": "Panaderia Nordwind",
+        "social_network": "tiktok",
+        "creation_date": "2026-11-19T09:00:00.000Z",
+        "error_code": 0,
+        "extra_data": {
+            "tiktok_business": {
+                "username": "panaderia",
+                "connected_at": "2026-11-19T09:00:00.000Z",
+                "comments": True,
+                "messages": False,
+            }
+        },
+    }
+    assert cuenta.get("extra_data", {}).get("tiktok_business", {}).get("comments") is True
+
+
 # ------------------------------------------------------------------------------ la marca de IA
 
 

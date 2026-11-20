@@ -16,6 +16,7 @@ from planvortex._core.transport import DownloadedFile
 from planvortex.resources_sync.base import Resource, file_index, require_id
 from planvortex.types import (
     Conversation,
+    ConversationRead,
     ConversationTotals,
     Message,
     MessageInput,
@@ -137,8 +138,10 @@ class MessagesResource(Resource):
     ) -> Page[Message]:
         """The thread with a contact, from the most recent to the oldest.
 
-        **Asking for the first page (``offset`` 0 or no ``offset``) marks the thread as read.** It is
-        what makes :meth:`unread_count` go down; there is no way to read it without marking it.
+        **Asking for the first page (``offset`` 0 or no ``offset``) marks the thread as read in
+        PlanVortex.** It is what makes :meth:`unread_count` go down; there is no way to read it without
+        marking it. **It tells the network nothing**: for the contact to see you read it, use
+        :meth:`mark_conversation_read`.
 
         Here, and in the webhook, ``contact_id``, ``from_contact_id`` and ``message_options["files"]``
         come POPULATED. Use ``planvortex.types.message_contact``, ``message_contact_id`` and
@@ -199,6 +202,10 @@ class MessagesResource(Resource):
         On Facebook and Instagram only **one** attachment per message is accepted (error 1509), and on
         WhatsApp outside the 24-hour window only a template is.
 
+        **Replying marks the contact's messages as read on the network**, just before sending, like
+        :meth:`mark_conversation_read`: they see the blue ticks and then your reply. If that fails,
+        the message is sent anyway.
+
         If the template's body has variables, their values go in ``template_parameters``, in order: the
         first fills ``{{1}}``, the second ``{{2}}``. Without them WhatsApp rejects the template. An
         empty value, or one with line breaks, tabs or more than four consecutive spaces, is a 1511
@@ -242,6 +249,29 @@ class MessagesResource(Resource):
             timeout=timeout,
         )
         return mensaje
+
+    def mark_conversation_read(
+        self, id_organization: str, id_account: str, id_contact: str, *, timeout: float | None = None
+    ) -> ConversationRead:
+        """Mark the conversation as read in PlanVortex **and on the network, and the contact sees it**:
+        blue ticks on WhatsApp, "Seen" on Messenger and Instagram, read in the Bluesky app. Call it when
+        a person has actually seen the conversation; reading it with :meth:`list` does not, and
+        replying with :meth:`send` does it on its own.
+
+        It marks the contact's latest message and the network marks everything before it. Calling it
+        again is free: once the network has it, nothing is asked of the network. ``network_read``
+        says whether the network has it as read when the call ends (see ``ConversationRead``).
+
+        .. code-block:: python
+
+            result = pv.messages.mark_conversation_read(org_id, account_id, contact_id)
+            if not result["network_read"]:
+                ...  # read here; the network has no receipts, refused, or it is too old
+        """
+        respuesta: ConversationRead = self._post(
+            f"{self._thread_path(id_organization, id_account, id_contact)}/read", timeout=timeout
+        )
+        return respuesta
 
     def unread_count(self, id_organization: str, *, timeout: float | None = None) -> int:
         """How many messages are left unread in the organization. It is the badge's number."""
